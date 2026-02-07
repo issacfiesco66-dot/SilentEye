@@ -11,8 +11,8 @@ RUN npm ci
 # Copiar código
 COPY . .
 
-# Compilar solo backend (npx tsc por si no está en PATH)
-RUN npm run build -w backend
+# Compilar solo backend (directamente desde raíz, evita script del backend)
+RUN npx tsc -p backend
 
 # Copiar schema a dist
 RUN cp backend/src/db/schema.sql backend/dist/db/ && \
