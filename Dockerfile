@@ -10,7 +10,7 @@ RUN npm ci
 # Copiar código
 COPY . .
 
-# Compilar backend: usar TypeScript del proyecto (npx tsc instala paquete equivocado)
+# Compilar backend: TypeScript en raíz (añadido para build)
 RUN node ./node_modules/typescript/bin/tsc -p backend
 
 # Copiar schemas
