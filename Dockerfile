@@ -1,24 +1,23 @@
-# SilentEye Backend - Fly.io (alternativa si Fly usa Dockerfile por defecto)
-# Para usar solo backend: fly.toml tiene dockerfile = "Dockerfile.backend"
+# SilentEye Backend - Fly.io
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Monorepo: copiar package files y instalar
+# Copiar package files e instalar (incluye devDependencies para compilar)
 COPY package.json package-lock.json ./
 RUN npm ci
 
 # Copiar código
 COPY . .
 
-# Compilar solo backend (directamente desde raíz, evita script del backend)
-RUN npx tsc -p backend
+# Compilar backend: usar TypeScript del proyecto (npx tsc instala paquete equivocado)
+RUN node ./node_modules/typescript/bin/tsc -p backend
 
-# Copiar schema a dist
+# Copiar schemas
 RUN cp backend/src/db/schema.sql backend/dist/db/ && \
     cp backend/src/db/schema-simple.sql backend/dist/db/
 
-# Limpiar y preparar para producción
+# Quitar devDependencies
 RUN npm prune --omit=dev
 
 ENV NODE_ENV=production
@@ -27,6 +26,5 @@ ENV PORT=8080
 
 EXPOSE 8080 5000
 
-# Ejecutar desde backend
 WORKDIR /app/backend
 CMD ["node", "dist/index.js"]
