@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "node ../node_modules/tsx/dist/cli.mjs watch src/index.ts",
-    "build": "npx tsc",
+    "build": "npx -p typescript tsc",
     "start": "node dist/index.js",
     "migrate": "node ../node_modules/tsx/dist/cli.mjs src/db/migrate.ts",
     "reset:postgis": "node ../node_modules/tsx/dist/cli.mjs src/db/reset-postgis.ts",
