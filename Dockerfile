@@ -10,8 +10,8 @@ RUN npm ci
 # Copiar código
 COPY . .
 
-# Compilar backend: TypeScript en raíz (añadido para build)
-RUN node ./node_modules/typescript/bin/tsc -p backend
+# Compilar backend (con typescript en raíz, npm run encuentra tsc y módulos)
+RUN npm run build -w backend
 
 # Copiar schemas
 RUN cp backend/src/db/schema.sql backend/dist/db/ && \
