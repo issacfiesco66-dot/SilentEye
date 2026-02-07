@@ -22,7 +22,8 @@ const MAX_CONNECTION_BUFFER = 1024 * 1024; // 1 MB
 const IMEI_LOGIN_TIMEOUT_MS = 30000;   // 30s para recibir IMEI
 const AVL_IDLE_TIMEOUT_MS = 120000;    // 2 min sin datos AVL → log
 
-const SKIP_WHITELIST = process.env.TELTONIKA_SKIP_WHITELIST === 'true' || process.env.TELTONIKA_SKIP_WHITELIST === '1';
+// Por defecto aceptar cualquier IMEI (evita rechazar GPS cuando no hay DB o IMEI no registrado)
+const SKIP_WHITELIST = process.env.TELTONIKA_SKIP_WHITELIST !== 'false' && process.env.TELTONIKA_SKIP_WHITELIST !== '0';
 
 type ConnectionState = 'imei' | 'validating' | 'avl';
 
@@ -153,12 +154,15 @@ export function createTeltonikaTcpServer(port: number, onData?: (imei: string, r
                 conn.imeiReceivedAt = Date.now();
                 conn.buffer = rest;
                 sendAck(socket, true);
-                logger.info(`[TCP][${addr}] ACK IMEI 0x01 enviado (handshake OK) | IMEI=${imei} | socket permanece abierto para AVL`);
+                logger.info(`[TCP][${addr}] ACK IMEI 0x01 enviado (handshake OK) | IMEI=${imei} | socket abierto para AVL`);
               }).catch((err) => {
-                logger.error(`[TCP] Error whitelist:`, err);
-                conn.state = 'imei';
-                sendAck(socket, false);
-                socket.destroy();
+                logger.warn(`[TCP] Error whitelist (aceptando conexión):`, err);
+                conn.imei = imei;
+                conn.state = 'avl';
+                conn.imeiReceivedAt = Date.now();
+                conn.buffer = rest;
+                sendAck(socket, true);
+                logger.info(`[TCP][${addr}] ACK IMEI 0x01 (DB error, conexión aceptada) | IMEI=${imei}`);
               });
             }
           }
@@ -212,21 +216,25 @@ export function createTeltonikaTcpServer(port: number, onData?: (imei: string, r
                 for (let i = 0; i < packet.records.length; i++) {
                   const record = packet.records[i];
                   logAvlRecord(conn.imei!, record, i + 1);
-                  await processGpsData(conn.imei!, record);
-                  if (record.isPanic) {
-                    await processPanicEvent(conn.imei!, record);
+                  try {
+                    await processGpsData(conn.imei!, record);
+                    if (record.isPanic) {
+                      await processPanicEvent(conn.imei!, record);
+                    }
+                  } catch (err) {
+                    logger.warn('[TCP] Error processGpsData (continuando con alertas):', err);
                   }
                   const alert = detectAlert(conn.imei!, record);
                   if (alert) {
                     logger.info(`[ALERT] Detectada: type=${alert.alertType} priority=${alert.priority} eventIoId=${alert.rawEventId}`);
                     processAlert(alert).catch((err) => logger.error('Error procesando alerta:', err));
                   } else if (record.priority >= 1 || record.eventIoId !== 0) {
-                    logger.debug(`[AVL] Sin alerta: priority=${record.priority} eventIoId=${record.eventIoId} io=${JSON.stringify(record.io)}`);
+                    logger.info(`[AVL] Sin alerta: priority=${record.priority} eventIoId=${record.eventIoId} io=${JSON.stringify(record.io)}`);
                   }
                 }
                 onData?.(conn.imei!, packet.records);
               } catch (err) {
-                logger.error('[TCP] Error procesando datos GPS (no crasheamos):', err);
+                logger.error('[TCP] Error procesando datos GPS:', err);
               }
             })();
           }

@@ -9,13 +9,19 @@ const NEARBY_HELPERS_RADIUS_M = 3000;
 
 export async function processGpsData(imei: string, record: AVLRecord): Promise<void> {
   const { latitude, longitude, speed, altitude, angle, satellites, timestamp, io, priority } = record;
-  const postgis = await hasPostGis();
   const timestampSec = timestamp / 1000; // PostgreSQL to_timestamp espera segundos (double), no ms
+
+  let postgis = false;
+  try {
+    postgis = await hasPostGis();
+  } catch (e) {
+    logger.warn('hasPostGis falló, usando schema simple:', e);
+  }
 
   const client = await pool.connect();
   try {
     const vehicleResult = await client.query(
-      'SELECT id, driver_id FROM vehicles WHERE imei = $1',
+      'SELECT id, driver_id, plate FROM vehicles WHERE imei = $1',
       [imei]
     );
     const vehicle = vehicleResult.rows[0];
