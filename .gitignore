@@ -1,0 +1,13 @@
+node_modules
+.env
+.env.local
+.env.*.local
+**/.env
+dist
+.next
+build
+*.log
+.DS_Store
+coverage
+.vercel
+.cloudflared

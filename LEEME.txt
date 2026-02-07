@@ -1,0 +1,32 @@
+========================================
+  SILENTEYE - COMO VER LA APLICACION
+========================================
+
+1. EJECUTA "INICIAR.bat" (doble clic)
+   - Se abriran 2 ventanas (Backend y Frontend)
+   - Espera unos 10 segundos
+
+2. ABRE TU NAVEGADOR en:
+   http://localhost:3000
+   
+   Si no carga, prueba:
+   http://localhost:3001
+   http://localhost:3002
+   http://localhost:3003
+
+3. LOGIN con estos numeros:
+   Admin:  +51999999999
+   Helper: +51999999998
+   Driver: +51999999997
+
+4. CODIGO OTP: 
+   - Escribe el telefono y click "Enviar codigo"
+   - Mira la ventana negra del Backend: ahi aparece el codigo de 6 digitos
+   - Ingresa ese codigo y click "Verificar"
+
+========================================
+
+Si aun no ves nada:
+- Verifica que no tengas firewall bloqueando
+- Prueba en modo incognito
+- Abre las herramientas de desarrollador (F12) y mira la pestaña "Console" por errores
