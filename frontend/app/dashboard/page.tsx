@@ -27,7 +27,7 @@ interface Incident {
 }
 
 interface Location {
-  imei: string;
+  imei?: string;
   vehicleId?: string;
   latitude: number;
   longitude: number;
@@ -156,7 +156,7 @@ export default function DashboardPage() {
         setLiveLocations((prev) => ({
           ...prev,
           [p.imei || p.vehicleId || 'unk']: {
-            imei: p.imei,
+            imei: p.imei ?? '',
             vehicleId: p.vehicleId,
             latitude: p.latitude,
             longitude: p.longitude,
