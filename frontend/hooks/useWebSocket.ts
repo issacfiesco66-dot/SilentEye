@@ -2,7 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
+function getWebSocketUrl(): string {
+  const explicit = process.env.NEXT_PUBLIC_WS_URL;
+  if (explicit) return explicit;
+  const api = process.env.NEXT_PUBLIC_API_URL || '';
+  if (api.startsWith('https://')) return api.replace('https://', 'wss://').replace(/\/?$/, '') + '/ws';
+  if (api.startsWith('http://')) return api.replace('http://', 'ws://').replace(/\/?$/, '') + '/ws';
+  return 'ws://localhost:3001/ws';
+}
+
+const WS_URL = getWebSocketUrl();
 
 const MAX_RETRIES = 5;
 const INITIAL_DELAY_MS = 1500;
