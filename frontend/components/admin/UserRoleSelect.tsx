@@ -72,7 +72,7 @@ export default function UserRoleSelect({
       <select
         value={ROLES.some((r) => r.value === currentRole) ? currentRole : 'driver'}
         onChange={(e) => handleChange(e.target.value)}
-        disabled={disabled}
+        disabled={!!disabled}
         className="px-2 py-1 text-sm rounded bg-slate-700 border border-slate-600 disabled:opacity-50"
       >
         {ROLES.map((r) => (
