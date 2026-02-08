@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import IncidentDetail from './IncidentDetail';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 const LIMA_CENTER = { longitude: -77.0428, latitude: -12.0464 };
 
@@ -43,8 +43,12 @@ export default function AdminMapView() {
   const [vehicles, setVehicles] = useState<{ id: string; plate: string }[]>([]);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [centerOnIncidentId, setCenterOnIncidentId] = useState<string | null>(null);
-  const [wsConnected, setWsConnected] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setToken(typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+  }, []);
 
   // Fetch inicial: incidentes, vehículos y últimas posiciones GPS
   useEffect(() => {
@@ -106,79 +110,59 @@ export default function AdminMapView() {
     load();
   }, [router]);
 
-  // WebSocket: tiempo real (JWT en query string para autenticación)
-  useEffect(() => {
-    const rawUser = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
-    if (!rawUser || !token) return;
+  // WebSocket: tiempo real con reintentos (cold start Fly.io)
+  const { connected: wsConnected } = useWebSocket({
+    token,
+    enabled: !!token,
+    onMessage: (msg) => {
+      const p = msg.payload;
+      if (!p || typeof p !== 'object') return;
 
-    const u = JSON.parse(rawUser);
-    if (u.role !== 'admin') return;
-
-    const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
-    ws.onerror = () => {};
-
-    ws.onopen = () => setWsConnected(true);
-
-    ws.onclose = () => setWsConnected(false);
-
-    ws.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(ev.data);
-        const p = msg.payload;
-        if (!p || typeof p !== 'object') return;
-
-        if (msg.type === 'location') {
-          const key = p.imei || p.vehicleId || 'unk';
-          setLiveVehicles((prev) => ({
-            ...prev,
-            [key]: {
-              vehicleId: p.vehicleId,
-              imei: p.imei,
-              latitude: Number(p.latitude),
-              longitude: Number(p.longitude),
-              speed: p.speed,
-              plate: p.plate,
-            },
-          }));
-        }
-
-        if (msg.type === 'panic') {
-          setActiveIncidents((prev) => {
-            if (prev.some((i) => i.id === p.incidentId)) return prev;
-            return [
-              {
-                id: p.incidentId,
-                status: 'active',
-                latitude: Number(p.latitude),
-                longitude: Number(p.longitude),
-                plate: p.plate,
-              },
-              ...prev,
-            ];
-          });
-          setLiveVehicles((prev) => ({
-            ...prev,
-            [p.imei || p.vehicleId || 'unk']: {
-              vehicleId: p.vehicleId,
-              imei: p.imei,
-              latitude: Number(p.latitude),
-              longitude: Number(p.longitude),
-              speed: 0,
-              plate: p.plate,
-            },
-          }));
-        }
-      } catch {
-        // Ignorar mensajes malformados
+      if (msg.type === 'location') {
+        const key = (p as { imei?: string; vehicleId?: string }).imei || (p as { vehicleId?: string }).vehicleId || 'unk';
+        setLiveVehicles((prev) => ({
+          ...prev,
+          [key]: {
+            vehicleId: (p as { vehicleId?: string }).vehicleId,
+            imei: (p as { imei?: string }).imei,
+            latitude: Number((p as { latitude?: number }).latitude),
+            longitude: Number((p as { longitude?: number }).longitude),
+            speed: (p as { speed?: number }).speed,
+            plate: (p as { plate?: string }).plate,
+          },
+        }));
       }
-    };
 
-    return () => {
-      ws.close();
-      setWsConnected(false);
-    };
-  }, []);
+      if (msg.type === 'panic') {
+        const panic = p as { incidentId: string; latitude: number; longitude: number; plate?: string; imei?: string; vehicleId?: string };
+        setActiveIncidents((prev) => {
+          if (prev.some((i) => i.id === panic.incidentId)) return prev;
+          return [
+            {
+              id: panic.incidentId,
+              status: 'active',
+              latitude: Number(panic.latitude),
+              longitude: Number(panic.longitude),
+              plate: panic.plate,
+            },
+            ...prev,
+          ];
+        });
+        const key = panic.imei || panic.vehicleId || 'unk';
+        setLiveVehicles((prev) => ({
+          ...prev,
+          [key]: {
+            vehicleId: panic.vehicleId,
+            imei: panic.imei,
+            latitude: Number(panic.latitude),
+            longitude: Number(panic.longitude),
+            speed: 0,
+            plate: panic.plate,
+          },
+        }));
+      }
+    },
+  });
 
   const handleStatusChange = () => {
     const token = localStorage.getItem('token');

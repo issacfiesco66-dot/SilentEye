@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import HelperHeader, { type HelperStatus } from './HelperHeader';
 import HelperIncidentCard from './HelperIncidentCard';
 import HelperMapSection from './HelperMapSection';
 import SinIncidentePlaceholder from './SinIncidentePlaceholder';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
 
 interface User {
   id: string;
@@ -55,7 +55,6 @@ export default function HelperDashboardLayout() {
   const [user, setUser] = useState<User | null>(null);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [liveLocations, setLiveLocations] = useState<Record<string, Location>>({});
-  const [wsConnected, setWsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastLocationSentAt, setLastLocationSentAt] = useState<number | null>(null);
   const [helperLocation, setHelperLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -65,26 +64,52 @@ export default function HelperDashboardLayout() {
     (i) => i.status === 'active' || i.status === 'attending'
   ) ?? null;
 
-  const helperStatus = computeHelperStatus(wsConnected, activeIncident, lastLocationSentAt);
+  // Protección de ruta: helper y driver (ambos usan este layout)
+  useLayoutEffect(() => {
+    try {
+      const raw = localStorage.getItem('user');
+      const token = localStorage.getItem('token');
+      if (!raw || !token) {
+        window.location.href = '/login';
+        return;
+      }
+      const u = JSON.parse(raw) as User;
+      const role = String(u?.role || '').toLowerCase();
+      if (role !== 'helper' && role !== 'driver') {
+        window.location.href = '/dashboard';
+        return;
+      }
+      setUser({ ...u, role });
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    } catch {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+  }, []);
 
-  // Protección de ruta: solo helper
+  // Respaldo: si tras 1s sigue en loading pero hay datos válidos, forzar setUser
   useEffect(() => {
-    const raw = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
-    if (!raw || !token) {
-      router.replace('/login');
-      return;
-    }
-    const u = JSON.parse(raw) as User;
-    if (u.role !== 'helper') {
-      router.replace('/dashboard');
-      return;
-    }
-    setUser(u);
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, [router]);
+    const id = setTimeout(() => {
+      setUser((current) => {
+        if (current) return current;
+        try {
+          const raw = localStorage.getItem('user');
+          const t = localStorage.getItem('token');
+          if (!raw || !t) return null;
+          const u = JSON.parse(raw) as User;
+          const role = String(u?.role || '').toLowerCase();
+          if (u?.id && (role === 'helper' || role === 'driver')) {
+            return { ...u, role };
+          }
+        } catch {}
+        return null;
+      });
+    }, 1000);
+    return () => clearTimeout(id);
+  }, []);
 
   // Carga inicial: GET /api/incidents
   const fetchIncidents = useCallback(async () => {
@@ -118,106 +143,95 @@ export default function HelperDashboardLayout() {
     return () => clearInterval(id);
   }, [activeIncident?.id, fetchIncidents]);
 
-  // WebSocket (solo mensajes del incidente activo)
+  // WebSocket con reintentos (cold start Fly.io)
   const activeVehicleIdRef = useRef<string | null>(null);
   const activeIncidentImeiRef = useRef<string | null>(null);
   activeVehicleIdRef.current = activeIncident?.vehicle_id ?? null;
   activeIncidentImeiRef.current = activeIncident?.imei ?? null;
 
-  useEffect(() => {
-    if (!user) return;
-    const token = localStorage.getItem('token');
-    if (!token) return;
+  const token = user && typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const { connected: wsConnected } = useWebSocket({
+    token,
+    enabled: !!user && !!token,
+    onMessage: (msg) => {
+      const p = msg.payload;
+      if (!p || typeof p !== 'object') return;
 
-    const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
-    ws.onopen = () => setWsConnected(true);
-    ws.onclose = () => setWsConnected(false);
-    ws.onerror = () => {};
-
-    ws.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(ev.data);
-        const p = msg.payload;
-        if (!p || typeof p !== 'object') return;
-
-        if (msg.type === 'panic' && p.incidentId) {
-          setIncidents((prev) => {
-            if (prev.some((i) => i.id === p.incidentId)) return prev;
-            return [
-              {
-                id: p.incidentId,
-                vehicle_id: p.vehicleId,
-                imei: p.imei,
-                status: 'active',
-                latitude: p.latitude,
-                longitude: p.longitude,
-                plate: p.plate,
-                driver_name: undefined,
-                started_at: new Date().toISOString(),
-              },
-              ...prev,
-            ];
+      if (msg.type === 'panic' && (p as { incidentId?: string }).incidentId) {
+        const panic = p as { incidentId: string; vehicleId?: string; imei?: string; latitude: number; longitude: number; plate?: string };
+        setIncidents((prev) => {
+          if (prev.some((i) => i.id === panic.incidentId)) return prev;
+          return [
+            {
+              id: panic.incidentId,
+              vehicle_id: panic.vehicleId,
+              imei: panic.imei,
+              status: 'active',
+              latitude: panic.latitude,
+              longitude: panic.longitude,
+              plate: panic.plate,
+              driver_name: undefined,
+              started_at: new Date().toISOString(),
+            },
+            ...prev,
+          ];
+        });
+        const key = panic.vehicleId || panic.imei || panic.incidentId || 'unk';
+        setLiveLocations((prev) => ({
+          ...prev,
+          [key]: {
+            vehicleId: panic.vehicleId,
+            imei: panic.imei,
+            latitude: panic.latitude,
+            longitude: panic.longitude,
+            speed: 0,
+            plate: panic.plate,
+          },
+        }));
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          new Notification('🚨 SilentEye - Pánico', {
+            body: `Vehículo ${panic.plate || 'Sin placa'}`,
+            tag: panic.incidentId,
           });
-          setLiveLocations((prev) => ({
-            ...prev,
-            [p.vehicleId || p.imei || p.incidentId || 'unk']: {
-              vehicleId: p.vehicleId,
-              imei: p.imei,
-              latitude: p.latitude,
-              longitude: p.longitude,
-              speed: 0,
-              plate: p.plate,
-            },
-          }));
-          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-            new Notification('🚨 SilentEye - Pánico', {
-              body: `Vehículo ${p.plate || 'Sin placa'}`,
-              tag: p.incidentId,
-            });
-          }
         }
-
-        if (msg.type === 'location') {
-          const vid = activeVehicleIdRef.current;
-          const aidImei = activeIncidentImeiRef.current;
-          const key = p.vehicleId || p.imei || 'unk';
-          // Si hay incidente activo: solo actualizar si coincide por vehicleId o imei
-          if (vid != null || aidImei != null) {
-            const matchByVehicle = vid != null && p.vehicleId === vid;
-            const matchByImei = aidImei != null && p.imei === aidImei;
-            if (!matchByVehicle && !matchByImei) return;
-          }
-          setLiveLocations((prev) => ({
-            ...prev,
-            [key]: {
-              ...prev[key],
-              vehicleId: p.vehicleId,
-              imei: p.imei,
-              latitude: p.latitude,
-              longitude: p.longitude,
-              speed: p.speed,
-              plate: p.plate,
-            },
-          }));
-        }
-
-        if (msg.type === 'incident_update' && p.incidentId) {
-          setIncidents((prev) =>
-            prev.map((i) =>
-              i.id === p.incidentId ? { ...i, status: p.status ?? i.status } : i
-            )
-          );
-        }
-      } catch {
-        // ignore
       }
-    };
 
-    return () => {
-      ws.close();
-      setWsConnected(false);
-    };
-  }, [user]);
+      if (msg.type === 'location') {
+        const loc = p as { vehicleId?: string; imei?: string; latitude: number; longitude: number; speed?: number; plate?: string };
+        const vid = activeVehicleIdRef.current;
+        const aidImei = activeIncidentImeiRef.current;
+        const key = loc.vehicleId || loc.imei || 'unk';
+        if (vid != null || aidImei != null) {
+          const matchByVehicle = vid != null && loc.vehicleId === vid;
+          const matchByImei = aidImei != null && loc.imei === aidImei;
+          if (!matchByVehicle && !matchByImei) return;
+        }
+        setLiveLocations((prev) => ({
+          ...prev,
+          [key]: {
+            ...prev[key],
+            vehicleId: loc.vehicleId,
+            imei: loc.imei,
+            latitude: loc.latitude,
+            longitude: loc.longitude,
+            speed: loc.speed,
+            plate: loc.plate,
+          },
+        }));
+      }
+
+      if (msg.type === 'incident_update' && (p as { incidentId?: string }).incidentId) {
+        const upd = p as { incidentId: string; status?: string };
+        setIncidents((prev) =>
+          prev.map((i) =>
+            i.id === upd.incidentId ? { ...i, status: upd.status ?? i.status } : i
+          )
+        );
+      }
+    },
+  });
+
+  const helperStatus = computeHelperStatus(wsConnected, activeIncident, lastLocationSentAt);
 
   const handleLogout = () => {
     localStorage.removeItem('token');

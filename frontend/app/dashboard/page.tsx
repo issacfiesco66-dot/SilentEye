@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import MapView from '@/components/MapView';
 import HelperDashboardLayout from '@/components/helper/HelperDashboardLayout';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
 
 interface User {
   id: string;
@@ -43,19 +43,55 @@ export default function DashboardPage() {
   const [liveLocations, setLiveLocations] = useState<Record<string, Location>>({});
   const [selectedIncident, setSelectedIncident] = useState<string | null>(null);
 
+  // useLayoutEffect: lee sesión antes del paint para evitar "Cargando..." eterno
+  useLayoutEffect(() => {
+    try {
+      const raw = localStorage.getItem('user');
+      const t = localStorage.getItem('token');
+      if (!raw || !t) {
+        window.location.href = '/login';
+        return;
+      }
+      const parsed = JSON.parse(raw) as User;
+      const role = String(parsed?.role || '').toLowerCase();
+      if (!parsed?.id || !role) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return;
+      }
+      // Normalizar role por si viene con mayúsculas
+      setUser({ ...parsed, role: role as User['role'] });
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    } catch {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+  }, []);
+
+  // Respaldo: si tras 1s sigue en loading pero hay datos en localStorage, forzar setUser
   useEffect(() => {
-    const raw = localStorage.getItem('user');
-    const t = localStorage.getItem('token');
-    if (!raw || !t) {
-      router.replace('/login');
-      return;
-    }
-    setUser(JSON.parse(raw));
-    // Solicitar permiso para notificaciones de pánico
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, [router]);
+    const id = setTimeout(() => {
+      setUser((current) => {
+        if (current) return current;
+        try {
+          const raw = localStorage.getItem('user');
+          const t = localStorage.getItem('token');
+          if (!raw || !t) return null;
+          const parsed = JSON.parse(raw) as User;
+          const role = String(parsed?.role || '').toLowerCase();
+          if (parsed?.id && role && ['admin', 'helper', 'driver'].includes(role)) {
+            return { ...parsed, role: role as User['role'] };
+          }
+        } catch {}
+        return null;
+      });
+    }, 1000);
+    return () => clearTimeout(id);
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -88,62 +124,55 @@ export default function DashboardPage() {
     fetchData();
   }, [user?.role]);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
-    ws.onerror = () => {}; // Evitar ruido en consola si el backend no está
-    ws.onopen = () => {};
-    ws.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(ev.data);
-        if (msg.type === 'location' && msg.payload) {
-          const p = msg.payload;
-          setLiveLocations((prev) => ({
-            ...prev,
-            [p.imei || p.vehicleId || 'unk']: p,
-          }));
-        }
-        if (msg.type === 'panic' && msg.payload) {
-          const p = msg.payload;
-          setIncidents((prev) => {
-            if (prev.some((i) => i.id === p.incidentId)) return prev;
-            return [
-              {
-                id: p.incidentId,
-                status: 'active',
-                latitude: p.latitude,
-                longitude: p.longitude,
-                plate: p.plate,
-                started_at: new Date().toISOString(),
-              },
-              ...prev,
-            ];
-          });
-          setLiveLocations((prev) => ({
-            ...prev,
-            [p.imei || p.vehicleId || 'unk']: {
-              imei: p.imei,
-              vehicleId: p.vehicleId,
+  // WebSocket con reintentos (cold start Fly.io) - solo para admin
+  const token = user && typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  useWebSocket({
+    token,
+    enabled: !!user && !!token && user.role === 'admin',
+    onMessage: (msg) => {
+      if (msg.type === 'location' && msg.payload) {
+        const p = msg.payload as Location;
+        setLiveLocations((prev) => ({
+          ...prev,
+          [p.imei || p.vehicleId || 'unk']: p,
+        }));
+      }
+      if (msg.type === 'panic' && msg.payload) {
+        const p = msg.payload as { incidentId: string; latitude: number; longitude: number; plate?: string; imei?: string; vehicleId?: string };
+        setIncidents((prev) => {
+          if (prev.some((i) => i.id === p.incidentId)) return prev;
+          return [
+            {
+              id: p.incidentId,
+              status: 'active',
               latitude: p.latitude,
               longitude: p.longitude,
-              speed: 0,
               plate: p.plate,
+              started_at: new Date().toISOString(),
             },
-          }));
-          // Alerta visible
-          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-            new Notification('🚨 SilentEye - Pánico', {
-              body: `Vehículo ${p.plate || 'Sin placa'} - Ubicación: ${p.latitude?.toFixed(5)}, ${p.longitude?.toFixed(5)}`,
-              tag: p.incidentId,
-            });
-          }
+            ...prev,
+          ];
+        });
+        setLiveLocations((prev) => ({
+          ...prev,
+          [p.imei || p.vehicleId || 'unk']: {
+            imei: p.imei,
+            vehicleId: p.vehicleId,
+            latitude: p.latitude,
+            longitude: p.longitude,
+            speed: 0,
+            plate: p.plate,
+          },
+        }));
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          new Notification('🚨 SilentEye - Pánico', {
+            body: `Vehículo ${p.plate || 'Sin placa'} - Ubicación: ${p.latitude?.toFixed(5)}, ${p.longitude?.toFixed(5)}`,
+            tag: p.incidentId,
+          });
         }
-      } catch {}
-    };
-    return () => ws.close();
-  }, []);
+      }
+    },
+  });
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -153,7 +182,8 @@ export default function DashboardPage() {
 
   if (!user) return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
 
-  if (user.role === 'helper' || user.role === 'driver') {
+  const role = String(user.role || '').toLowerCase();
+  if (role === 'helper' || role === 'driver') {
     return <HelperDashboardLayout />;
   }
 
@@ -162,7 +192,7 @@ export default function DashboardPage() {
       <header className="bg-slate-800 border-b border-slate-700 px-4 py-3 flex items-center justify-between">
         <h1 className="font-bold text-lg">SilentEye</h1>
         <div className="flex items-center gap-4">
-          <span className="text-slate-400 text-sm capitalize">{user.role}</span>
+          <span className="text-slate-400 text-sm capitalize">{role}</span>
           <button
             onClick={handleLogout}
             className="text-slate-400 hover:text-white text-sm"
@@ -208,7 +238,7 @@ export default function DashboardPage() {
             </ul>
           </div>
 
-          {user.role === 'admin' && (
+          {role === 'admin' && (
             <div className="bg-slate-800 rounded-xl p-4">
               <Link
                 href="/admin"
