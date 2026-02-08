@@ -27,6 +27,7 @@ async function migrate() {
     }
   } catch (err) {
     console.error('Error en migración:', err);
+    console.error('Verifica: 1) DATABASE_URL en Fly Secrets 2) Postgres vinculado y accesible');
     process.exit(1);
   } finally {
     await pool.end();

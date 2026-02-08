@@ -60,8 +60,32 @@ app.use(
 
 app.use('/api', api);
 
+app.get('/', (_req, res) => {
+  res.json({
+    service: 'SilentEye API',
+    version: '1.0',
+    docs: { health: '/health', api: '/api', websocket: '/ws' },
+  });
+});
+
+app.get('/favicon.ico', (_req, res) => res.status(204).end());
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'silenteye' });
+});
+
+app.get('/health/db', async (_req, res) => {
+  try {
+    const { pool } = await import('./db/pool.js');
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', database: 'connected' });
+  } catch (err: unknown) {
+    res.status(503).json({
+      status: 'error',
+      database: 'disconnected',
+      hint: 'Verifica DATABASE_URL en Fly Secrets y que las migraciones se ejecutaron.',
+    });
+  }
 });
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

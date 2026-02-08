@@ -10,8 +10,55 @@ import {
 } from './auth.js';
 import { getAlerts } from '../services/alert-service.js';
 import { logger } from '../utils/logger.js';
+import { runMigrate } from '../db/run-migrate.js';
+import { runSeed } from '../db/run-seed.js';
 
 export const api = Router();
+
+// Setup: migrar y seed (requiere ?secret=XXX, MIGRATE_SECRET en Fly Secrets)
+const MIGRATE_SECRET = process.env.MIGRATE_SECRET || '';
+function checkSetupSecret(req: import('express').Request): boolean {
+  const secret = req.query.secret || req.body?.secret;
+  return !!MIGRATE_SECRET && MIGRATE_SECRET === secret;
+}
+
+api.post('/setup/migrate', async (req, res) => {
+  if (!checkSetupSecret(req)) {
+    res.status(403).json({ error: 'Secret inválido. Define MIGRATE_SECRET en Fly Secrets.' });
+    return;
+  }
+  const result = await runMigrate();
+  res.json(result);
+});
+
+api.post('/setup/seed', async (req, res) => {
+  if (!checkSetupSecret(req)) {
+    res.status(403).json({ error: 'Secret inválido. Define MIGRATE_SECRET en Fly Secrets.' });
+    return;
+  }
+  const result = await runSeed();
+  res.json(result);
+});
+
+// Crear OTP y devolverlo (para primer login en prod cuando no hay SMS)
+api.post('/setup/otp', async (req, res) => {
+  if (!checkSetupSecret(req)) {
+    res.status(403).json({ error: 'Secret inválido.' });
+    return;
+  }
+  const phone = req.body?.phone || req.query.phone;
+  if (!phone || typeof phone !== 'string') {
+    res.status(400).json({ error: 'phone requerido' });
+    return;
+  }
+  try {
+    const code = await createOtp(phone);
+    await findOrCreateUser(phone);
+    res.json({ ok: true, phone, code });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
 
 function authMiddleware(req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) {
   const auth = req.headers.authorization;
