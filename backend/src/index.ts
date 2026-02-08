@@ -1,4 +1,5 @@
 import './env.js';
+import http from 'http';
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
@@ -8,8 +9,8 @@ import { api } from './api/routes.js';
 import { logger } from './utils/logger.js';
 
 const TCP_PORT = parseInt(process.env.TCP_PORT || '5000', 10);
-const HTTP_PORT = parseInt(process.env.HTTP_PORT || '3001', 10);
-const WS_PORT = parseInt(process.env.WS_PORT || '3002', 10);
+// En Fly.io: PORT=8080 (un solo puerto para HTTP+WebSocket)
+const HTTP_PORT = parseInt(process.env.PORT || process.env.HTTP_PORT || '3001', 10);
 const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || '200', 10);
 
 const app = express();
@@ -69,9 +70,11 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 createTeltonikaTcpServer(TCP_PORT);
-createWebSocketServer(WS_PORT);
 
-app.listen(HTTP_PORT, '0.0.0.0', () => {
-  logger.info(`API HTTP escuchando en 0.0.0.0:${HTTP_PORT}`);
-  logger.info(`TCP Teltonika: 0.0.0.0:${TCP_PORT} | HTTP: ${HTTP_PORT} | WebSocket: ${WS_PORT}`);
+const server = http.createServer(app);
+createWebSocketServer(server);
+
+server.listen(HTTP_PORT, '0.0.0.0', () => {
+  logger.info(`API HTTP + WebSocket en 0.0.0.0:${HTTP_PORT} (path /ws)`);
+  logger.info(`TCP Teltonika: 0.0.0.0:${TCP_PORT} | HTTP: ${HTTP_PORT}`);
 });

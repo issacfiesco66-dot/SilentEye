@@ -5,7 +5,7 @@ app = "silenteye"
 primary_region = "mia"
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = "Dockerfile.backend"
 
 [env]
   NODE_ENV = "production"

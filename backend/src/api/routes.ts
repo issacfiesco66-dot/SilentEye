@@ -108,7 +108,7 @@ api.put('/me/location', authMiddleware, async (req, res) => {
   res.json({ success: true });
 });
 
-api.post('/helpers/location', authMiddleware, requireRole('helper'), async (req, res) => {
+api.post('/helpers/location', authMiddleware, requireRole('helper', 'driver'), async (req, res) => {
   const { userId } = (req as any).user;
   const { latitude, longitude } = req.body;
   if (typeof latitude !== 'number' || typeof longitude !== 'number') {
@@ -135,7 +135,7 @@ api.post('/helpers/location', authMiddleware, requireRole('helper'), async (req,
   res.json({ success: true });
 });
 
-api.get('/vehicles', authMiddleware, requireRole('admin', 'helper'), async (req, res) => {
+api.get('/vehicles', authMiddleware, requireRole('admin', 'helper', 'driver'), async (req, res) => {
   const r = await pool.query(
     `SELECT v.id, v.plate, v.name, v.imei, v.driver_id, u.name as driver_name
      FROM vehicles v
@@ -257,8 +257,8 @@ api.get('/incidents/:id', authMiddleware, async (req, res) => {
   res.json({ ...inc, followers: followers.rows });
 });
 
-// IDOR: admin puede cambiar cualquier incidente; helper solo los que tiene en incident_followers
-api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper'), async (req, res) => {
+// IDOR: admin puede cambiar cualquier incidente; helper/driver solo los que tiene en incident_followers
+api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper', 'driver'), async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   const { userId, role } = (req as any).user;
@@ -267,13 +267,13 @@ api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper'),
     res.status(400).json({ error: 'Estado inválido' });
     return;
   }
-  // Helper no puede marcar resolved (solo admin)
-  if (role === 'helper' && status === 'resolved') {
+  // Helper/driver no pueden marcar resolved (solo admin)
+  if ((role === 'helper' || role === 'driver') && status === 'resolved') {
     res.status(403).json({ error: 'Solo un administrador puede resolver incidentes' });
     return;
   }
 
-  if (role === 'helper' && status === 'attending') {
+  if ((role === 'helper' || role === 'driver') && status === 'attending') {
     // Auto-asignar: si el helper recibió el panic por WebSocket pero no estaba cerca, añadirlo a incident_followers (solo incidentes active)
     const incCheck = await pool.query('SELECT 1 FROM incidents WHERE id = $1 AND status = $2', [id, 'active']);
     if (incCheck.rowCount) {
@@ -291,7 +291,7 @@ api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper'),
     updateQuery += `, resolved_at = NOW()`;
   }
   updateQuery += ` WHERE id = $1`;
-  if (role === 'helper') {
+  if (role === 'helper' || role === 'driver') {
     updateQuery += ` AND EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = $1 AND f.user_id = $3)`;
     params.push(userId);
   }
@@ -305,8 +305,8 @@ api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper'),
   res.json(r.rows[0]);
 });
 
-// Helper: declinar incidente (remover de incident_followers). Idempotente: si no está asignado, 200 OK igual.
-api.delete('/incidents/:id/followers/me', authMiddleware, requireRole('helper'), async (req, res) => {
+// Helper/driver: declinar incidente (remover de incident_followers). Idempotente: si no está asignado, 200 OK igual.
+api.delete('/incidents/:id/followers/me', authMiddleware, requireRole('helper', 'driver'), async (req, res) => {
   const { id } = req.params;
   const { userId } = (req as any).user;
   await pool.query(
@@ -324,6 +324,38 @@ api.get('/alerts', authMiddleware, requireRole('admin', 'helper'), async (req, r
 });
 
 // IDOR: admin ve todo; helper solo vehículos de incidentes que sigue; driver solo su vehículo
+// Últimas posiciones por IMEI (admin) - incluye dispositivos no registrados
+api.get('/gps/latest-positions', authMiddleware, requireRole('admin'), async (req, res) => {
+  const limit = Math.min(parseInt(String(req.query.limit || 50), 10) || 50, 200);
+  const pg = await hasPostGis();
+
+  const subq = pg
+    ? `SELECT DISTINCT ON (g.imei) g.imei, g.vehicle_id, g.latitude, g.longitude, g.speed, g.timestamp_at, v.plate
+       FROM gps_logs g
+       LEFT JOIN vehicles v ON v.id = g.vehicle_id
+       ORDER BY g.imei, g.timestamp_at DESC`
+    : `SELECT DISTINCT ON (g.imei) g.imei, g.vehicle_id, g.latitude, g.longitude, g.speed, g.timestamp_at, v.plate
+       FROM gps_logs g
+       LEFT JOIN vehicles v ON v.id = g.vehicle_id
+       ORDER BY g.imei, g.timestamp_at DESC`;
+
+  const r = await pool.query(
+    `SELECT * FROM (${subq}) sq WHERE latitude != 0 OR longitude != 0 LIMIT $1`,
+    [limit]
+  );
+  res.json(
+    r.rows.map((row) => ({
+      imei: row.imei,
+      vehicleId: row.vehicle_id,
+      plate: row.plate,
+      latitude: parseFloat(row.latitude),
+      longitude: parseFloat(row.longitude),
+      speed: row.speed ?? 0,
+      timestampAt: row.timestamp_at,
+    }))
+  );
+});
+
 api.get('/gps/logs', authMiddleware, async (req, res) => {
   const { vehicle_id, limit = 100 } = req.query;
   const { userId, role } = (req as any).user;

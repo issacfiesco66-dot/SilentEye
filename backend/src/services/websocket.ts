@@ -1,4 +1,5 @@
-import { WebSocketServer } from 'ws';
+import type { Server as HttpServer } from 'http';
+import { WebSocketServer, type WebSocket as WsSocket } from 'ws';
 import { pool } from '../db/pool.js';
 import { verifyToken } from '../api/auth.js';
 import { logger } from '../utils/logger.js';
@@ -71,12 +72,14 @@ interface WSMessage {
   payload: LocationUpdate | PanicEvent | AlertEvent | unknown;
 }
 
-const clients = new Map<WebSocket, { userId?: string; role?: string; vehicleId?: string }>();
+const clients = new Map<WsSocket, { userId?: string; role?: string; vehicleId?: string }>();
 
 const VALID_ROLES = ['admin', 'helper', 'driver'];
 
-export function createWebSocketServer(port: number): WebSocketServer {
-  const wss = new WebSocketServer({ port, host: '0.0.0.0' });
+export function createWebSocketServer(portOrServer: number | HttpServer): WebSocketServer {
+  const wss = typeof portOrServer === 'number'
+    ? new WebSocketServer({ port: portOrServer, host: '0.0.0.0' })
+    : new WebSocketServer({ server: portOrServer, path: '/ws' });
 
   wss.on('connection', async (ws, req) => {
     const token = parseTokenFromRequest(req);
@@ -101,7 +104,7 @@ export function createWebSocketServer(port: number): WebSocketServer {
     }
 
     // Metadatos SIEMPRE del servidor; ignoramos cualquier dato enviado por el cliente
-    clients.set(ws, {
+    clients.set(ws as WsSocket, {
       userId: payload.userId,
       role: meta.role,
       vehicleId: meta.vehicleId,
@@ -112,17 +115,19 @@ export function createWebSocketServer(port: number): WebSocketServer {
     });
 
     ws.on('close', () => {
-      clients.delete(ws);
+      clients.delete(ws as WsSocket);
     });
 
     ws.on('error', () => {
-      clients.delete(ws);
+      clients.delete(ws as WsSocket);
     });
 
     logger.info(`WebSocket: cliente autenticado userId=${payload.userId} role=${meta.role}`);
   });
 
-  logger.info(`WebSocket escuchando en puerto ${port}`);
+  logger.info(typeof portOrServer === 'number'
+    ? `WebSocket escuchando en puerto ${portOrServer}`
+    : 'WebSocket escuchando en path /ws');
   return wss;
 }
 
@@ -144,13 +149,14 @@ export function broadcastLocation(update: LocationUpdate) {
   );
 }
 
-export function broadcastPanic(event: PanicEvent) {
-  const recipientCount = [...clients.values()].filter((m) => m.role === 'admin' || m.role === 'helper').length;
-  logger.info(`broadcastPanic incident=${event.incidentId} plate=${event.plate} → ${recipientCount} clientes admin/helper`);
-  broadcast(
-    { type: 'panic', payload: event },
-    (meta) => meta.role === 'admin' || meta.role === 'helper'
-  );
+export function broadcastPanic(event: PanicEvent, nearbyUserIds?: string[]) {
+  const filter = (meta: { userId?: string; role?: string }) =>
+    meta.role === 'admin' ||
+    meta.role === 'helper' ||
+    (meta.role === 'driver' && nearbyUserIds?.includes(meta.userId ?? ''));
+  const recipientCount = [...clients.values()].filter(filter).length;
+  logger.info(`broadcastPanic incident=${event.incidentId} plate=${event.plate} → ${recipientCount} clientes`);
+  broadcast({ type: 'panic', payload: event }, filter);
 }
 
 export function broadcastAlert(event: AlertEvent) {

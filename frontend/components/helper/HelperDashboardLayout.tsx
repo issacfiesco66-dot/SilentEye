@@ -8,7 +8,7 @@ import HelperMapSection from './HelperMapSection';
 import SinIncidentePlaceholder from './SinIncidentePlaceholder';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3002';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
 
 interface User {
   id: string;
@@ -20,6 +20,7 @@ interface User {
 interface Incident {
   id: string;
   vehicle_id?: string;
+  imei?: string;
   status: string;
   latitude: number;
   longitude: number;
@@ -36,6 +37,7 @@ interface Location {
   speed?: number;
   plate?: string;
 }
+
 
 function computeHelperStatus(
   wsConnected: boolean,
@@ -118,7 +120,9 @@ export default function HelperDashboardLayout() {
 
   // WebSocket (solo mensajes del incidente activo)
   const activeVehicleIdRef = useRef<string | null>(null);
+  const activeIncidentImeiRef = useRef<string | null>(null);
   activeVehicleIdRef.current = activeIncident?.vehicle_id ?? null;
+  activeIncidentImeiRef.current = activeIncident?.imei ?? null;
 
   useEffect(() => {
     if (!user) return;
@@ -143,6 +147,7 @@ export default function HelperDashboardLayout() {
               {
                 id: p.incidentId,
                 vehicle_id: p.vehicleId,
+                imei: p.imei,
                 status: 'active',
                 latitude: p.latitude,
                 longitude: p.longitude,
@@ -155,8 +160,9 @@ export default function HelperDashboardLayout() {
           });
           setLiveLocations((prev) => ({
             ...prev,
-            [p.vehicleId || p.incidentId || 'unk']: {
+            [p.vehicleId || p.imei || p.incidentId || 'unk']: {
               vehicleId: p.vehicleId,
+              imei: p.imei,
               latitude: p.latitude,
               longitude: p.longitude,
               speed: 0,
@@ -171,14 +177,22 @@ export default function HelperDashboardLayout() {
           }
         }
 
-        if (msg.type === 'location' && p.vehicleId) {
+        if (msg.type === 'location') {
           const vid = activeVehicleIdRef.current;
-          if (vid != null && p.vehicleId !== vid) return;
+          const aidImei = activeIncidentImeiRef.current;
+          const key = p.vehicleId || p.imei || 'unk';
+          // Si hay incidente activo: solo actualizar si coincide por vehicleId o imei
+          if (vid != null || aidImei != null) {
+            const matchByVehicle = vid != null && p.vehicleId === vid;
+            const matchByImei = aidImei != null && p.imei === aidImei;
+            if (!matchByVehicle && !matchByImei) return;
+          }
           setLiveLocations((prev) => ({
             ...prev,
-            [p.vehicleId]: {
-              ...prev[p.vehicleId],
+            [key]: {
+              ...prev[key],
               vehicleId: p.vehicleId,
+              imei: p.imei,
               latitude: p.latitude,
               longitude: p.longitude,
               speed: p.speed,
@@ -240,11 +254,11 @@ export default function HelperDashboardLayout() {
               incident={activeIncident}
               helperLocation={helperLocation}
               vehicleLocation={
-                activeIncident.vehicle_id
-                  ? liveLocations[activeIncident.vehicle_id]
-                  : Object.values(liveLocations).find(
-                      (l) => l.plate === activeIncident.plate
-                    )
+                liveLocations[activeIncident.vehicle_id!] ??
+                liveLocations[activeIncident.imei!] ??
+                Object.values(liveLocations).find(
+                  (l) => l.plate === activeIncident.plate || l.imei === activeIncident.imei
+                )
               }
               onStatusChange={fetchIncidents}
               onDecline={onIncidentCleared}
@@ -252,11 +266,11 @@ export default function HelperDashboardLayout() {
             <HelperMapSection
               incident={activeIncident}
               vehicleLocation={
-                activeIncident.vehicle_id
-                  ? liveLocations[activeIncident.vehicle_id]
-                  : Object.values(liveLocations).find(
-                      (l) => l.plate === activeIncident.plate
-                    )
+                liveLocations[activeIncident.vehicle_id!] ??
+                liveLocations[activeIncident.imei!] ??
+                Object.values(liveLocations).find(
+                  (l) => l.plate === activeIncident.plate || l.imei === activeIncident.imei
+                )
               }
               onLocationSent={() => setLastLocationSentAt(Date.now())}
               onHelperLocationChange={setHelperLocation}

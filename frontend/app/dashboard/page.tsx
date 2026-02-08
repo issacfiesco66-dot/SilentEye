@@ -8,7 +8,7 @@ import HelperIncidentActions from '@/components/HelperIncidentActions';
 import HelperDashboardLayout from '@/components/helper/HelperDashboardLayout';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3002';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
 
 interface User {
   id: string;
@@ -66,7 +66,7 @@ export default function DashboardPage() {
       try {
         const rawUser = localStorage.getItem('user');
         const u = rawUser ? JSON.parse(rawUser) : null;
-        const canFetchVehicles = u?.role === 'admin' || u?.role === 'helper';
+        const canFetchVehicles = u?.role === 'admin' || u?.role === 'helper' || u?.role === 'driver';
 
         const [incRes, vehiclesRes] = await Promise.all([
           fetch(`${API}/api/incidents`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -154,7 +154,7 @@ export default function DashboardPage() {
 
   if (!user) return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
 
-  if (user.role === 'helper') {
+  if (user.role === 'helper' || user.role === 'driver') {
     return <HelperDashboardLayout />;
   }
 
@@ -186,7 +186,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-4">
-          {user.role === 'helper' && (() => {
+          {(user.role === 'helper' || user.role === 'driver') && (() => {
             const inc = selectedIncident ? incidents.find((i) => i.id === selectedIncident) : null;
             return inc ? <HelperIncidentActions incident={inc} liveLocations={Object.values(liveLocations)} /> : null;
           })()}

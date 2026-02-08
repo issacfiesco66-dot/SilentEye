@@ -1,23 +1,26 @@
 # SilentEye Backend - Fly.io
+# Build solo el backend en aislamiento (evita problemas del monorepo)
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copiar package files e instalar (incluye devDependencies para compilar)
-COPY package.json package-lock.json ./
-RUN npm ci
+# Copiar solo backend e instalar sus dependencias (incluye TypeScript para compilar)
+COPY backend/package.json ./
+RUN npm install
 
-# Copiar código
-COPY . .
+# Copiar código del backend
+COPY backend/ .
 
-# Compilar backend (con typescript en raíz, npm run encuentra tsc y módulos)
-RUN npm run build -w backend
+# Asegurar tipos para compilación (@types/pg y evitar errores de tipos)
+RUN npm install --save-dev @types/pg
 
-# Copiar schemas
-RUN cp backend/src/db/schema.sql backend/dist/db/ && \
-    cp backend/src/db/schema-simple.sql backend/dist/db/
+# Compilar: usar TypeScript del proyecto (npx tsc puede instalar paquete equivocado)
+RUN node ./node_modules/typescript/bin/tsc
 
-# Quitar devDependencies
+# Copiar schemas SQL a dist (para migraciones)
+RUN cp src/db/schema.sql src/db/schema-simple.sql dist/db/
+
+# Quitar devDependencies para imagen final
 RUN npm prune --omit=dev
 
 ENV NODE_ENV=production
@@ -26,5 +29,4 @@ ENV PORT=8080
 
 EXPOSE 8080 5000
 
-WORKDIR /app/backend
 CMD ["node", "dist/index.js"]

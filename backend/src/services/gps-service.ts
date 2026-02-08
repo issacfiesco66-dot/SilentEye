@@ -5,7 +5,7 @@ import { logger } from '../utils/logger.js';
 import { broadcastLocation, broadcastPanic } from './websocket.js';
 
 const PANIC_TRACKING_INTERVAL_SEC = 4;
-const NEARBY_HELPERS_RADIUS_M = 3000;
+const NEARBY_DRIVERS_RADIUS_M = 3000;
 
 export async function processGpsData(imei: string, record: AVLRecord): Promise<void> {
   const { latitude, longitude, speed, altitude, angle, satellites, timestamp, io, priority } = record;
@@ -115,32 +115,37 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
       const nearbyResult = await client.query(
         `SELECT DISTINCT u.id, u.phone, u.name
          FROM users u
+         JOIN vehicles v ON v.driver_id = u.id
          LEFT JOIN helper_locations hl ON hl.user_id = u.id
-         WHERE u.role = 'helper' AND u.is_active
+         WHERE u.is_active
+           AND ($4::uuid IS NULL OR u.id != $4)
            AND (
              (hl.user_id IS NOT NULL AND ST_DWithin(hl.geom::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))
              OR (hl.user_id IS NULL AND u.last_location IS NOT NULL AND ST_DWithin(u.last_location::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))
            )`,
-        [latitude, longitude, NEARBY_HELPERS_RADIUS_M]
+        [latitude, longitude, NEARBY_DRIVERS_RADIUS_M, vehicle?.driver_id ?? null]
       );
-      const nearbyHelpers = nearbyResult.rows;
-      for (const helper of nearbyHelpers) {
+      const nearbyDrivers = nearbyResult.rows;
+      for (const driver of nearbyDrivers) {
         await client.query(
           'INSERT INTO incident_followers (incident_id, user_id, status) VALUES ($1, $2, $3) ON CONFLICT (incident_id, user_id) DO NOTHING',
-          [incident.id, helper.id, 'notified']
+          [incident.id, driver.id, 'notified']
         );
       }
-      broadcastPanic({
-        incidentId: incident.id,
-        imei,
-        vehicleId: vehicle?.id,
-        plate: vehicle?.plate,
-        latitude,
-        longitude,
-        timestamp,
-        nearbyCount: nearbyHelpers.length,
-      });
-      logger.info(`PANIC IMEI=${imei} helpers=${nearbyHelpers.length}`);
+      broadcastPanic(
+        {
+          incidentId: incident.id,
+          imei,
+          vehicleId: vehicle?.id,
+          plate: vehicle?.plate,
+          latitude,
+          longitude,
+          timestamp,
+          nearbyCount: nearbyDrivers.length,
+        },
+        nearbyDrivers.map((d) => d.id)
+      );
+      logger.info(`PANIC IMEI=${imei} conductores_cercanos=${nearbyDrivers.length}`);
     } else {
       const incidentResult = await client.query(
         `INSERT INTO incidents (vehicle_id, driver_id, imei, status, latitude, longitude, started_at)
@@ -150,31 +155,38 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
       );
       const incident = incidentResult.rows[0];
       const nearbyResult = await client.query(
-        `SELECT u.id, u.phone, u.name FROM users u
-         WHERE u.role = 'helper' AND u.is_active AND u.last_lat IS NOT NULL AND u.last_lng IS NOT NULL
-         AND (6371000 * acos(LEAST(1, GREATEST(-1,
-           cos(radians($1)) * cos(radians(u.last_lat)) * cos(radians(u.last_lng) - radians($2)) + sin(radians($1)) * sin(radians(u.last_lat))
-         )))) <= $3`,
-        [latitude, longitude, NEARBY_HELPERS_RADIUS_M]
+        `SELECT DISTINCT u.id, u.phone, u.name
+         FROM users u
+         JOIN vehicles v ON v.driver_id = u.id
+         WHERE u.is_active
+           AND ($4::uuid IS NULL OR u.id != $4)
+           AND u.last_lat IS NOT NULL AND u.last_lng IS NOT NULL
+           AND (6371000 * acos(LEAST(1, GREATEST(-1,
+             cos(radians($1)) * cos(radians(u.last_lat)) * cos(radians(u.last_lng) - radians($2)) + sin(radians($1)) * sin(radians(u.last_lat))
+           )))) <= $3`,
+        [latitude, longitude, NEARBY_DRIVERS_RADIUS_M, vehicle?.driver_id ?? null]
       );
-      const nearbyHelpers = nearbyResult.rows;
-      for (const helper of nearbyHelpers) {
+      const nearbyDrivers = nearbyResult.rows;
+      for (const driver of nearbyDrivers) {
         await client.query(
           'INSERT INTO incident_followers (incident_id, user_id, status) VALUES ($1, $2, $3) ON CONFLICT (incident_id, user_id) DO NOTHING',
-          [incident.id, helper.id, 'notified']
+          [incident.id, driver.id, 'notified']
         );
       }
-      broadcastPanic({
-        incidentId: incident.id,
-        imei,
-        vehicleId: vehicle?.id,
-        plate: vehicle?.plate,
-        latitude,
-        longitude,
-        timestamp,
-        nearbyCount: nearbyHelpers.length,
-      });
-      logger.info(`PANIC IMEI=${imei} helpers=${nearbyHelpers.length}`);
+      broadcastPanic(
+        {
+          incidentId: incident.id,
+          imei,
+          vehicleId: vehicle?.id,
+          plate: vehicle?.plate,
+          latitude,
+          longitude,
+          timestamp,
+          nearbyCount: nearbyDrivers.length,
+        },
+        nearbyDrivers.map((d) => d.id)
+      );
+      logger.info(`PANIC IMEI=${imei} conductores_cercanos=${nearbyDrivers.length}`);
     }
   } finally {
     client.release();

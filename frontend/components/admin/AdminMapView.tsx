@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import IncidentDetail from './IncidentDetail';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3002';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 const LIMA_CENTER = { longitude: -77.0428, latitude: -12.0464 };
 
@@ -46,7 +46,7 @@ export default function AdminMapView() {
   const [wsConnected, setWsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch inicial: incidentes y vehículos
+  // Fetch inicial: incidentes, vehículos y últimas posiciones GPS
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -56,9 +56,10 @@ export default function AdminMapView() {
 
     const load = async () => {
       try {
-        const [incRes, vRes] = await Promise.all([
+        const [incRes, vRes, posRes] = await Promise.all([
           fetch(`${API}/api/incidents`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${API}/api/vehicles`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${API}/api/gps/latest-positions`, { headers: { Authorization: `Bearer ${token}` } }),
         ]);
 
         if (incRes.status === 401 || incRes.status === 403) {
@@ -80,6 +81,22 @@ export default function AdminMapView() {
         if (vRes.ok) {
           const v = await vRes.json();
           setVehicles(v);
+        }
+        if (posRes.ok) {
+          const positions = await posRes.json();
+          const initial: Record<string, VehicleLocation> = {};
+          for (const p of positions) {
+            const key = p.imei || p.vehicleId || 'unk';
+            initial[key] = {
+              vehicleId: p.vehicleId,
+              imei: p.imei,
+              latitude: Number(p.latitude),
+              longitude: Number(p.longitude),
+              speed: p.speed,
+              plate: p.plate,
+            };
+          }
+          setLiveVehicles((prev) => ({ ...initial, ...prev }));
         }
       } catch {
         setError('Error al cargar datos');

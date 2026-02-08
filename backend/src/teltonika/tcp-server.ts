@@ -22,8 +22,9 @@ const MAX_CONNECTION_BUFFER = 1024 * 1024; // 1 MB
 const IMEI_LOGIN_TIMEOUT_MS = 30000;   // 30s para recibir IMEI
 const AVL_IDLE_TIMEOUT_MS = 120000;    // 2 min sin datos AVL → log
 
-// Por defecto aceptar cualquier IMEI (evita rechazar GPS cuando no hay DB o IMEI no registrado)
-const SKIP_WHITELIST = process.env.TELTONIKA_SKIP_WHITELIST !== 'false' && process.env.TELTONIKA_SKIP_WHITELIST !== '0';
+// Aceptar cualquier IMEI cuando TELTONIKA_SKIP_WHITELIST=true/1/yes (o no definido)
+const _skip = (process.env.TELTONIKA_SKIP_WHITELIST || '').toLowerCase();
+const SKIP_WHITELIST = _skip !== 'false' && _skip !== '0' && _skip !== 'no';
 
 type ConnectionState = 'imei' | 'validating' | 'avl';
 
@@ -276,7 +277,7 @@ export function createTeltonikaTcpServer(port: number, onData?: (imei: string, r
   });
 
   server.listen(port, '0.0.0.0', () => {
-    logger.info(`[TCP] Servidor Teltonika escuchando en 0.0.0.0:${port} | whitelist=${!SKIP_WHITELIST}`);
+    logger.info(`[TCP] Servidor Teltonika escuchando en 0.0.0.0:${port} | accept_all_imei=${SKIP_WHITELIST}`);
   });
 
   return server;
