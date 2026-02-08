@@ -1,20 +1,31 @@
 # SilentEye Backend - Fly.io (contexto: raíz del repo)
+# Alineado con Dockerfile principal para builds consistentes
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copiar solo backend
+# Copiar solo backend e instalar dependencias
 COPY backend/package.json ./
 RUN npm install
 
+# Copiar código del backend
 COPY backend/ .
-RUN npx tsc && \
-    cp src/db/schema.sql src/db/schema-simple.sql dist/db/
 
+# Asegurar tipos para compilación
+RUN npm install --save-dev @types/pg
+
+# Compilar: usar TypeScript del proyecto (npx tsc puede instalar paquete equivocado)
+RUN node ./node_modules/typescript/bin/tsc
+
+# Copiar schemas SQL a dist (para migraciones)
+RUN cp src/db/schema.sql src/db/schema-simple.sql dist/db/
+
+# Quitar devDependencies para imagen final
 RUN npm prune --omit=dev
 
 ENV NODE_ENV=production
 ENV TCP_PORT=5000
+ENV PORT=8080
 
 EXPOSE 8080 5000
 

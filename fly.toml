@@ -2,7 +2,7 @@
 # Despliegue: fly deploy (desde la raíz del repo)
 
 app = "silenteye"
-primary_region = "mia"
+primary_region = "dfw"
 
 [build]
   dockerfile = "Dockerfile.backend"
@@ -12,6 +12,8 @@ primary_region = "mia"
   TCP_PORT = "5000"
   PORT = "8080"
   TELTONIKA_SKIP_WHITELIST = "true"
+  # Orígenes permitidos para CORS (separados por coma). Añade tu frontend cuando lo despliegues.
+  CORS_ORIGINS = "http://localhost:3000,https://silenteye-3rrwnq.fly.dev"
 
 [http_service]
   internal_port = 8080

@@ -5,7 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- Usuarios (conductores, helpers, admins)
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   phone VARCHAR(20) UNIQUE NOT NULL,
   name VARCHAR(255) NOT NULL,
@@ -17,12 +17,12 @@ CREATE TABLE users (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_users_phone ON users(phone);
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_last_location ON users USING GIST(last_location);
+CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_last_location ON users USING GIST(last_location);
 
 -- Vehículos
-CREATE TABLE vehicles (
+CREATE TABLE IF NOT EXISTS vehicles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   plate VARCHAR(20) UNIQUE NOT NULL,
   name VARCHAR(255),
@@ -32,11 +32,11 @@ CREATE TABLE vehicles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_vehicles_imei ON vehicles(imei);
-CREATE INDEX idx_vehicles_driver ON vehicles(driver_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_imei ON vehicles(imei);
+CREATE INDEX IF NOT EXISTS idx_vehicles_driver ON vehicles(driver_id);
 
 -- Logs GPS (tracking) - geom = ubicación espacial, latitude/longitude redundantes para compatibilidad
-CREATE TABLE gps_logs (
+CREATE TABLE IF NOT EXISTS gps_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
   imei VARCHAR(20) NOT NULL,
@@ -54,13 +54,13 @@ CREATE TABLE gps_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_gps_logs_vehicle ON gps_logs(vehicle_id);
-CREATE INDEX idx_gps_logs_imei ON gps_logs(imei);
-CREATE INDEX idx_gps_logs_timestamp ON gps_logs(timestamp_at);
-CREATE INDEX idx_gps_logs_geom ON gps_logs USING GIST(geom);
+CREATE INDEX IF NOT EXISTS idx_gps_logs_vehicle ON gps_logs(vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_gps_logs_imei ON gps_logs(imei);
+CREATE INDEX IF NOT EXISTS idx_gps_logs_timestamp ON gps_logs(timestamp_at);
+CREATE INDEX IF NOT EXISTS idx_gps_logs_geom ON gps_logs USING GIST(geom);
 
 -- Incidentes (pánico)
-CREATE TABLE incidents (
+CREATE TABLE IF NOT EXISTS incidents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vehicle_id UUID REFERENCES vehicles(id) ON DELETE SET NULL,
   driver_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -75,21 +75,21 @@ CREATE TABLE incidents (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_incidents_status ON incidents(status);
-CREATE INDEX idx_incidents_geom ON incidents USING GIST(geom);
-CREATE INDEX idx_incidents_started ON incidents(started_at);
+CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status);
+CREATE INDEX IF NOT EXISTS idx_incidents_geom ON incidents USING GIST(geom);
+CREATE INDEX IF NOT EXISTS idx_incidents_started ON incidents(started_at);
 
 -- Ubicación en tiempo real de helpers (actualizada vía POST /helpers/location)
-CREATE TABLE helper_locations (
+CREATE TABLE IF NOT EXISTS helper_locations (
   user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   geom GEOMETRY(Point, 4326) NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_helper_locations_geom ON helper_locations USING GIST(geom);
+CREATE INDEX IF NOT EXISTS idx_helper_locations_geom ON helper_locations USING GIST(geom);
 
 -- Seguidores del incidente (helpers cercanos que van a asistir)
-CREATE TABLE incident_followers (
+CREATE TABLE IF NOT EXISTS incident_followers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   incident_id UUID REFERENCES incidents(id) ON DELETE CASCADE,
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -98,10 +98,10 @@ CREATE TABLE incident_followers (
   UNIQUE(incident_id, user_id)
 );
 
-CREATE INDEX idx_incident_followers_incident ON incident_followers(incident_id);
+CREATE INDEX IF NOT EXISTS idx_incident_followers_incident ON incident_followers(incident_id);
 
 -- OTP para login (temporal)
-CREATE TABLE otp_codes (
+CREATE TABLE IF NOT EXISTS otp_codes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   phone VARCHAR(20) NOT NULL,
   code VARCHAR(6) NOT NULL,
@@ -110,11 +110,11 @@ CREATE TABLE otp_codes (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_otp_phone ON otp_codes(phone);
-CREATE INDEX idx_otp_expires ON otp_codes(expires_at);
+CREATE INDEX IF NOT EXISTS idx_otp_phone ON otp_codes(phone);
+CREATE INDEX IF NOT EXISTS idx_otp_expires ON otp_codes(expires_at);
 
 -- Alertas (eventos críticos decodificados desde AVL Teltonika)
-CREATE TABLE alerts (
+CREATE TABLE IF NOT EXISTS alerts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   device_imei VARCHAR(20) NOT NULL,
   vehicle_id UUID REFERENCES vehicles(id) ON DELETE SET NULL,
@@ -129,7 +129,7 @@ CREATE TABLE alerts (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_alerts_imei ON alerts(device_imei);
-CREATE INDEX idx_alerts_type ON alerts(alert_type);
-CREATE INDEX idx_alerts_created ON alerts(created_at DESC);
-CREATE INDEX idx_alerts_geom ON alerts USING GIST(geom);
+CREATE INDEX IF NOT EXISTS idx_alerts_imei ON alerts(device_imei);
+CREATE INDEX IF NOT EXISTS idx_alerts_type ON alerts(alert_type);
+CREATE INDEX IF NOT EXISTS idx_alerts_created ON alerts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_geom ON alerts USING GIST(geom);

@@ -9,6 +9,7 @@ import {
   verifyToken,
 } from './auth.js';
 import { getAlerts } from '../services/alert-service.js';
+import { logger } from '../utils/logger.js';
 
 export const api = Router();
 
@@ -44,10 +45,11 @@ api.post('/auth/otp/request', async (req, res) => {
     }
     const code = await createOtp(phone);
     await findOrCreateUser(phone);
-    res.json({ success: true, code });
-  } catch (err: any) {
-    console.error('OTP request error:', err);
-    res.status(500).json({ error: err?.message || 'Error al generar OTP' });
+    const isProd = process.env.NODE_ENV === 'production';
+    res.json(isProd ? { success: true } : { success: true, code });
+  } catch (err: unknown) {
+    logger.error('OTP request error:', err);
+    res.status(500).json({ error: 'Error al generar OTP' });
   }
 });
 
@@ -67,8 +69,8 @@ api.post('/auth/otp/verify', async (req, res) => {
     const token = signToken({ userId: user.id, role: user.role });
     res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
   } catch (err: unknown) {
-    console.error('OTP verify error:', err);
-    res.status(500).json({ error: (err as Error)?.message || 'Error al verificar OTP' });
+    logger.error('OTP verify error:', err);
+    res.status(500).json({ error: 'Error al verificar OTP' });
   }
 });
 
@@ -400,6 +402,7 @@ api.get('/gps/logs', authMiddleware, async (req, res) => {
   res.json(r.rows);
 });
 
+// Conductores y helpers cercanos (ayuda mutua: cualquiera con vehículo o rol helper)
 api.get('/helpers/nearby', authMiddleware, async (req, res) => {
   const { latitude, longitude, radius_km = 3 } = req.query;
   if (typeof latitude !== 'string' || typeof longitude !== 'string') {
@@ -415,7 +418,8 @@ api.get('/helpers/nearby', authMiddleware, async (req, res) => {
         `SELECT u.id, u.name, u.phone,
                 ST_Distance(COALESCE(hl.geom, u.last_location)::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography)::int as distance_m
          FROM users u LEFT JOIN helper_locations hl ON hl.user_id = u.id
-         WHERE u.role = 'helper' AND u.is_active AND COALESCE(hl.geom, u.last_location) IS NOT NULL
+         WHERE u.is_active AND COALESCE(hl.geom, u.last_location) IS NOT NULL
+           AND (u.role = 'helper' OR EXISTS (SELECT 1 FROM vehicles v WHERE v.driver_id = u.id))
            AND ST_DWithin(COALESCE(hl.geom, u.last_location)::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3)
          ORDER BY distance_m LIMIT 20`,
         [lat, lon, radiusM]
@@ -426,7 +430,8 @@ api.get('/helpers/nearby', authMiddleware, async (req, res) => {
                   cos(radians($1)) * cos(radians(u.last_lat)) * cos(radians(u.last_lng) - radians($2)) + sin(radians($1)) * sin(radians(u.last_lat))
                 ))))::int as distance_m
          FROM users u
-         WHERE u.role = 'helper' AND u.is_active AND u.last_lat IS NOT NULL AND u.last_lng IS NOT NULL
+         WHERE u.is_active AND u.last_lat IS NOT NULL AND u.last_lng IS NOT NULL
+           AND (u.role = 'helper' OR EXISTS (SELECT 1 FROM vehicles v WHERE v.driver_id = u.id))
            AND (6371000 * acos(LEAST(1, GREATEST(-1,
              cos(radians($1)) * cos(radians(u.last_lat)) * cos(radians(u.last_lng) - radians($2)) + sin(radians($1)) * sin(radians(u.last_lat))
            )))) <= $3
