@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import MapView from '@/components/MapView';
-import HelperIncidentActions from '@/components/HelperIncidentActions';
 import HelperDashboardLayout from '@/components/helper/HelperDashboardLayout';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
@@ -186,10 +185,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-4">
-          {(user.role === 'helper' || user.role === 'driver') && (() => {
-            const inc = selectedIncident ? incidents.find((i) => i.id === selectedIncident) : null;
-            return inc ? <HelperIncidentActions incident={inc} liveLocations={Object.values(liveLocations)} /> : null;
-          })()}
           <div className="bg-slate-800 rounded-xl p-4">
             <h2 className="font-semibold mb-3">Incidentes activos</h2>
             <ul className="space-y-2 max-h-60 overflow-y-auto">
