@@ -220,23 +220,41 @@ api.post('/vehicles', authMiddleware, requireRole('admin'), async (req, res) => 
     res.status(400).json({ error: 'Placa e IMEI requeridos' });
     return;
   }
-  const r = await pool.query(
-    `INSERT INTO vehicles (plate, name, imei, driver_id) VALUES ($1, $2, $3, $4) RETURNING *`,
-    [plate, name || null, imei, driver_id || null]
-  );
-  res.status(201).json(r.rows[0]);
+  try {
+    const r = await pool.query(
+      `INSERT INTO vehicles (plate, name, imei, driver_id) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [plate, name || null, imei, driver_id || null]
+    );
+    res.status(201).json(r.rows[0]);
+  } catch (err: unknown) {
+    const e = err as { code?: string };
+    if (e?.code === '23505') {
+      res.status(409).json({ error: 'Ese IMEI o placa ya existe. Usa otro.' });
+      return;
+    }
+    throw err;
+  }
 });
 
 api.put('/vehicles/:id', authMiddleware, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   const { plate, name, imei, driver_id } = req.body;
   const driverId = driver_id === '' || driver_id === undefined ? null : driver_id;
-  await pool.query(
-    `UPDATE vehicles SET plate = COALESCE($2, plate), name = COALESCE($3, name),
-     imei = COALESCE($4, imei), driver_id = $5, updated_at = NOW()
-     WHERE id = $1`,
-    [id, plate, name, imei, driverId]
-  );
+  try {
+    await pool.query(
+      `UPDATE vehicles SET plate = COALESCE($2, plate), name = COALESCE($3, name),
+       imei = COALESCE($4, imei), driver_id = $5, updated_at = NOW()
+       WHERE id = $1`,
+      [id, plate, name, imei, driverId]
+    );
+  } catch (err: unknown) {
+    const e = err as { code?: string };
+    if (e?.code === '23505') {
+      res.status(409).json({ error: 'Ese IMEI o placa ya existe. Usa otro.' });
+      return;
+    }
+    throw err;
+  }
   const r = await pool.query(
     `SELECT v.*, u.name as driver_name FROM vehicles v
      LEFT JOIN users u ON v.driver_id = u.id WHERE v.id = $1`,

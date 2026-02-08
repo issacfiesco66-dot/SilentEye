@@ -23,11 +23,14 @@ const isProd = process.env.NODE_ENV === 'production';
 const corsOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
   : [];
+// Añadir vercel.app (incluye previews: silent-eye-frontend-xxx.vercel.app)
+const allowOrigin = (origin: string) =>
+  corsOrigins.includes(origin) || /^https:\/\/silent-eye-frontend(-[\w-]+)?\.vercel\.app$/.test(origin);
 app.use(cors({
   origin: isProd
     ? (origin, cb) => {
         if (!origin) return cb(null, false);
-        if (corsOrigins.includes(origin)) return cb(null, true);
+        if (allowOrigin(origin)) return cb(null, true);
         return cb(null, false);
       }
     : true, // desarrollo: permitir cualquier origin
