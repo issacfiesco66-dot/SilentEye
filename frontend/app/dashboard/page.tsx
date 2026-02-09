@@ -43,9 +43,22 @@ export default function DashboardPage() {
   const [liveLocations, setLiveLocations] = useState<Record<string, Location>>({});
   const [selectedIncident, setSelectedIncident] = useState<string | null>(null);
 
+  const SESSION_MAX_HOURS = 8;
+
   // useLayoutEffect: lee sesión antes del paint para evitar "Cargando..." eterno
   useLayoutEffect(() => {
     try {
+      const loginAt = localStorage.getItem('loginAt');
+      if (loginAt) {
+        const elapsed = Date.now() - parseInt(loginAt, 10);
+        if (elapsed > SESSION_MAX_HOURS * 60 * 60 * 1000) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('loginAt');
+          window.location.href = '/login';
+          return;
+        }
+      }
       const raw = localStorage.getItem('user');
       const t = localStorage.getItem('token');
       if (!raw || !t) {
@@ -177,6 +190,7 @@ export default function DashboardPage() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('loginAt');
     router.replace('/login');
   };
 

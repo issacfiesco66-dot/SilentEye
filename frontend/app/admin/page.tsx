@@ -16,7 +16,20 @@ export default function AdminPage() {
   const [user, setUser] = useState<{ id: string; role: string } | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('incidents');
 
+  const SESSION_MAX_HOURS = 8;
+
   useEffect(() => {
+    const loginAt = localStorage.getItem('loginAt');
+    if (loginAt) {
+      const elapsed = Date.now() - parseInt(loginAt, 10);
+      if (elapsed > SESSION_MAX_HOURS * 60 * 60 * 1000) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('loginAt');
+        router.replace('/login');
+        return;
+      }
+    }
     const raw = localStorage.getItem('user');
     const t = localStorage.getItem('token');
     if (!raw || !t) {

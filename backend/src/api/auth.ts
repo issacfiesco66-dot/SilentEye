@@ -57,8 +57,11 @@ export async function findOrCreateUser(phone: string, name?: string): Promise<{ 
   return insert.rows[0];
 }
 
+// Duración de sesión: JWT_EXPIRES_IN (ej. 24h, 8h). Por defecto 24h.
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+
 export function signToken(payload: { userId: string; role: string }): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
 
 export function verifyToken(token: string): { userId: string; role: string } | null {

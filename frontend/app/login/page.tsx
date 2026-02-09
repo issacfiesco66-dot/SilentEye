@@ -57,6 +57,7 @@ export default function LoginPage() {
       if (!res.ok) throw new Error(data.error || 'Código inválido');
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('loginAt', String(Date.now()));
       router.replace('/dashboard');
     } catch (e) {
       setError((e as Error).message);

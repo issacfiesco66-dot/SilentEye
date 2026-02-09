@@ -64,9 +64,22 @@ export default function HelperDashboardLayout() {
     (i) => i.status === 'active' || i.status === 'attending'
   ) ?? null;
 
+  const SESSION_MAX_HOURS = 8;
+
   // Protección de ruta: helper y driver (ambos usan este layout)
   useLayoutEffect(() => {
     try {
+      const loginAt = localStorage.getItem('loginAt');
+      if (loginAt) {
+        const elapsed = Date.now() - parseInt(loginAt, 10);
+        if (elapsed > SESSION_MAX_HOURS * 60 * 60 * 1000) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('loginAt');
+          window.location.href = '/login';
+          return;
+        }
+      }
       const raw = localStorage.getItem('user');
       const token = localStorage.getItem('token');
       if (!raw || !token) {
@@ -236,6 +249,7 @@ export default function HelperDashboardLayout() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('loginAt');
     router.replace('/login');
   };
 
