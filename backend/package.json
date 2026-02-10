@@ -11,7 +11,8 @@
     "seed": "node ../node_modules/tsx/dist/cli.mjs src/db/seed.ts",
     "simulate": "tsx src/simulator/gps-simulator.ts",
     "tcp:minimal": "node ../node_modules/tsx/dist/cli.mjs src/tcp-minimal.ts",
-    "migrate:alerts": "node ../node_modules/tsx/dist/cli.mjs src/db/migrate-alerts.ts"
+    "migrate:alerts": "node ../node_modules/tsx/dist/cli.mjs src/db/migrate-alerts.ts",
+    "reset:keep-admin": "node ../node_modules/tsx/dist/cli.mjs src/db/reset-keep-admin.ts"
   },
   "dependencies": {
     "pg": "^8.11.3",
