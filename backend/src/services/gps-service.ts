@@ -5,7 +5,7 @@ import { logger } from '../utils/logger.js';
 import { broadcastLocation, broadcastPanic } from './websocket.js';
 
 const PANIC_TRACKING_INTERVAL_SEC = 4;
-const NEARBY_DRIVERS_RADIUS_M = 3000;
+const NEARBY_DRIVERS_RADIUS_M = parseInt(process.env.PANIC_ALERT_RADIUS_M || '2000', 10) || 2000; // 1–3 km
 
 export async function processGpsData(imei: string, record: AVLRecord): Promise<void> {
   const { latitude, longitude, speed, altitude, angle, satellites, timestamp, io, priority } = record;

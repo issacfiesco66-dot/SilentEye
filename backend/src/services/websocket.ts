@@ -145,26 +145,29 @@ function broadcast(msg: WSMessage, filter?: (meta: { userId?: string; role?: str
 export function broadcastLocation(update: LocationUpdate) {
   broadcast(
     { type: 'location', payload: update },
-    (meta) => meta.role === 'admin' || meta.role === 'helper' || meta.vehicleId === update.vehicleId
+    (meta) => meta.role === 'admin' || meta.vehicleId === update.vehicleId
   );
 }
 
 export function broadcastPanic(event: PanicEvent, nearbyUserIds?: string[]) {
   const filter = (meta: { userId?: string; role?: string; vehicleId?: string }) =>
     meta.role === 'admin' ||
-    meta.role === 'helper' ||
-    (meta.role === 'driver' && (nearbyUserIds ?? []).includes(meta.userId ?? ''));
+    (meta.role === 'driver' && (nearbyUserIds ?? []).includes(meta.userId ?? '')) ||
+    (meta.role === 'helper' && (nearbyUserIds ?? []).includes(meta.userId ?? ''));
   const recipientCount = [...clients.values()].filter(filter).length;
   logger.info(`broadcastPanic incident=${event.incidentId} plate=${event.plate} → ${recipientCount} clientes`);
   broadcast({ type: 'panic', payload: event }, filter);
 }
 
-export function broadcastAlert(event: AlertEvent) {
-  const recipientCount = [...clients.values()].filter((m) => m.role === 'admin' || m.role === 'helper').length;
-  logger.info(`broadcastAlert type=${event.alertType} imei=${event.deviceImei} → ${recipientCount} clientes admin/helper`);
+export function broadcastAlert(event: AlertEvent, nearbyUserIds?: string[]) {
+  const filter = (meta: { userId?: string; role?: string }) =>
+    meta.role === 'admin' ||
+    (nearbyUserIds != null && nearbyUserIds.length > 0 && nearbyUserIds.includes(meta.userId ?? ''));
+  const recipientCount = [...clients.values()].filter(filter).length;
+  logger.info(`broadcastAlert type=${event.alertType} imei=${event.deviceImei} → ${recipientCount} clientes`);
   broadcast(
     { type: 'alert', payload: event },
-    (meta) => meta.role === 'admin' || meta.role === 'helper'
+    filter
   );
 }
 

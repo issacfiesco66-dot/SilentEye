@@ -84,17 +84,41 @@ function requireRole(...roles: string[]) {
   };
 }
 
+// Login: conductor con IMEI (GPS registrado) o admin con teléfono
 api.post('/auth/otp/request', async (req, res) => {
   try {
-    const { phone } = req.body;
-    if (!phone || typeof phone !== 'string') {
-      res.status(400).json({ error: 'Teléfono requerido' });
+    const { imei, phone } = req.body;
+    const showCode = process.env.OTP_SHOW_IN_PROD === 'true' || process.env.NODE_ENV !== 'production';
+
+    if (imei && typeof imei === 'string') {
+      // Conductor: ingresa con número de GPS (IMEI). El GPS debe estar registrado por admin.
+      const vRow = await pool.query(
+        'SELECT v.driver_id, u.phone FROM vehicles v LEFT JOIN users u ON u.id = v.driver_id WHERE v.imei = $1 LIMIT 1',
+        [imei.trim()]
+      );
+      const row = vRow.rows[0];
+      if (!row) {
+        res.status(400).json({ error: 'GPS no registrado. Contacta al administrador.' });
+        return;
+      }
+      if (!row.driver_id || !row.phone) {
+        res.status(400).json({ error: 'GPS sin conductor asignado. Contacta al administrador.' });
+        return;
+      }
+      const code = await createOtp(row.phone);
+      res.json(showCode ? { success: true, code } : { success: true });
       return;
     }
-    const code = await createOtp(phone);
-    await findOrCreateUser(phone);
-    const showCode = process.env.OTP_SHOW_IN_PROD === 'true' || process.env.NODE_ENV !== 'production';
-    res.json(showCode ? { success: true, code } : { success: true });
+
+    if (phone && typeof phone === 'string') {
+      // Admin: ingresa con teléfono
+      const code = await createOtp(phone);
+      await findOrCreateUser(phone);
+      res.json(showCode ? { success: true, code } : { success: true });
+      return;
+    }
+
+    res.status(400).json({ error: 'Ingresa el número de GPS (IMEI) o teléfono' });
   } catch (err: unknown) {
     logger.error('OTP request error:', err);
     res.status(500).json({ error: 'Error al generar OTP' });
@@ -103,19 +127,53 @@ api.post('/auth/otp/request', async (req, res) => {
 
 api.post('/auth/otp/verify', async (req, res) => {
   try {
-    const { phone, code, name } = req.body;
-    if (!phone || !code) {
-      res.status(400).json({ error: 'Teléfono y código requeridos' });
+    const { imei, phone, code, name } = req.body;
+    if (!code) {
+      res.status(400).json({ error: 'Código requerido' });
       return;
     }
-    const { valid, user: existingUser } = await verifyOtp(phone, code);
-    if (!valid) {
-      res.status(401).json({ error: 'Código inválido o expirado' });
+
+    if (imei && typeof imei === 'string') {
+      // Conductor: verificar por IMEI
+      const vRow = await pool.query(
+        'SELECT v.driver_id FROM vehicles v WHERE v.imei = $1 LIMIT 1',
+        [imei.trim()]
+      );
+      const row = vRow.rows[0];
+      if (!row || !row.driver_id) {
+        res.status(400).json({ error: 'GPS no registrado o sin conductor' });
+        return;
+      }
+      const uRow = await pool.query('SELECT id, phone, name, role FROM users WHERE id = $1', [row.driver_id]);
+      const user = uRow.rows[0];
+      if (!user) {
+        res.status(400).json({ error: 'Usuario no encontrado' });
+        return;
+      }
+      const { valid } = await verifyOtp(user.phone, code);
+      if (!valid) {
+        res.status(401).json({ error: 'Código inválido o expirado' });
+        return;
+      }
+      const token = signToken({ userId: user.id, role: user.role });
+      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
       return;
     }
-    const user = existingUser ?? await findOrCreateUser(phone, name);
-    const token = signToken({ userId: user.id, role: user.role });
-    res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
+
+    if (phone && typeof phone === 'string') {
+      // Admin: verificar por teléfono
+      const { valid, user: existingUser } = await verifyOtp(phone, code);
+      if (!valid) {
+        res.status(401).json({ error: 'Código inválido o expirado' });
+        return;
+      }
+      const user = existingUser ?? await findOrCreateUser(phone, name);
+      const token = signToken({ userId: user.id, role: user.role });
+      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
+      return;
+    }
+
+    res.status(400).json({ error: 'Ingresa IMEI o teléfono' });
   } catch (err: unknown) {
     logger.error('OTP verify error:', err);
     res.status(500).json({ error: 'Error al verificar OTP' });
@@ -282,7 +340,7 @@ api.get('/incidents', authMiddleware, async (req, res) => {
     query += ` WHERE EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $1)`;
     params.push(userId);
   } else if (role === 'driver') {
-    query += ` WHERE i.driver_id = $1`;
+    query += ` WHERE i.driver_id = $1 OR EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $1)`;
     params.push(userId);
   }
   query += ` ORDER BY i.started_at DESC LIMIT 50`;
@@ -307,7 +365,7 @@ api.get('/incidents/:id', authMiddleware, async (req, res) => {
     query += ` AND EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $2)`;
     params.push(userId);
   } else if (role === 'driver') {
-    query += ` AND i.driver_id = $2`;
+    query += ` AND (i.driver_id = $2 OR EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $2))`;
     params.push(userId);
   }
 
@@ -384,10 +442,12 @@ api.delete('/incidents/:id/followers/me', authMiddleware, requireRole('helper', 
   res.json({ success: true });
 });
 
-api.get('/alerts', authMiddleware, requireRole('admin', 'helper'), async (req, res) => {
+api.get('/alerts', authMiddleware, requireRole('admin', 'helper', 'driver'), async (req, res) => {
   const limit = Math.min(parseInt(String(req.query.limit || 100), 10) || 100, 500);
   const since = req.query.since ? new Date(String(req.query.since)) : undefined;
-  const alerts = await getAlerts(limit, since);
+  const { userId, role } = (req as any).user;
+  const driverUserId = role === 'driver' || role === 'helper' ? userId : undefined;
+  const alerts = await getAlerts(limit, since, driverUserId);
   res.json(alerts);
 });
 
