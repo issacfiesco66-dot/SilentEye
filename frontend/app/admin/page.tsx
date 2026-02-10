@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AdminTabs from '@/components/admin/AdminTabs';
 import IncidentesSection from '@/components/admin/IncidentesSection';
+import AlertsSection from '@/components/admin/AlertsSection';
 import AdminMapView from '@/components/admin/AdminMapView';
 import VehiclesSection from '@/components/admin/VehiclesSection';
 import DriversSection from '@/components/admin/DriversSection';
 
-type Tab = 'incidents' | 'map' | 'vehicles' | 'drivers';
+type Tab = 'incidents' | 'alerts' | 'map' | 'vehicles' | 'drivers';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -68,6 +69,12 @@ export default function AdminPage() {
           {activeTab === 'incidents' && (
             <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
               <IncidentesSection />
+            </div>
+          )}
+
+          {activeTab === 'alerts' && (
+            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+              <AlertsSection />
             </div>
           )}
 

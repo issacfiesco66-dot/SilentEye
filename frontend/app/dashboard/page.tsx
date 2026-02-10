@@ -150,38 +150,30 @@ export default function DashboardPage() {
           [p.imei || p.vehicleId || 'unk']: p,
         }));
       }
-      if (msg.type === 'panic' && msg.payload) {
-        const p = msg.payload as { incidentId: string; latitude: number; longitude: number; plate?: string; imei?: string; vehicleId?: string };
+      const handlePanicLike = (incidentId: string, lat: number, lng: number, plate?: string, imei?: string, vehicleId?: string) => {
         setIncidents((prev) => {
-          if (prev.some((i) => i.id === p.incidentId)) return prev;
-          return [
-            {
-              id: p.incidentId,
-              status: 'active',
-              latitude: p.latitude,
-              longitude: p.longitude,
-              plate: p.plate,
-              started_at: new Date().toISOString(),
-            },
-            ...prev,
-          ];
+          if (prev.some((i) => i.id === incidentId)) return prev;
+          return [{ id: incidentId, status: 'active', latitude: lat, longitude: lng, plate, started_at: new Date().toISOString() }, ...prev];
         });
         setLiveLocations((prev) => ({
           ...prev,
-          [p.imei || p.vehicleId || 'unk']: {
-            imei: p.imei ?? '',
-            vehicleId: p.vehicleId,
-            latitude: p.latitude,
-            longitude: p.longitude,
-            speed: 0,
-            plate: p.plate,
-          },
+          [imei || vehicleId || incidentId]: { imei: imei ?? '', vehicleId, latitude: lat, longitude: lng, speed: 0, plate },
         }));
         if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
           new Notification('🚨 SilentEye - Pánico', {
-            body: `Vehículo ${p.plate || 'Sin placa'} - Ubicación: ${p.latitude?.toFixed(5)}, ${p.longitude?.toFixed(5)}`,
-            tag: p.incidentId,
+            body: `Vehículo ${plate || 'Sin placa'} - Ubicación: ${lat?.toFixed(5)}, ${lng?.toFixed(5)}`,
+            tag: incidentId,
           });
+        }
+      };
+      if (msg.type === 'panic' && msg.payload) {
+        const p = msg.payload as { incidentId: string; latitude: number; longitude: number; plate?: string; imei?: string; vehicleId?: string };
+        handlePanicLike(p.incidentId, p.latitude, p.longitude, p.plate, p.imei, p.vehicleId);
+      }
+      if (msg.type === 'alert' && msg.payload) {
+        const a = msg.payload as { id?: string; alertType?: string; latitude?: number; longitude?: number; plate?: string; deviceImei?: string; vehicleId?: string };
+        if (a.alertType === 'panic' && a.id && typeof a.latitude === 'number' && typeof a.longitude === 'number') {
+          handlePanicLike(a.id, a.latitude, a.longitude, a.plate, a.deviceImei, a.vehicleId);
         }
       }
     },

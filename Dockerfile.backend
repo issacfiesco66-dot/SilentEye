@@ -29,14 +29,12 @@ RUN cp src/db/schema.sql src/db/schema-simple.sql dist/db/
 # Quitar devDependencies para imagen final
 RUN npm prune --omit=dev
 
-# Script de arranque Node+ngrok (incluido en backend/)
-RUN chmod +x /app/start-with-ngrok.sh
-
 ENV NODE_ENV=production
 ENV TCP_PORT=5000
 ENV PORT=8080
 
 EXPOSE 8080 5000
 
-# Con NGROK_AUTHTOKEN: inicia Node + ngrok. Sin él: solo Node (modo sin túnel)
-CMD ["sh", "-c", "if [ -n \"$NGROK_AUTHTOKEN\" ]; then /app/start-with-ngrok.sh; else exec node dist/index.js; fi"]
+# Con NGROK_AUTHTOKEN: inicia Node en background + ngrok TCP 5000. Sin él: solo Node.
+# Lógica inline para evitar depender del script (problemas con CRLF/COPY en build remoto)
+CMD ["sh", "-c", "if [ -n \"$NGROK_AUTHTOKEN\" ]; then node dist/index.js & sleep 5 && exec ngrok tcp 5000 --log=stdout; else exec node dist/index.js; fi"]

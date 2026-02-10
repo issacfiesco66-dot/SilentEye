@@ -10,7 +10,8 @@
     "reset:postgis": "node ../node_modules/tsx/dist/cli.mjs src/db/reset-postgis.ts",
     "seed": "node ../node_modules/tsx/dist/cli.mjs src/db/seed.ts",
     "simulate": "tsx src/simulator/gps-simulator.ts",
-    "tcp:minimal": "node ../node_modules/tsx/dist/cli.mjs src/tcp-minimal.ts"
+    "tcp:minimal": "node ../node_modules/tsx/dist/cli.mjs src/tcp-minimal.ts",
+    "migrate:alerts": "node ../node_modules/tsx/dist/cli.mjs src/db/migrate-alerts.ts"
   },
   "dependencies": {
     "pg": "^8.11.3",

@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
 CREATE INDEX idx_vehicles_imei ON vehicles(imei);
 CREATE INDEX idx_vehicles_driver ON vehicles(driver_id);
 
-CREATE TABLE gps_logs (
+CREATE TABLE IF NOT EXISTS gps_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vehicle_id UUID REFERENCES vehicles(id) ON DELETE CASCADE,
   imei VARCHAR(20) NOT NULL,

@@ -55,7 +55,7 @@ Este script: si tienes Docker, crea un contenedor PostgreSQL+PostGIS; si no, abr
 **O manualmente con Docker:**
 
 ```powershell
-docker run -d --name silenteye-db -e POSTGRES_PASSWORD=Silenteye1989 -e POSTGRES_DB=silenteye -p 5433:5432 postgis/postgis:16-3.4
+docker run -d --name silenteye-db -e POSTGRES_PASSWORD=CAMBIAR_PASSWORD_SEGURO -e POSTGRES_DB=silenteye -p 5433:5432 postgis/postgis:16-3.4
 ```
 
 Luego ejecuta `npm run migrate` y `npm run seed`.
@@ -136,7 +136,7 @@ npm run dev:simulator  # Terminal 3 (opcional)
 ### Opción A: Docker
 
 ```powershell
-docker run -d --name silenteye-db -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=silenteye -p 5432:5432 postgis/postgis:16-3.4
+docker run -d --name silenteye-db -e POSTGRES_PASSWORD=tu_password_local -e POSTGRES_DB=silenteye -p 5432:5432 postgis/postgis:16-3.4
 ```
 
 Luego: `npm run migrate` y `npm run seed`

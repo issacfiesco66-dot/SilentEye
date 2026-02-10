@@ -17,6 +17,8 @@ primary_region = 'dfw'
   NODE_ENV = 'production'
   PORT = '8080'
   TCP_PORT = '5000'
+  TCP_PORT_ALT = '8443'
+  TCP_PORT_ALT2 = '15140'
   TELTONIKA_SKIP_WHITELIST = 'true'
 
 [http_service]
@@ -45,6 +47,32 @@ primary_region = 'dfw'
 
   [[services.ports]]
     port = 5000
+
+  [services.concurrency]
+    type = 'connections'
+    hard_limit = 20
+    soft_limit = 10
+
+# Puerto alternativo 8443: muchas redes móviles bloquean 5000 pero permiten 8443
+[[services]]
+  protocol = 'tcp'
+  internal_port = 8443
+
+  [[services.ports]]
+    port = 8443
+
+  [services.concurrency]
+    type = 'connections'
+    hard_limit = 20
+    soft_limit = 10
+
+# Puerto 15140: igual que ngrok/Railway, puertos altos suelen no estar bloqueados por operadores móviles
+[[services]]
+  protocol = 'tcp'
+  internal_port = 15140
+
+  [[services.ports]]
+    port = 15140
 
   [services.concurrency]
     type = 'connections'

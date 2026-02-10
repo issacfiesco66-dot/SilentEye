@@ -8,7 +8,7 @@ import {
   signToken,
   verifyToken,
 } from './auth.js';
-import { getAlerts } from '../services/alert-service.js';
+import { getAlerts, deleteAlerts } from '../services/alert-service.js';
 import { logger } from '../utils/logger.js';
 import { runMigrate } from '../db/run-migrate.js';
 import { runSeed } from '../db/run-seed.js';
@@ -19,7 +19,7 @@ export const api = Router();
 const MIGRATE_SECRET = process.env.MIGRATE_SECRET || '';
 function checkSetupSecret(req: import('express').Request): boolean {
   const secret = req.query.secret || req.body?.secret;
-  return !!MIGRATE_SECRET && MIGRATE_SECRET === secret;
+  return !!MIGRATE_SECRET && MIGRATE_SECRET.length >= 16 && MIGRATE_SECRET === secret;
 }
 
 api.post('/setup/migrate', async (req, res) => {
@@ -47,8 +47,8 @@ api.post('/setup/otp', async (req, res) => {
     return;
   }
   const phone = req.body?.phone || req.query.phone;
-  if (!phone || typeof phone !== 'string') {
-    res.status(400).json({ error: 'phone requerido' });
+  if (!phone || typeof phone !== 'string' || phone.length > 20) {
+    res.status(400).json({ error: 'phone requerido (máx 20 caracteres)' });
     return;
   }
   try {
@@ -56,7 +56,8 @@ api.post('/setup/otp', async (req, res) => {
     await findOrCreateUser(phone);
     res.json({ ok: true, phone, code });
   } catch (err) {
-    res.status(500).json({ ok: false, error: String(err) });
+    logger.error('setup/otp error:', err);
+    res.status(500).json({ ok: false, error: 'Error interno' });
   }
 });
 
@@ -92,8 +93,8 @@ api.post('/auth/otp/request', async (req, res) => {
     }
     const code = await createOtp(phone);
     await findOrCreateUser(phone);
-    const isProd = process.env.NODE_ENV === 'production';
-    res.json(isProd ? { success: true } : { success: true, code });
+    const showCode = process.env.OTP_SHOW_IN_PROD === 'true' || process.env.NODE_ENV !== 'production';
+    res.json(showCode ? { success: true, code } : { success: true });
   } catch (err: unknown) {
     logger.error('OTP request error:', err);
     res.status(500).json({ error: 'Error al generar OTP' });
@@ -390,7 +391,59 @@ api.get('/alerts', authMiddleware, requireRole('admin', 'helper'), async (req, r
   res.json(alerts);
 });
 
-// IDOR: admin ve todo; helper solo vehículos de incidentes que sigue; driver solo su vehículo
+api.delete('/alerts', authMiddleware, requireRole('admin'), async (req, res) => {
+  const days = req.query.days ? parseInt(String(req.query.days), 10) : null;
+  const all = req.query.all === '1' || req.query.all === 'true';
+  let before: Date | undefined;
+  if (all) {
+    before = undefined;
+  } else if (days != null && days > 0) {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    before = d;
+  } else {
+    res.status(400).json({
+      error: 'Especifica ?days=N (borrar alertas anteriores a N días) o ?all=1 (borrar todas)',
+    });
+    return;
+  }
+  const { deleted } = await deleteAlerts(before);
+  res.json({ success: true, deleted });
+});
+
+// Posiciones de MIS vehículos (solo drivers): vehículos donde driver_id = userId
+api.get('/gps/my-positions', authMiddleware, requireRole('driver'), async (req, res) => {
+  const { userId } = (req as any).user;
+  const limit = Math.min(parseInt(String(req.query.limit || 20), 10) || 20, 50);
+  const pg = await hasPostGis();
+
+  const subq = pg
+    ? `SELECT DISTINCT ON (g.imei) g.imei, g.vehicle_id, g.latitude, g.longitude, g.speed, g.timestamp_at, v.plate
+       FROM gps_logs g
+       JOIN vehicles v ON v.id = g.vehicle_id AND v.driver_id = $1
+       ORDER BY g.imei, g.timestamp_at DESC`
+    : `SELECT DISTINCT ON (g.imei) g.imei, g.vehicle_id, g.latitude, g.longitude, g.speed, g.timestamp_at, v.plate
+       FROM gps_logs g
+       JOIN vehicles v ON v.id = g.vehicle_id AND v.driver_id = $1
+       ORDER BY g.imei, g.timestamp_at DESC`;
+
+  const r = await pool.query(
+    `SELECT * FROM (${subq}) sq WHERE latitude != 0 OR longitude != 0 LIMIT $2`,
+    [userId, limit]
+  );
+  res.json(
+    r.rows.map((row) => ({
+      imei: row.imei,
+      vehicleId: row.vehicle_id,
+      plate: row.plate,
+      latitude: parseFloat(row.latitude),
+      longitude: parseFloat(row.longitude),
+      speed: row.speed ?? 0,
+      timestampAt: row.timestamp_at,
+    }))
+  );
+});
+
 // Últimas posiciones por IMEI (admin) - incluye dispositivos no registrados
 api.get('/gps/latest-positions', authMiddleware, requireRole('admin'), async (req, res) => {
   const limit = Math.min(parseInt(String(req.query.limit || 50), 10) || 50, 200);

@@ -115,13 +115,16 @@ Se identificaron **vulnerabilidades de severidad alta y media** que requieren mi
 
 ## 5. Checklist de seguridad previo a producción
 
-- [ ] WebSocket con autenticación JWT
-- [ ] IDOR corregidos en incidents y gps/logs
-- [ ] JWT_SECRET obligatorio y fuerte
-- [ ] CORS restrictivo
-- [ ] OTP no devuelto en respuesta API
-- [ ] Sin credenciales por defecto en código
-- [ ] Validación de longitud en inputs
-- [ ] Límite de tamaño en paquetes TCP
-- [ ] Logs de autenticación y accesos denegados
-- [ ] Revisión de headers de seguridad (CSP, HSTS, etc.) en frontend
+- [x] WebSocket con autenticación JWT
+- [x] IDOR corregidos en incidents y gps/logs
+- [x] JWT_SECRET obligatorio y fuerte (32+ chars)
+- [x] CORS restrictivo en producción
+- [x] OTP no devuelto en respuesta API (prod)
+- [x] Sin credenciales por defecto en producción (pool falla si no hay DATABASE_URL)
+- [x] Validación de longitud en inputs (phone, setup/otp)
+- [x] Límite de tamaño en paquetes TCP (MAX_CONNECTION_BUFFER 1MB)
+- [x] MIGRATE_SECRET mínimo 16 caracteres
+- [ ] Logs de autenticación y accesos denegados (opcional)
+- [ ] Revisión de headers de seguridad (CSP, HSTS) en frontend (opcional)
+
+*Actualizado: Febrero 2026 – correcciones aplicadas*

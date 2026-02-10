@@ -31,7 +31,7 @@ export default function LoginPage() {
       if (!res.ok) throw new Error(data.error || 'Error al solicitar OTP');
       setStep('otp');
       if (data.code) {
-        alert(`Tu código de verificación es:\n\n${data.code}\n\nCópialo y péguelo en el formulario.`);
+        setCode(data.code);
       }
     } catch (e: any) {
       setError(e?.message || 'Error. ¿El backend está corriendo en el puerto 3001?');
@@ -94,6 +94,11 @@ export default function LoginPage() {
           ) : (
             <>
               <p className="text-slate-400 text-sm mb-2">Código enviado a {phone}</p>
+              {code && (
+                <p className="text-emerald-400 text-sm mb-2">
+                  Código generado (válido 10 min)
+                </p>
+              )}
               <label className="block text-sm text-slate-300 mb-2">Código OTP</label>
               <input
                 type="text"
@@ -131,7 +136,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-slate-500 text-xs text-center mt-6">
-          En desarrollo: el código OTP aparece en la respuesta del API.
+          Con OTP_SHOW_IN_PROD activo, el código se rellena automáticamente.
         </p>
       </div>
     </div>

@@ -4,11 +4,13 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { createTeltonikaTcpServer } from './teltonika/tcp-server.js';
-import { createWebSocketServer } from './services/websocket.js';
+import { createWebSocketServer, getWebSocketClientCount } from './services/websocket.js';
 import { api } from './api/routes.js';
 import { logger } from './utils/logger.js';
 
 const TCP_PORT = parseInt(process.env.TCP_PORT || '5000', 10);
+const TCP_PORT_ALT = process.env.TCP_PORT_ALT ? parseInt(process.env.TCP_PORT_ALT, 10) : null;
+const TCP_PORT_ALT2 = process.env.TCP_PORT_ALT2 ? parseInt(process.env.TCP_PORT_ALT2, 10) : null;
 // En Fly.io: PORT=8080 (un solo puerto para HTTP+WebSocket)
 const HTTP_PORT = parseInt(process.env.PORT || process.env.HTTP_PORT || '3001', 10);
 const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || '200', 10);
@@ -91,12 +93,25 @@ app.get('/health/db', async (_req, res) => {
   }
 });
 
+app.get('/health/ws', (_req, res) => {
+  const { total, byRole } = getWebSocketClientCount();
+  res.json({ status: 'ok', websocket: { clients: total, byRole } });
+});
+
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error('Error no capturado:', err);
   res.status(500).json({ error: 'Error interno del servidor' });
 });
 
 createTeltonikaTcpServer(TCP_PORT);
+if (TCP_PORT_ALT != null && TCP_PORT_ALT !== TCP_PORT) {
+  createTeltonikaTcpServer(TCP_PORT_ALT);
+  logger.info(`[TCP] Puerto alternativo: 0.0.0.0:${TCP_PORT_ALT} (para redes que bloquean ${TCP_PORT})`);
+}
+if (TCP_PORT_ALT2 != null && TCP_PORT_ALT2 !== TCP_PORT && TCP_PORT_ALT2 !== TCP_PORT_ALT) {
+  createTeltonikaTcpServer(TCP_PORT_ALT2);
+  logger.info(`[TCP] Puerto alto 15140 (estilo ngrok/Railway): 0.0.0.0:${TCP_PORT_ALT2}`);
+}
 
 const server = http.createServer(app);
 createWebSocketServer(server);

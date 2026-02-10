@@ -171,3 +171,16 @@ export function broadcastAlert(event: AlertEvent) {
 export function broadcastToAdmins(type: MessageType, payload: unknown) {
   broadcast({ type, payload }, (meta) => meta.role === 'admin');
 }
+
+export function getWebSocketClientCount(): { total: number; byRole: Record<string, number> } {
+  const byRole: Record<string, number> = {};
+  let total = 0;
+  for (const [ws, meta] of clients) {
+    if (ws.readyState === 1) {
+      total++;
+      const role = meta.role || 'unknown';
+      byRole[role] = (byRole[role] || 0) + 1;
+    }
+  }
+  return { total, byRole };
+}

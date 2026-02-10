@@ -6,6 +6,7 @@ import HelperHeader, { type HelperStatus } from './HelperHeader';
 import HelperIncidentCard from './HelperIncidentCard';
 import HelperMapSection from './HelperMapSection';
 import SinIncidentePlaceholder from './SinIncidentePlaceholder';
+import DriverMyVehiclesMap from './DriverMyVehiclesMap';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
@@ -170,42 +171,35 @@ export default function HelperDashboardLayout() {
       const p = msg.payload;
       if (!p || typeof p !== 'object') return;
 
+      const handlePanicLike = (incidentId: string, lat: number, lng: number, plate?: string, imei?: string, vehicleId?: string) => {
+        setIncidents((prev) => {
+          if (prev.some((i) => i.id === incidentId)) return prev;
+          return [{
+            id: incidentId,
+            vehicle_id: vehicleId,
+            imei,
+            status: 'active',
+            latitude: lat,
+            longitude: lng,
+            plate,
+            driver_name: undefined,
+            started_at: new Date().toISOString(),
+          }, ...prev];
+        });
+        const key = vehicleId || imei || incidentId || 'unk';
+        setLiveLocations((prev) => ({ ...prev, [key]: { vehicleId, imei, latitude: lat, longitude: lng, speed: 0, plate } }));
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          new Notification('🚨 SilentEye - Pánico', { body: `Vehículo ${plate || 'Sin placa'}`, tag: incidentId });
+        }
+      };
       if (msg.type === 'panic' && (p as { incidentId?: string }).incidentId) {
         const panic = p as { incidentId: string; vehicleId?: string; imei?: string; latitude: number; longitude: number; plate?: string };
-        setIncidents((prev) => {
-          if (prev.some((i) => i.id === panic.incidentId)) return prev;
-          return [
-            {
-              id: panic.incidentId,
-              vehicle_id: panic.vehicleId,
-              imei: panic.imei,
-              status: 'active',
-              latitude: panic.latitude,
-              longitude: panic.longitude,
-              plate: panic.plate,
-              driver_name: undefined,
-              started_at: new Date().toISOString(),
-            },
-            ...prev,
-          ];
-        });
-        const key = panic.vehicleId || panic.imei || panic.incidentId || 'unk';
-        setLiveLocations((prev) => ({
-          ...prev,
-          [key]: {
-            vehicleId: panic.vehicleId,
-            imei: panic.imei,
-            latitude: panic.latitude,
-            longitude: panic.longitude,
-            speed: 0,
-            plate: panic.plate,
-          },
-        }));
-        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-          new Notification('🚨 SilentEye - Pánico', {
-            body: `Vehículo ${panic.plate || 'Sin placa'}`,
-            tag: panic.incidentId,
-          });
+        handlePanicLike(panic.incidentId, panic.latitude, panic.longitude, panic.plate, panic.imei, panic.vehicleId);
+      }
+      if (msg.type === 'alert' && (p as { alertType?: string }).alertType === 'panic') {
+        const a = p as { id?: string; latitude?: number; longitude?: number; plate?: string; deviceImei?: string; vehicleId?: string };
+        if (a.id && typeof a.latitude === 'number' && typeof a.longitude === 'number') {
+          handlePanicLike(a.id, a.latitude, a.longitude, a.plate, a.deviceImei, a.vehicleId);
         }
       }
 
@@ -275,7 +269,11 @@ export default function HelperDashboardLayout() {
             Cargando...
           </div>
         ) : !activeIncident ? (
-          <SinIncidentePlaceholder wsConnected={wsConnected} />
+          user.role === 'driver' ? (
+            <DriverMyVehiclesMap />
+          ) : (
+            <SinIncidentePlaceholder wsConnected={wsConnected} />
+          )
         ) : (
           <>
             <HelperIncidentCard

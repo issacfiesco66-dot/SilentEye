@@ -1,6 +1,6 @@
 'use client';
 
-type Tab = 'incidents' | 'map' | 'vehicles' | 'drivers';
+type Tab = 'incidents' | 'alerts' | 'map' | 'vehicles' | 'drivers';
 
 interface AdminTabsProps {
   activeTab: Tab;
@@ -9,6 +9,7 @@ interface AdminTabsProps {
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'incidents', label: 'Incidentes' },
+  { id: 'alerts', label: 'Alertas GPS' },
   { id: 'map', label: 'Mapa en vivo' },
   { id: 'vehicles', label: 'Vehículos' },
   { id: 'drivers', label: 'Conductores' },

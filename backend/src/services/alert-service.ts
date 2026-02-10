@@ -117,3 +117,22 @@ export async function getAlerts(limit = 100, since?: Date): Promise<StoredAlert[
     client.release();
   }
 }
+
+/** Borrar alertas: antes de una fecha, o todas si before es null */
+export async function deleteAlerts(before?: Date): Promise<{ deleted: number }> {
+  const client = await pool.connect();
+  try {
+    let result;
+    if (before) {
+      result = await client.query(
+        'DELETE FROM alerts WHERE created_at < $1',
+        [before]
+      );
+    } else {
+      result = await client.query('DELETE FROM alerts');
+    }
+    return { deleted: result.rowCount ?? 0 };
+  } finally {
+    client.release();
+  }
+}

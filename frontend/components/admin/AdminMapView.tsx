@@ -50,7 +50,30 @@ export default function AdminMapView() {
     setToken(typeof window !== 'undefined' ? localStorage.getItem('token') : null);
   }, []);
 
-  // Fetch inicial: incidentes, vehículos y últimas posiciones GPS
+  // Función para cargar posiciones GPS (usada en fetch inicial y polling)
+  const loadPositions = async (token: string) => {
+    const posRes = await fetch(`${API}/api/gps/latest-positions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (posRes.ok) {
+      const positions = await posRes.json();
+      const initial: Record<string, VehicleLocation> = {};
+      for (const p of positions) {
+        const key = p.imei || p.vehicleId || 'unk';
+        initial[key] = {
+          vehicleId: p.vehicleId,
+          imei: p.imei,
+          latitude: Number(p.latitude),
+          longitude: Number(p.longitude),
+          speed: p.speed,
+          plate: p.plate,
+        };
+      }
+      setLiveVehicles((prev) => ({ ...initial, ...prev }));
+    }
+  };
+
+  // Fetch inicial + polling cada 5s para actualizar ubicaciones más rápido
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -60,10 +83,9 @@ export default function AdminMapView() {
 
     const load = async () => {
       try {
-        const [incRes, vRes, posRes] = await Promise.all([
+        const [incRes, vRes] = await Promise.all([
           fetch(`${API}/api/incidents`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${API}/api/vehicles`, { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`${API}/api/gps/latest-positions`, { headers: { Authorization: `Bearer ${token}` } }),
         ]);
 
         if (incRes.status === 401 || incRes.status === 403) {
@@ -86,28 +108,17 @@ export default function AdminMapView() {
           const v = await vRes.json();
           setVehicles(v);
         }
-        if (posRes.ok) {
-          const positions = await posRes.json();
-          const initial: Record<string, VehicleLocation> = {};
-          for (const p of positions) {
-            const key = p.imei || p.vehicleId || 'unk';
-            initial[key] = {
-              vehicleId: p.vehicleId,
-              imei: p.imei,
-              latitude: Number(p.latitude),
-              longitude: Number(p.longitude),
-              speed: p.speed,
-              plate: p.plate,
-            };
-          }
-          setLiveVehicles((prev) => ({ ...initial, ...prev }));
-        }
+        await loadPositions(token);
       } catch {
         setError('Error al cargar datos');
       }
     };
 
     load();
+
+    // Polling cada 5s para reflejar ubicaciones más rápido (complementa WebSocket)
+    const interval = setInterval(() => loadPositions(token), 5000);
+    return () => clearInterval(interval);
   }, [router]);
 
   // WebSocket: tiempo real con reintentos (cold start Fly.io)
@@ -133,33 +144,23 @@ export default function AdminMapView() {
         }));
       }
 
+      const handlePanicLike = (incidentId: string, lat: number, lng: number, plate?: string, imei?: string, vehicleId?: string) => {
+        setActiveIncidents((prev) => {
+          if (prev.some((i) => i.id === incidentId)) return prev;
+          return [{ id: incidentId, status: 'active', latitude: lat, longitude: lng, plate }, ...prev];
+        });
+        const key = imei || vehicleId || 'unk';
+        setLiveVehicles((prev) => ({ ...prev, [key]: { vehicleId, imei, latitude: lat, longitude: lng, speed: 0, plate } }));
+      };
       if (msg.type === 'panic') {
         const panic = p as { incidentId: string; latitude: number; longitude: number; plate?: string; imei?: string; vehicleId?: string };
-        setActiveIncidents((prev) => {
-          if (prev.some((i) => i.id === panic.incidentId)) return prev;
-          return [
-            {
-              id: panic.incidentId,
-              status: 'active',
-              latitude: Number(panic.latitude),
-              longitude: Number(panic.longitude),
-              plate: panic.plate,
-            },
-            ...prev,
-          ];
-        });
-        const key = panic.imei || panic.vehicleId || 'unk';
-        setLiveVehicles((prev) => ({
-          ...prev,
-          [key]: {
-            vehicleId: panic.vehicleId,
-            imei: panic.imei,
-            latitude: Number(panic.latitude),
-            longitude: Number(panic.longitude),
-            speed: 0,
-            plate: panic.plate,
-          },
-        }));
+        handlePanicLike(panic.incidentId, panic.latitude, panic.longitude, panic.plate, panic.imei, panic.vehicleId);
+      }
+      if (msg.type === 'alert' && (p as { alertType?: string }).alertType === 'panic') {
+        const a = p as { id?: string; latitude?: number; longitude?: number; plate?: string; deviceImei?: string; vehicleId?: string };
+        if (a.id && typeof a.latitude === 'number' && typeof a.longitude === 'number') {
+          handlePanicLike(a.id, a.latitude, a.longitude, a.plate, a.deviceImei, a.vehicleId);
+        }
       }
     },
   });
