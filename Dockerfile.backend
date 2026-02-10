@@ -1,8 +1,14 @@
 # SilentEye Backend - Fly.io (contexto: raíz del repo)
-# Alineado con Dockerfile principal para builds consistentes
+# Con ngrok para TCP GPS: flujo GPS -> ngrok cloud -> ngrok agent -> localhost:5000
 FROM node:20-alpine
 
 WORKDIR /app
+
+# ngrok: descargar binario (para túnel TCP GPS en producción)
+RUN apk add --no-cache curl && \
+    curl -sSL -o /tmp/ngrok.tgz "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz" && \
+    tar xzf /tmp/ngrok.tgz -C /usr/local/bin && rm /tmp/ngrok.tgz && \
+    apk del curl
 
 # Copiar solo backend e instalar dependencias
 COPY backend/package.json ./
@@ -23,10 +29,14 @@ RUN cp src/db/schema.sql src/db/schema-simple.sql dist/db/
 # Quitar devDependencies para imagen final
 RUN npm prune --omit=dev
 
+# Script de arranque Node+ngrok (incluido en backend/)
+RUN chmod +x /app/start-with-ngrok.sh
+
 ENV NODE_ENV=production
 ENV TCP_PORT=5000
 ENV PORT=8080
 
 EXPOSE 8080 5000
 
-CMD ["node", "dist/index.js"]
+# Con NGROK_AUTHTOKEN: inicia Node + ngrok. Sin él: solo Node (modo sin túnel)
+CMD ["sh", "-c", "if [ -n \"$NGROK_AUTHTOKEN\" ]; then /app/start-with-ngrok.sh; else exec node dist/index.js; fi"]
