@@ -57,6 +57,25 @@ export default function AlertsSection() {
     fetchAlerts();
   }, []);
 
+  const deleteSingleAlert = async (id: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API}/api/alerts/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setAlerts((prev) => prev.filter((a) => a.id !== id));
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setError(err.error || 'Error al borrar');
+      }
+    } catch {
+      setError('Error de conexión');
+    }
+  };
+
   const handleDelete = async (days?: number, all?: boolean) => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -146,17 +165,26 @@ export default function AlertsSection() {
                   {a.speed} km/h
                 </p>
               </div>
-              <span
-                className={`px-2 py-1 rounded text-xs font-medium shrink-0 ${
-                  a.priority === 2
-                    ? 'bg-red-500/20 text-red-400'
-                    : a.priority === 1
-                    ? 'bg-amber-500/20 text-amber-400'
-                    : 'bg-slate-500/20 text-slate-400'
-                }`}
-              >
-                {priorityLabel(a.priority)}
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span
+                  className={`px-2 py-1 rounded text-xs font-medium ${
+                    a.priority === 2
+                      ? 'bg-red-500/20 text-red-400'
+                      : a.priority === 1
+                      ? 'bg-amber-500/20 text-amber-400'
+                      : 'bg-slate-500/20 text-slate-400'
+                  }`}
+                >
+                  {priorityLabel(a.priority)}
+                </span>
+                <button
+                  onClick={() => deleteSingleAlert(a.id)}
+                  className="px-2 py-1 text-xs bg-red-600/60 rounded hover:bg-red-600"
+                  title="Eliminar alerta"
+                >
+                  Eliminar
+                </button>
+              </div>
             </li>
           ))
         )}

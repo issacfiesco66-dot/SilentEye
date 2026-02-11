@@ -80,3 +80,11 @@ Tras `npm run seed`: Admin +51999999999, Helper +51999999998, Driver +5199999999
 - Handshake: IMEI (2 bytes length + ASCII) → ACK 0x01/0x00
 - AVL: Codec 8 / 8E con CRC-16
 - DIN1 activo (1) = evento de pánico
+
+## Deploy automático
+
+En cada **push a `main` o `master`**, GitHub Actions despliega Frontend (Vercel) y Backend (Fly.io). Ver [docs/DEPLOY-AUTOMATICO.md](docs/DEPLOY-AUTOMATICO.md) para configurar los secretos.
+
+## Documentación GPS (FMB920)
+
+- **[FMB920-TELTONIKA-SILENTEYE.md](docs/FMB920-TELTONIKA-SILENTEYE.md)** – Configuración completa, comandos Teltonika y verificación

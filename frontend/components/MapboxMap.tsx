@@ -40,8 +40,18 @@ export default function MapboxMap({
   centerOnIncidentId?: string | null;
 }) {
   const [userLocation, setUserLocation] = useState<{ longitude: number; latitude: number } | null>(null);
-  const [geoDone, setGeoDone] = useState(false);
   const mapRef = useRef<MapRef>(null);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation({ longitude: pos.coords.longitude, latitude: pos.coords.latitude });
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+    );
+  }, []);
 
   const centerOnMe = useCallback(() => {
     if (userLocation && mapRef.current) {
@@ -59,23 +69,6 @@ export default function MapboxMap({
     }
   }, [userLocation]);
 
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      setGeoDone(true);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUserLocation({ longitude: pos.coords.longitude, latitude: pos.coords.latitude });
-        setGeoDone(true);
-      },
-      () => setGeoDone(true),
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
-    );
-    const t = setTimeout(() => setGeoDone(true), 6000);
-    return () => clearTimeout(t);
-  }, []);
-
   const activeIncidents = incidents.filter((i) => i.status === 'active' || i.status === 'attending');
   const hasData = activeIncidents.length > 0 || liveLocations.length > 0;
 
@@ -92,14 +85,6 @@ export default function MapboxMap({
       ? { longitude: activeIncidents[0].longitude, latitude: activeIncidents[0].latitude }
       : { longitude: liveLocations[0].longitude, latitude: liveLocations[0].latitude }
     : userLocation ?? LIMA_CENTER;
-
-  if (!geoDone) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-slate-700 text-slate-300">
-        Obteniendo tu ubicación…
-      </div>
-    );
-  }
 
   return (
     <div className="relative w-full h-full">
@@ -120,7 +105,7 @@ export default function MapboxMap({
         zoom: hasData ? 14 : 10,
       }}
       style={{ width: '100%', height: '100%' }}
-      mapStyle="mapbox://styles/mapbox/dark-v11"
+      mapStyle="mapbox://styles/mapbox/streets-v12"
     >
       {userLocation && (
         <Marker longitude={userLocation.longitude} latitude={userLocation.latitude} anchor="center">

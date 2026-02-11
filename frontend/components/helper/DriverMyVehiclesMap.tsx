@@ -70,6 +70,7 @@ export default function DriverMyVehiclesMap() {
         <h2 className="text-lg font-semibold text-white">Mis vehículos</h2>
         <p className="text-slate-500 text-sm mt-1">
           Ubicación en tiempo real de tus vehículos asignados
+          {liveLocations.length === 0 && ' · Sin posiciones recientes'}
         </p>
       </div>
       {error && (
@@ -77,23 +78,14 @@ export default function DriverMyVehiclesMap() {
           {error}
         </div>
       )}
-      {liveLocations.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-800/50 rounded-xl border border-slate-700">
-          <p className="text-slate-400">No hay posiciones recientes de tus vehículos</p>
-          <p className="text-slate-500 text-sm mt-2">
-            Asegúrate de tener vehículos asignados y que el GPS esté enviando datos
-          </p>
-        </div>
-      ) : (
-        <div className="flex-1 min-h-[300px] rounded-xl overflow-hidden border border-slate-700">
-          <MapView
-            incidents={[]}
-            liveLocations={liveLocations}
-            selectedId={null}
-            onSelectIncident={() => {}}
-          />
-        </div>
-      )}
+      <div className="w-full h-[400px] rounded-xl overflow-hidden border border-slate-700 bg-white/5">
+        <MapView
+          incidents={[]}
+          liveLocations={liveLocations}
+          selectedId={null}
+          onSelectIncident={() => {}}
+        />
+      </div>
     </div>
   );
 }

@@ -44,18 +44,24 @@ Con `NGROK_AUTHTOKEN` definido, el contenedor iniciará:
 
 ---
 
-## Paso 4: Obtener la URL de ngrok
+## Paso 4: URL fija (recomendado) con dirección TCP reservada
 
-**Con plan Hobbyist (recomendado):**
-1. Entra en https://dashboard.ngrok.com/cloud-edge/tcp-addresses
-2. Crea o usa tu TCP address reservado (ej. `0.tcp.ngrok.io:12345`)
-3. Esa URL se mantiene fija entre reinicios
+Para **no reconfigurar el GPS en cada reinicio**, usa una **TCP Address reservada** en ngrok:
 
-**Con plan Free:**
-- La URL cambia en cada reinicio del contenedor
+1. Entra en https://dashboard.ngrok.com/cloud-edge/tcp-addresses (o tu plan equivalente).
+2. Crea una TCP Address; ngrok te asigna algo como `0.tcp.ngrok.io:12345` (ese host:puerto no cambia).
+3. Configura el secret en Fly con esa URL:
+   ```powershell
+   fly secrets set NGROK_TCP_URL="tcp://0.tcp.ngrok.io:12345" -a silenteye-3rrwnq
+   ```
+   (Sustituye por el host:puerto que te dio ngrok.)
+4. En el próximo deploy, ngrok usará siempre esa URL; el GPS puede quedarse configurado con ese dominio y puerto.
+
+**Sin dirección reservada (plan Free):**
+- La URL cambia en cada reinicio del contenedor.
 - Revisa los logs de Fly: `flyctl logs -a silenteye-3rrwnq`
 - Busca `url=tcp://0.tcp.ngrok.io:XXXXX`
-- Tendrás que actualizar el GPS cada vez que reinicie
+- Tendrás que actualizar el GPS cada vez que reinicie.
 
 ---
 
@@ -76,6 +82,7 @@ Guarda en el dispositivo y reinicia.
 ## Comportamiento
 
 - **Con `NGROK_AUTHTOKEN`:** inicia Node + ngrok. El GPS se conecta vía túnel TCP.
+- **Con `NGROK_TCP_URL`** (opcional): ngrok usa esa URL fija (ej. dirección reservada); el GPS no necesita reconfigurarse tras cada deploy.
 - **Sin `NGROK_AUTHTOKEN`:** solo Node. El GPS debe conectar directo a Fly (puede fallar si el operador bloquea).
 
 ---

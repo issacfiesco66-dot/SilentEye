@@ -37,6 +37,7 @@ export default function IncidentDetail({
   const [incident, setIncident] = useState<IncidentDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -60,6 +61,38 @@ export default function IncidentDetail({
       .catch((e) => e.message !== 'No autorizado' && setError('Error al cargar detalle'))
       .finally(() => setLoading(false));
   }, [incidentId, router]);
+
+  const deleteIncident = async () => {
+    if (!confirm('¿Eliminar este incidente? Esta acción no se puede deshacer.')) return;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.replace('/login');
+      return;
+    }
+    setDeleting(true);
+    setError('');
+    try {
+      const res = await fetch(`${API}/api/incidents/${incidentId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401 || res.status === 403) {
+        router.replace('/login');
+        return;
+      }
+      if (res.ok) {
+        onStatusChange();
+        onClose();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Error al eliminar');
+      }
+    } catch {
+      setError('Error de conexión');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const updateStatus = async (status: string) => {
     const token = localStorage.getItem('token');
@@ -182,6 +215,16 @@ export default function IncidentDetail({
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-700">
+              <button
+                onClick={deleteIncident}
+                disabled={deleting}
+                className="px-4 py-2 text-sm bg-red-600/80 rounded-lg hover:bg-red-600 disabled:opacity-50"
+              >
+                {deleting ? 'Eliminando...' : 'Eliminar incidente'}
+              </button>
             </div>
           </div>
         ) : (

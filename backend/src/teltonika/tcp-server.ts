@@ -100,7 +100,7 @@ export function createTeltonikaTcpServer(port: number, onData?: (imei: string, r
     const remotePort = socket.remotePort || 0;
     const addr = `${remoteAddr}:${remotePort}`;
 
-    logger.info(`TCP client connected | ${addr}`);
+    logger.info(`[GPS] TCP client connected | ${addr} | Configure device: Domain=silenteye-3rrwnq.fly.dev Port=5000`);
 
     socket.setKeepAlive(true, 30000);
     socket.setNoDelay(true);
@@ -130,7 +130,7 @@ export function createTeltonikaTcpServer(port: number, onData?: (imei: string, r
             }
             if (conn.buffer.length >= 2 + imeiLength) {
               const imei = conn.buffer.subarray(2, 2 + imeiLength).toString('ascii');
-              logger.info(`[TCP][${addr}] IMEI recibido: ${imei} (len=${imeiLength})`);
+              logger.info(`[GPS] IMEI recibido: ${imei} | ${addr} | Device can send AVL data now`);
 
               if (!isValidImei(imei)) {
                 logger.warn(`[TCP][${addr}] IMEI formato inválido: ${imei}`);

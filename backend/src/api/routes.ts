@@ -326,6 +326,16 @@ api.put('/vehicles/:id', authMiddleware, requireRole('admin'), async (req, res) 
   res.json(r.rows[0]);
 });
 
+api.delete('/vehicles/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const r = await pool.query('DELETE FROM vehicles WHERE id = $1 RETURNING id', [id]);
+  if (!r.rows[0]) {
+    res.status(404).json({ error: 'Vehículo no encontrado' });
+    return;
+  }
+  res.json({ success: true });
+});
+
 api.get('/incidents', authMiddleware, async (req, res) => {
   const { userId, role } = (req as any).user;
   let query = `
@@ -381,6 +391,16 @@ api.get('/incidents/:id', authMiddleware, async (req, res) => {
     [id]
   );
   res.json({ ...inc, followers: followers.rows });
+});
+
+api.delete('/incidents/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const r = await pool.query('DELETE FROM incidents WHERE id = $1 RETURNING id', [id]);
+  if (!r.rows[0]) {
+    res.status(404).json({ error: 'Incidente no encontrado' });
+    return;
+  }
+  res.json({ success: true });
 });
 
 // IDOR: admin puede cambiar cualquier incidente; helper/driver solo los que tiene en incident_followers
@@ -449,6 +469,16 @@ api.get('/alerts', authMiddleware, requireRole('admin', 'helper', 'driver'), asy
   const driverUserId = role === 'driver' || role === 'helper' ? userId : undefined;
   const alerts = await getAlerts(limit, since, driverUserId);
   res.json(alerts);
+});
+
+api.delete('/alerts/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const r = await pool.query('DELETE FROM alerts WHERE id = $1 RETURNING id', [id]);
+  if (!r.rows[0]) {
+    res.status(404).json({ error: 'Alerta no encontrada' });
+    return;
+  }
+  res.json({ success: true, deleted: 1 });
 });
 
 api.delete('/alerts', authMiddleware, requireRole('admin'), async (req, res) => {
@@ -645,6 +675,41 @@ api.post('/users', authMiddleware, requireRole('admin'), async (req, res) => {
   res.status(201).json(r.rows[0]);
 });
 
+api.put('/users/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const { name, phone } = req.body;
+  const updates: string[] = [];
+  const params: unknown[] = [];
+  let p = 1;
+  if (name != null && typeof name === 'string') {
+    updates.push(`name = $${p++}`);
+    params.push(name.trim());
+  }
+  if (phone != null && typeof phone === 'string') {
+    const existing = await pool.query('SELECT id FROM users WHERE phone = $1 AND id != $2', [phone.trim(), id]);
+    if (existing.rows[0]) {
+      res.status(409).json({ error: 'Ya existe otro usuario con ese teléfono' });
+      return;
+    }
+    updates.push(`phone = $${p++}`);
+    params.push(phone.trim());
+  }
+  if (updates.length === 0) {
+    res.status(400).json({ error: 'Indica name o phone para actualizar' });
+    return;
+  }
+  params.push(id);
+  const r = await pool.query(
+    `UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${p} RETURNING id, phone, name, role, is_active`,
+    params
+  );
+  if (!r.rows[0]) {
+    res.status(404).json({ error: 'Usuario no encontrado' });
+    return;
+  }
+  res.json(r.rows[0]);
+});
+
 api.put('/users/:id/role', authMiddleware, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
@@ -661,4 +726,32 @@ api.put('/users/:id/role', authMiddleware, requireRole('admin'), async (req, res
     return;
   }
   res.json(r.rows[0]);
+});
+
+api.put('/users/:id/block', authMiddleware, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const r = await pool.query(
+    'UPDATE users SET is_active = NOT COALESCE(is_active, true), updated_at = NOW() WHERE id = $1 RETURNING id, phone, name, role, is_active',
+    [id]
+  );
+  if (!r.rows[0]) {
+    res.status(404).json({ error: 'Usuario no encontrado' });
+    return;
+  }
+  res.json(r.rows[0]);
+});
+
+api.delete('/users/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const { userId } = (req as any).user;
+  if (id === userId) {
+    res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
+    return;
+  }
+  const r = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [id]);
+  if (!r.rows[0]) {
+    res.status(404).json({ error: 'Usuario no encontrado' });
+    return;
+  }
+  res.json({ success: true });
 });

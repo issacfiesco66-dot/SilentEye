@@ -28,6 +28,7 @@ export default function VehiclesSection() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ plate: '', name: '', imei: '', driver_id: '' });
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const drivers = users.filter((u) => u.role === 'driver');
@@ -76,6 +77,7 @@ export default function VehiclesSection() {
   const createVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSaving(true);
     const token = localStorage.getItem('token');
     if (!token) return;
     const res = await fetch(`${API}/api/vehicles`, {
@@ -97,11 +99,32 @@ export default function VehiclesSection() {
       return;
     }
     if (res.ok) {
-      setVehicles((prev) => [...prev, data]);
+      await load();
       setForm({ plate: '', name: '', imei: '', driver_id: '' });
       setShowForm(false);
     } else {
       setError(data.error || 'Error al crear vehículo');
+    }
+    setSaving(false);
+  };
+
+  const deleteVehicle = async (id: string) => {
+    setError('');
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const res = await fetch(`${API}/api/vehicles/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401 || res.status === 403) {
+      router.replace('/login');
+      return;
+    }
+    if (res.ok) {
+      await load();
+    } else {
+      setError(data.error || 'Error al eliminar');
     }
   };
 
@@ -109,6 +132,7 @@ export default function VehiclesSection() {
     e.preventDefault();
     if (!editingVehicle) return;
     setError('');
+    setSaving(true);
     const token = localStorage.getItem('token');
     if (!token) return;
     const res = await fetch(`${API}/api/vehicles/${editingVehicle.id}`, {
@@ -130,12 +154,13 @@ export default function VehiclesSection() {
       return;
     }
     if (res.ok) {
-      setVehicles((prev) => prev.map((v) => (v.id === editingVehicle.id ? data : v)));
+      await load();
       setEditingVehicle(null);
       setForm({ plate: '', name: '', imei: '', driver_id: '' });
     } else {
       setError(data.error || 'Error al actualizar');
     }
+    setSaving(false);
   };
 
   const hasActiveIncident = (vehicleId: string) => activeIncidentVehicleIds.includes(vehicleId);
@@ -201,7 +226,7 @@ export default function VehiclesSection() {
             ))}
           </select>
           <div className="flex gap-2">
-            <button type="submit" className="px-4 py-2 bg-green-600 rounded-lg hover:bg-green-500">Crear</button>
+            <button type="submit" disabled={saving} className="px-4 py-2 bg-green-600 rounded-lg hover:bg-green-500 disabled:opacity-50">{saving ? 'Creando...' : 'Crear'}</button>
             <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-slate-600 rounded-lg">Cancelar</button>
           </div>
         </form>
@@ -236,15 +261,27 @@ export default function VehiclesSection() {
                   )}
                 </td>
                 <td className="py-3 px-2 text-right">
-                  <button
-                    onClick={() => {
-                      setEditingVehicle(v);
-                      setForm({ plate: v.plate, name: v.name || '', imei: v.imei, driver_id: v.driver_id || '' });
-                    }}
-                    className="px-3 py-1.5 text-sm bg-slate-600 rounded-lg hover:bg-slate-500"
-                  >
-                    Editar
-                  </button>
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => {
+                        setEditingVehicle(v);
+                        setForm({ plate: v.plate, name: v.name || '', imei: v.imei, driver_id: v.driver_id || '' });
+                      }}
+                      className="px-3 py-1.5 text-sm bg-slate-600 rounded-lg hover:bg-slate-500"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`¿Eliminar vehículo ${v.plate}?`)) deleteVehicle(v.id);
+                      }}
+                      disabled={hasActiveIncident(v.id)}
+                      className="px-3 py-1.5 text-sm bg-red-600/80 rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={hasActiveIncident(v.id) ? 'No se puede eliminar con incidente activo' : 'Eliminar'}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -292,7 +329,7 @@ export default function VehiclesSection() {
                 ))}
               </select>
               <div className="flex gap-2 pt-2">
-                <button type="submit" className="px-4 py-2 bg-green-600 rounded-lg hover:bg-green-500">Guardar</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 bg-green-600 rounded-lg hover:bg-green-500 disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar'}</button>
                 <button type="button" onClick={() => setEditingVehicle(null)} className="px-4 py-2 bg-slate-600 rounded-lg">Cancelar</button>
               </div>
             </form>
