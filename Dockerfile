@@ -23,8 +23,9 @@ RUN npm install --save-dev @types/pg
 # Compilar: usar TypeScript del proyecto (npx tsc puede instalar paquete equivocado)
 RUN node ./node_modules/typescript/bin/tsc
 
-# Copiar schemas SQL a dist (para migraciones)
-RUN cp src/db/schema.sql src/db/schema-simple.sql dist/db/
+# Copiar schemas SQL y migraciones a dist (para migraciones)
+RUN cp src/db/schema.sql src/db/schema-simple.sql dist/db/ && \
+    cp -r src/db/migrations dist/db/migrations
 
 # Quitar devDependencies para imagen final
 RUN npm prune --omit=dev
