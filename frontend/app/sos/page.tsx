@@ -47,20 +47,26 @@ export default function SOSPage() {
     }
   }, []);
 
-  // Continuous geolocation
+  // Continuous geolocation — try high accuracy first, fallback to low
   useEffect(() => {
     if (!navigator.geolocation) return;
 
-    watchRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setGpsAccuracy(Math.round(pos.coords.accuracy));
-      },
-      () => {
-        // Silent fail — we'll request on panic press
-      },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
-    );
+    const startWatch = (highAccuracy: boolean) => {
+      watchRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setGpsAccuracy(Math.round(pos.coords.accuracy));
+        },
+        (err) => {
+          if (highAccuracy && err.code !== 1) {
+            // Retry without high accuracy (some devices fail with high accuracy)
+            startWatch(false);
+          }
+        },
+        { enableHighAccuracy: highAccuracy, maximumAge: 10000, timeout: 15000 }
+      );
+    };
+    startWatch(true);
 
     return () => {
       if (watchRef.current !== null) {
@@ -133,20 +139,34 @@ export default function SOSPage() {
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        setCoords({ lat, lng });
-        setGpsAccuracy(Math.round(pos.coords.accuracy));
-        sendPanic(lat, lng);
-      },
-      () => {
-        setStatus('error');
-        setError('No se pudo obtener tu ubicación. Activa el GPS.');
-      },
-      { enableHighAccuracy: true, timeout: 15000 }
-    );
+    const tryGetPosition = (highAccuracy: boolean) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setCoords({ lat, lng });
+          setGpsAccuracy(Math.round(pos.coords.accuracy));
+          sendPanic(lat, lng);
+        },
+        (err) => {
+          if (highAccuracy && err.code !== 1) {
+            // Retry without high accuracy
+            tryGetPosition(false);
+            return;
+          }
+          setStatus('error');
+          if (err.code === 1) {
+            setError('Permiso de ubicación denegado. Ve a Ajustes del navegador > Permisos > Ubicación y permite el acceso.');
+          } else if (err.code === 2) {
+            setError('No se pudo determinar tu ubicación. Asegúrate de estar al aire libre o cerca de una ventana.');
+          } else {
+            setError('Tiempo agotado obteniendo ubicación. Intenta de nuevo.');
+          }
+        },
+        { enableHighAccuracy: highAccuracy, timeout: 20000, maximumAge: 30000 }
+      );
+    };
+    tryGetPosition(true);
   }, [status, coords, countdown, sendPanic]);
 
   const handleLogout = () => {
