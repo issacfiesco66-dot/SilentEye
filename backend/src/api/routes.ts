@@ -127,10 +127,10 @@ function requireRole(...roles: string[]) {
   };
 }
 
-// Login: conductor con IMEI (GPS registrado) o admin con teléfono
+// Login: conductor con IMEI, admin/helper con teléfono, ciudadano con teléfono+mode
 api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
   try {
-    const { imei, phone } = req.body;
+    const { imei, phone, mode } = req.body;
     const showCode = process.env.OTP_SHOW_IN_PROD === 'true' || process.env.NODE_ENV !== 'production';
 
     if (imei && typeof imei === 'string') {
@@ -154,9 +154,10 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
     }
 
     if (phone && typeof phone === 'string') {
-      // Admin: ingresa con teléfono
+      // Admin, helper, or citizen: login with phone
+      const role = mode === 'citizen' ? 'citizen' : undefined;
       const code = await createOtp(phone);
-      await findOrCreateUser(phone);
+      await findOrCreateUser(phone, undefined, role);
       res.json(showCode ? { success: true, code } : { success: true });
       return;
     }
@@ -170,7 +171,7 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
 
 api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
   try {
-    const { imei, phone, code, name } = req.body;
+    const { imei, phone, code, name, mode } = req.body;
     if (!code) {
       res.status(400).json({ error: 'Código requerido' });
       return;
@@ -204,13 +205,14 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
     }
 
     if (phone && typeof phone === 'string') {
-      // Admin: verificar por teléfono
+      // Admin/citizen: verificar por teléfono
       const { valid, user: existingUser, error: otpError } = await verifyOtp(phone, code);
       if (!valid) {
         res.status(401).json({ error: otpError || 'Código inválido o expirado' });
         return;
       }
-      const user = existingUser ?? await findOrCreateUser(phone, name);
+      const role = mode === 'citizen' ? 'citizen' : undefined;
+      const user = existingUser ?? await findOrCreateUser(phone, name, role);
       const token = signToken({ userId: user.id, role: user.role });
       res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
       return;

@@ -203,6 +203,10 @@ export default function DashboardPage() {
   if (!user) return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
 
   const role = String(user.role || '').toLowerCase();
+  if (role === 'citizen') {
+    router.replace('/sos');
+    return <div className="min-h-screen flex items-center justify-center">Redirigiendo a SOS...</div>;
+  }
   if (role === 'helper' || role === 'driver') {
     return <HelperDashboardLayout />;
   }

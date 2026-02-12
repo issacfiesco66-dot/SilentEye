@@ -101,15 +101,17 @@ export function startOtpCleanup(): void {
   }, 30 * 60 * 1000);
 }
 
-export async function findOrCreateUser(phone: string, name?: string): Promise<{ id: string; phone: string; name: string; role: string }> {
+export async function findOrCreateUser(phone: string, name?: string, role?: string): Promise<{ id: string; phone: string; name: string; role: string }> {
   const existing = await pool.query('SELECT id, phone, name, role FROM users WHERE phone = $1', [phone]);
   if (existing.rows[0]) {
     return existing.rows[0];
   }
+  const validRoles = ['driver', 'helper', 'admin', 'citizen'];
+  const finalRole = role && validRoles.includes(role) ? role : 'driver';
   const insert = await pool.query(
-    `INSERT INTO users (phone, name, role) VALUES ($1, $2, 'driver')
+    `INSERT INTO users (phone, name, role) VALUES ($1, $2, $3)
      RETURNING id, phone, name, role`,
-    [phone, name || phone]
+    [phone, name || phone, finalRole]
   );
   return insert.rows[0];
 }

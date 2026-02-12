@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
-type LoginMode = 'driver' | 'admin';
+type LoginMode = 'driver' | 'admin' | 'citizen';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<LoginMode>('driver');
+  const [mode, setMode] = useState<LoginMode>('citizen');
   const [step, setStep] = useState<'input' | 'otp'>('input');
   const [imei, setImei] = useState('');
   const [phone, setPhone] = useState('');
@@ -24,7 +24,7 @@ export default function LoginPage() {
     try {
       const body = mode === 'driver'
         ? { imei: imei.trim() }
-        : { phone: phone.trim() };
+        : { phone: phone.trim(), mode: mode === 'citizen' ? 'citizen' : undefined };
       const identifier = mode === 'driver' ? imei.trim() : phone.trim();
       if (!identifier) {
         setError(mode === 'driver' ? 'Ingresa el número de GPS (IMEI)' : 'Ingresa tu teléfono');
@@ -59,7 +59,7 @@ export default function LoginPage() {
     try {
       const body = mode === 'driver'
         ? { imei: imei.trim(), code: code.trim() }
-        : { phone: phone.trim(), code: code.trim(), name: name.trim() || undefined };
+        : { phone: phone.trim(), code: code.trim(), name: name.trim() || undefined, mode: mode === 'citizen' ? 'citizen' : undefined };
       const res = await fetch(`${API}/api/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,7 +70,7 @@ export default function LoginPage() {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       localStorage.setItem('loginAt', String(Date.now()));
-      router.replace('/dashboard');
+      router.replace(data.user?.role === 'citizen' ? '/sos' : '/dashboard');
     } catch (e: unknown) {
       setError((e as Error).message);
     } finally {
@@ -92,6 +92,12 @@ export default function LoginPage() {
 
         <div className="flex gap-2 mb-4 p-1 bg-slate-800 rounded-lg">
           <button
+            onClick={() => { setMode('citizen'); resetForm(); }}
+            className={`flex-1 py-2 rounded-md text-sm font-medium ${mode === 'citizen' ? 'bg-red-700 text-white' : 'text-slate-400 hover:text-white'}`}
+          >
+            SOS
+          </button>
+          <button
             onClick={() => { setMode('driver'); resetForm(); }}
             className={`flex-1 py-2 rounded-md text-sm font-medium ${mode === 'driver' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
           >
@@ -101,13 +107,18 @@ export default function LoginPage() {
             onClick={() => { setMode('admin'); resetForm(); }}
             className={`flex-1 py-2 rounded-md text-sm font-medium ${mode === 'admin' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
           >
-            Administrador
+            Admin
           </button>
         </div>
 
         <div className="bg-slate-800 rounded-xl p-6 shadow-xl">
           {step === 'input' ? (
             <>
+              {mode === 'citizen' && (
+                <p className="text-red-400/80 text-sm mb-3 text-center">
+                  Botón de emergencia para peatones
+                </p>
+              )}
               <label className="block text-sm text-slate-300 mb-2">
                 {mode === 'driver' ? 'Número de GPS (IMEI)' : 'Teléfono'}
               </label>
@@ -115,7 +126,7 @@ export default function LoginPage() {
                 type={mode === 'driver' ? 'text' : 'tel'}
                 value={mode === 'driver' ? imei : phone}
                 onChange={(e) => mode === 'driver' ? setImei(e.target.value) : setPhone(e.target.value)}
-                placeholder={mode === 'driver' ? '353691846029642' : '+51 999 999 999'}
+                placeholder={mode === 'driver' ? '353691846029642' : '+52 222 123 4567'}
                 className="w-full px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
               />
               {mode === 'driver' && (
@@ -150,7 +161,7 @@ export default function LoginPage() {
                 maxLength={6}
                 className="w-full px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 mb-4"
               />
-              {mode === 'admin' && (
+              {(mode === 'admin' || mode === 'citizen') && (
                 <>
                   <label className="block text-sm text-slate-300 mb-2">Nombre (opcional)</label>
                   <input
@@ -182,7 +193,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-slate-500 text-xs text-center mt-6">
-          Conductor: ingresa el IMEI del GPS asignado. Admin: usa tu teléfono.
+          SOS: regístrate con tu teléfono. Conductor: IMEI del GPS. Admin: teléfono.
         </p>
       </div>
     </div>
