@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { playAlarmSound } from '@/utils/alarm';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -138,8 +139,9 @@ export default function SOSPage() {
             if (prev.some((a) => a.incidentId === alert.incidentId)) return prev;
             return [alert, ...prev].slice(0, 10);
           });
-          // Vibrate to notify
-          if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+          // Sound + vibrate to notify
+          playAlarmSound(6);
+          if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
         }
       }
     }, []),
