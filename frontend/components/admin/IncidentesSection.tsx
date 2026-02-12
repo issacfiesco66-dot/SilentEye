@@ -24,6 +24,7 @@ export default function IncidentesSection() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchIncidents = async () => {
@@ -33,9 +34,11 @@ export default function IncidentesSection() {
       return;
     }
     setError(null);
+    setRefreshing(true);
     try {
       const res = await fetch(`${API}/api/incidents`, {
         headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
       });
       if (res.status === 401 || res.status === 403) {
         setError('No autorizado');
@@ -52,6 +55,7 @@ export default function IncidentesSection() {
       setError('Error de conexión');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -81,9 +85,10 @@ export default function IncidentesSection() {
         <h2 className="text-xl font-semibold">Incidentes</h2>
         <button
           onClick={fetchIncidents}
-          className="px-3 py-1.5 text-sm bg-slate-600 rounded-lg hover:bg-slate-500"
+          disabled={refreshing}
+          className={`px-3 py-1.5 text-sm rounded-lg ${refreshing ? 'bg-slate-700 text-slate-400 cursor-wait' : 'bg-slate-600 hover:bg-slate-500'}`}
         >
-          Actualizar
+          {refreshing ? 'Cargando...' : 'Actualizar'}
         </button>
       </div>
 
