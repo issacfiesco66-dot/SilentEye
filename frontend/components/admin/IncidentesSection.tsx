@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import IncidentDetail from './IncidentDetail';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { playAlarmSound } from '@/utils/alarm';
+import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -62,6 +62,7 @@ export default function IncidentesSection() {
   };
 
   useEffect(() => {
+    initAudioOnInteraction();
     fetchIncidents();
     // Polling every 10s as fallback
     const interval = setInterval(fetchIncidents, 10000);
@@ -90,7 +91,7 @@ export default function IncidentesSection() {
             };
             return [newInc, ...prev];
           });
-          playAlarmSound(8);
+          playAlarmSound();
         }
       }
     }, []),

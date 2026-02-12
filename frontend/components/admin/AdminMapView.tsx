@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import IncidentDetail from './IncidentDetail';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { playAlarmSound } from '@/utils/alarm';
+import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
@@ -48,6 +49,7 @@ export default function AdminMapView() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    initAudioOnInteraction();
     setToken(typeof window !== 'undefined' ? localStorage.getItem('token') : null);
   }, []);
 
@@ -156,7 +158,7 @@ export default function AdminMapView() {
       if (msg.type === 'panic') {
         const panic = p as { incidentId: string; latitude: number; longitude: number; plate?: string; imei?: string; vehicleId?: string };
         handlePanicLike(panic.incidentId, panic.latitude, panic.longitude, panic.plate, panic.imei, panic.vehicleId);
-        playAlarmSound(8);
+        playAlarmSound();
       }
       if (msg.type === 'alert' && (p as { alertType?: string }).alertType === 'panic') {
         const a = p as { id?: string; latitude?: number; longitude?: number; plate?: string; deviceImei?: string; vehicleId?: string };

@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { playAlarmSound } from '@/utils/alarm';
+import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -38,6 +38,11 @@ export default function SOSPage() {
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const locationReportRef = useRef<NodeJS.Timeout | null>(null);
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  // Unlock audio on first user interaction (required by mobile browsers)
+  useEffect(() => {
+    initAudioOnInteraction();
+  }, []);
 
   // Auth check
   useLayoutEffect(() => {
@@ -140,7 +145,7 @@ export default function SOSPage() {
             return [alert, ...prev].slice(0, 10);
           });
           // Sound + vibrate to notify
-          playAlarmSound(6);
+          playAlarmSound();
           if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
         }
       }
