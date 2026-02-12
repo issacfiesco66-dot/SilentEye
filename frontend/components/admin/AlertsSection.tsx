@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -55,7 +56,40 @@ export default function AlertsSection() {
 
   useEffect(() => {
     fetchAlerts();
+    // Polling as fallback (WebSocket handles real-time below)
+    const interval = setInterval(fetchAlerts, 15000);
+    return () => clearInterval(interval);
   }, []);
+
+  // Real-time alerts via WebSocket
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  useWebSocket({
+    token,
+    enabled: !!token,
+    onMessage: useCallback((msg: { type: string; payload: unknown }) => {
+      if (msg.type === 'alert' && msg.payload) {
+        const a = msg.payload as { id?: string; deviceImei?: string; vehicleId?: string; plate?: string; alertType?: string; latitude?: number; longitude?: number; speed?: number; createdAt?: string; priority?: number };
+        if (a.id && a.alertType) {
+          setAlerts((prev) => {
+            if (prev.some((existing) => existing.id === a.id)) return prev;
+            const newAlert: Alert = {
+              id: a.id!,
+              deviceImei: a.deviceImei || '',
+              vehicleId: a.vehicleId,
+              plate: a.plate,
+              alertType: a.alertType!,
+              latitude: a.latitude ?? 0,
+              longitude: a.longitude ?? 0,
+              speed: a.speed ?? 0,
+              createdAt: a.createdAt || new Date().toISOString(),
+              priority: a.priority,
+            };
+            return [newAlert, ...prev];
+          });
+        }
+      }
+    }, []),
+  });
 
   const deleteSingleAlert = async (id: string) => {
     const token = localStorage.getItem('token');
@@ -160,7 +194,7 @@ export default function AlertsSection() {
                   {a.alertType} · IMEI {a.deviceImei}
                 </p>
                 <p className="text-slate-400 text-xs mt-1">
-                  {new Date(a.createdAt).toLocaleString('es')} ·{' '}
+                  {new Date(a.createdAt).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })} ·{' '}
                   {a.latitude.toFixed(4)}, {a.longitude.toFixed(4)} ·{' '}
                   {a.speed} km/h
                 </p>

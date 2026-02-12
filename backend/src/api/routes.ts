@@ -1,4 +1,5 @@
-import { Router } from 'express';
+import { Router, type Request, type Response, type NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { pool } from '../db/pool.js';
 import { hasPostGis } from '../db/postgis-check.js';
 import {
@@ -15,6 +16,47 @@ import { runSeed } from '../db/run-seed.js';
 
 export const api = Router();
 
+// Async error wrapper: catches unhandled promise rejections in route handlers
+function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    fn(req, res, next).catch(next);
+  };
+}
+
+// Stricter rate-limit for auth endpoints (prevent OTP brute-force)
+const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Demasiados intentos de autenticación. Intenta en 15 minutos.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const cfIp = req.headers['cf-connecting-ip'];
+    if (typeof cfIp === 'string') return cfIp;
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
+    return req.ip || req.socket?.remoteAddress || 'unknown';
+  },
+});
+
+// Input validation helpers
+const PHONE_REGEX = /^\+?[\d\s\-()]{6,20}$/;
+const IMEI_REGEX = /^\d{15}$/;
+
+function isValidPhone(phone: string): boolean {
+  return typeof phone === 'string' && PHONE_REGEX.test(phone.trim()) && phone.trim().length <= 20;
+}
+
+function isValidImeiInput(imei: string): boolean {
+  return typeof imei === 'string' && IMEI_REGEX.test(imei.trim());
+}
+
+function isValidCoords(lat: unknown, lng: unknown): boolean {
+  return typeof lat === 'number' && typeof lng === 'number'
+    && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
+    && isFinite(lat) && isFinite(lng);
+}
+
 // Setup: migrar y seed (requiere ?secret=XXX, MIGRATE_SECRET en Fly Secrets)
 const MIGRATE_SECRET = process.env.MIGRATE_SECRET || '';
 function checkSetupSecret(req: import('express').Request): boolean {
@@ -22,44 +64,44 @@ function checkSetupSecret(req: import('express').Request): boolean {
   return !!MIGRATE_SECRET && MIGRATE_SECRET.length >= 16 && MIGRATE_SECRET === secret;
 }
 
-api.post('/setup/migrate', async (req, res) => {
+api.post('/setup/migrate', asyncHandler(async (req, res) => {
   if (!checkSetupSecret(req)) {
     res.status(403).json({ error: 'Secret inválido. Define MIGRATE_SECRET en Fly Secrets.' });
     return;
   }
   const result = await runMigrate();
   res.json(result);
-});
+}));
 
-api.post('/setup/seed', async (req, res) => {
+api.post('/setup/seed', asyncHandler(async (req, res) => {
   if (!checkSetupSecret(req)) {
     res.status(403).json({ error: 'Secret inválido. Define MIGRATE_SECRET en Fly Secrets.' });
     return;
   }
   const result = await runSeed();
   res.json(result);
-});
+}));
 
 // Crear OTP y devolverlo (para primer login en prod cuando no hay SMS)
-api.post('/setup/otp', async (req, res) => {
+api.post('/setup/otp', asyncHandler(async (req, res) => {
   if (!checkSetupSecret(req)) {
     res.status(403).json({ error: 'Secret inválido.' });
     return;
   }
   const phone = req.body?.phone || req.query.phone;
-  if (!phone || typeof phone !== 'string' || phone.length > 20) {
-    res.status(400).json({ error: 'phone requerido (máx 20 caracteres)' });
+  if (!phone || typeof phone !== 'string' || !isValidPhone(phone)) {
+    res.status(400).json({ error: 'phone requerido (formato válido, máx 20 caracteres)' });
     return;
   }
   try {
-    const code = await createOtp(phone);
-    await findOrCreateUser(phone);
-    res.json({ ok: true, phone, code });
+    const code = await createOtp(phone.trim());
+    await findOrCreateUser(phone.trim());
+    res.json({ ok: true, phone: phone.trim(), code });
   } catch (err) {
     logger.error('setup/otp error:', err);
     res.status(500).json({ ok: false, error: 'Error interno' });
   }
-});
+}));
 
 function authMiddleware(req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) {
   const auth = req.headers.authorization;
@@ -85,7 +127,7 @@ function requireRole(...roles: string[]) {
 }
 
 // Login: conductor con IMEI (GPS registrado) o admin con teléfono
-api.post('/auth/otp/request', async (req, res) => {
+api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
   try {
     const { imei, phone } = req.body;
     const showCode = process.env.OTP_SHOW_IN_PROD === 'true' || process.env.NODE_ENV !== 'production';
@@ -123,9 +165,9 @@ api.post('/auth/otp/request', async (req, res) => {
     logger.error('OTP request error:', err);
     res.status(500).json({ error: 'Error al generar OTP' });
   }
-});
+}));
 
-api.post('/auth/otp/verify', async (req, res) => {
+api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
   try {
     const { imei, phone, code, name } = req.body;
     if (!code) {
@@ -150,9 +192,9 @@ api.post('/auth/otp/verify', async (req, res) => {
         res.status(400).json({ error: 'Usuario no encontrado' });
         return;
       }
-      const { valid } = await verifyOtp(user.phone, code);
+      const { valid, error: otpError } = await verifyOtp(user.phone, code);
       if (!valid) {
-        res.status(401).json({ error: 'Código inválido o expirado' });
+        res.status(401).json({ error: otpError || 'Código inválido o expirado' });
         return;
       }
       const token = signToken({ userId: user.id, role: user.role });
@@ -162,9 +204,9 @@ api.post('/auth/otp/verify', async (req, res) => {
 
     if (phone && typeof phone === 'string') {
       // Admin: verificar por teléfono
-      const { valid, user: existingUser } = await verifyOtp(phone, code);
+      const { valid, user: existingUser, error: otpError } = await verifyOtp(phone, code);
       if (!valid) {
-        res.status(401).json({ error: 'Código inválido o expirado' });
+        res.status(401).json({ error: otpError || 'Código inválido o expirado' });
         return;
       }
       const user = existingUser ?? await findOrCreateUser(phone, name);
@@ -178,9 +220,9 @@ api.post('/auth/otp/verify', async (req, res) => {
     logger.error('OTP verify error:', err);
     res.status(500).json({ error: 'Error al verificar OTP' });
   }
-});
+}));
 
-api.get('/me', authMiddleware, async (req, res) => {
+api.get('/me', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const pg = await hasPostGis();
   const r = await pool.query(
@@ -197,13 +239,13 @@ api.get('/me', authMiddleware, async (req, res) => {
   const lastLocation = (u.lng != null && u.lat != null) ? { lng: parseFloat(u.lng), lat: parseFloat(u.lat) } : null;
   const { lng, lat, ...rest } = u;
   res.json({ ...rest, lastLocation });
-});
+}));
 
-api.put('/me/location', authMiddleware, async (req, res) => {
+api.put('/me/location', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const { latitude, longitude } = req.body;
-  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-    res.status(400).json({ error: 'Latitud y longitud requeridas' });
+  if (!isValidCoords(latitude, longitude)) {
+    res.status(400).json({ error: 'Latitud (-90..90) y longitud (-180..180) requeridas' });
     return;
   }
   const pg = await hasPostGis();
@@ -214,13 +256,13 @@ api.put('/me/location', authMiddleware, async (req, res) => {
     [latitude, longitude, userId]
   );
   res.json({ success: true });
-});
+}));
 
-api.post('/helpers/location', authMiddleware, requireRole('helper', 'driver'), async (req, res) => {
+api.post('/helpers/location', authMiddleware, requireRole('helper', 'driver'), asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const { latitude, longitude } = req.body;
-  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-    res.status(400).json({ error: 'latitude y longitude requeridos (números)' });
+  if (!isValidCoords(latitude, longitude)) {
+    res.status(400).json({ error: 'latitude (-90..90) y longitude (-180..180) requeridos' });
     return;
   }
   const pg = await hasPostGis();
@@ -241,9 +283,9 @@ api.post('/helpers/location', authMiddleware, requireRole('helper', 'driver'), a
     );
   }
   res.json({ success: true });
-});
+}));
 
-api.get('/vehicles', authMiddleware, requireRole('admin', 'helper', 'driver'), async (req, res) => {
+api.get('/vehicles', authMiddleware, requireRole('admin', 'helper', 'driver'), asyncHandler(async (req, res) => {
   const r = await pool.query(
     `SELECT v.id, v.plate, v.name, v.imei, v.driver_id, u.name as driver_name
      FROM vehicles v
@@ -251,9 +293,9 @@ api.get('/vehicles', authMiddleware, requireRole('admin', 'helper', 'driver'), a
      ORDER BY v.plate`
   );
   res.json(r.rows);
-});
+}));
 
-api.get('/vehicles/:id', authMiddleware, async (req, res) => {
+api.get('/vehicles/:id', authMiddleware, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { userId, role } = (req as any).user;
   const r = await pool.query(
@@ -271,9 +313,9 @@ api.get('/vehicles/:id', authMiddleware, async (req, res) => {
     return;
   }
   res.json(v);
-});
+}));
 
-api.post('/vehicles', authMiddleware, requireRole('admin'), async (req, res) => {
+api.post('/vehicles', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { plate, name, imei, driver_id } = req.body;
   if (!plate || !imei) {
     res.status(400).json({ error: 'Placa e IMEI requeridos' });
@@ -293,9 +335,9 @@ api.post('/vehicles', authMiddleware, requireRole('admin'), async (req, res) => 
     }
     throw err;
   }
-});
+}));
 
-api.put('/vehicles/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+api.put('/vehicles/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { plate, name, imei, driver_id } = req.body;
   const driverId = driver_id === '' || driver_id === undefined ? null : driver_id;
@@ -324,9 +366,9 @@ api.put('/vehicles/:id', authMiddleware, requireRole('admin'), async (req, res) 
     return;
   }
   res.json(r.rows[0]);
-});
+}));
 
-api.delete('/vehicles/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+api.delete('/vehicles/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const r = await pool.query('DELETE FROM vehicles WHERE id = $1 RETURNING id', [id]);
   if (!r.rows[0]) {
@@ -334,9 +376,9 @@ api.delete('/vehicles/:id', authMiddleware, requireRole('admin'), async (req, re
     return;
   }
   res.json({ success: true });
-});
+}));
 
-api.get('/incidents', authMiddleware, async (req, res) => {
+api.get('/incidents', authMiddleware, asyncHandler(async (req, res) => {
   const { userId, role } = (req as any).user;
   let query = `
     SELECT i.*, v.plate, u.name as driver_name,
@@ -356,10 +398,10 @@ api.get('/incidents', authMiddleware, async (req, res) => {
   query += ` ORDER BY i.started_at DESC LIMIT 50`;
   const r = await pool.query(query, params);
   res.json(r.rows);
-});
+}));
 
 // IDOR: admin ve todo; helper solo incidentes en incident_followers; driver solo incidentes de su vehículo
-api.get('/incidents/:id', authMiddleware, async (req, res) => {
+api.get('/incidents/:id', authMiddleware, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { userId, role } = (req as any).user;
 
@@ -391,9 +433,9 @@ api.get('/incidents/:id', authMiddleware, async (req, res) => {
     [id]
   );
   res.json({ ...inc, followers: followers.rows });
-});
+}));
 
-api.delete('/incidents/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+api.delete('/incidents/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const r = await pool.query('DELETE FROM incidents WHERE id = $1 RETURNING id', [id]);
   if (!r.rows[0]) {
@@ -401,10 +443,10 @@ api.delete('/incidents/:id', authMiddleware, requireRole('admin'), async (req, r
     return;
   }
   res.json({ success: true });
-});
+}));
 
 // IDOR: admin puede cambiar cualquier incidente; helper/driver solo los que tiene en incident_followers
-api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper', 'driver'), async (req, res) => {
+api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper', 'driver'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   const { userId, role } = (req as any).user;
@@ -449,10 +491,10 @@ api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper', 
     return;
   }
   res.json(r.rows[0]);
-});
+}));
 
 // Helper/driver: declinar incidente (remover de incident_followers). Idempotente: si no está asignado, 200 OK igual.
-api.delete('/incidents/:id/followers/me', authMiddleware, requireRole('helper', 'driver'), async (req, res) => {
+api.delete('/incidents/:id/followers/me', authMiddleware, requireRole('helper', 'driver'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { userId } = (req as any).user;
   await pool.query(
@@ -460,18 +502,18 @@ api.delete('/incidents/:id/followers/me', authMiddleware, requireRole('helper', 
     [id, userId]
   );
   res.json({ success: true });
-});
+}));
 
-api.get('/alerts', authMiddleware, requireRole('admin', 'helper', 'driver'), async (req, res) => {
+api.get('/alerts', authMiddleware, requireRole('admin', 'helper', 'driver'), asyncHandler(async (req, res) => {
   const limit = Math.min(parseInt(String(req.query.limit || 100), 10) || 100, 500);
   const since = req.query.since ? new Date(String(req.query.since)) : undefined;
   const { userId, role } = (req as any).user;
   const driverUserId = role === 'driver' || role === 'helper' ? userId : undefined;
   const alerts = await getAlerts(limit, since, driverUserId);
   res.json(alerts);
-});
+}));
 
-api.delete('/alerts/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+api.delete('/alerts/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const r = await pool.query('DELETE FROM alerts WHERE id = $1 RETURNING id', [id]);
   if (!r.rows[0]) {
@@ -479,9 +521,9 @@ api.delete('/alerts/:id', authMiddleware, requireRole('admin'), async (req, res)
     return;
   }
   res.json({ success: true, deleted: 1 });
-});
+}));
 
-api.delete('/alerts', authMiddleware, requireRole('admin'), async (req, res) => {
+api.delete('/alerts', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const days = req.query.days ? parseInt(String(req.query.days), 10) : null;
   const all = req.query.all === '1' || req.query.all === 'true';
   let before: Date | undefined;
@@ -499,10 +541,10 @@ api.delete('/alerts', authMiddleware, requireRole('admin'), async (req, res) => 
   }
   const { deleted } = await deleteAlerts(before);
   res.json({ success: true, deleted });
-});
+}));
 
 // Posiciones de MIS vehículos (solo drivers): vehículos donde driver_id = userId
-api.get('/gps/my-positions', authMiddleware, requireRole('driver'), async (req, res) => {
+api.get('/gps/my-positions', authMiddleware, requireRole('driver'), asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const limit = Math.min(parseInt(String(req.query.limit || 20), 10) || 20, 50);
   const pg = await hasPostGis();
@@ -522,7 +564,7 @@ api.get('/gps/my-positions', authMiddleware, requireRole('driver'), async (req, 
     [userId, limit]
   );
   res.json(
-    r.rows.map((row) => ({
+    r.rows.map((row: { imei: string; vehicle_id: string; plate: string; latitude: string; longitude: string; speed: number; timestamp_at: string }) => ({
       imei: row.imei,
       vehicleId: row.vehicle_id,
       plate: row.plate,
@@ -532,10 +574,10 @@ api.get('/gps/my-positions', authMiddleware, requireRole('driver'), async (req, 
       timestampAt: row.timestamp_at,
     }))
   );
-});
+}));
 
 // Últimas posiciones por IMEI (admin) - incluye dispositivos no registrados
-api.get('/gps/latest-positions', authMiddleware, requireRole('admin'), async (req, res) => {
+api.get('/gps/latest-positions', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const limit = Math.min(parseInt(String(req.query.limit || 50), 10) || 50, 200);
   const pg = await hasPostGis();
 
@@ -554,7 +596,7 @@ api.get('/gps/latest-positions', authMiddleware, requireRole('admin'), async (re
     [limit]
   );
   res.json(
-    r.rows.map((row) => ({
+    r.rows.map((row: { imei: string; vehicle_id: string; plate: string; latitude: string; longitude: string; speed: number; timestamp_at: string }) => ({
       imei: row.imei,
       vehicleId: row.vehicle_id,
       plate: row.plate,
@@ -564,9 +606,9 @@ api.get('/gps/latest-positions', authMiddleware, requireRole('admin'), async (re
       timestampAt: row.timestamp_at,
     }))
   );
-});
+}));
 
-api.get('/gps/logs', authMiddleware, async (req, res) => {
+api.get('/gps/logs', authMiddleware, asyncHandler(async (req, res) => {
   const { vehicle_id, limit = 100 } = req.query;
   const { userId, role } = (req as any).user;
 
@@ -608,10 +650,10 @@ api.get('/gps/logs', authMiddleware, async (req, res) => {
     [vehicle_id, Math.min(Number(limit), 500)]
   );
   res.json(r.rows);
-});
+}));
 
 // Conductores y helpers cercanos (ayuda mutua: cualquiera con vehículo o rol helper)
-api.get('/helpers/nearby', authMiddleware, async (req, res) => {
+api.get('/helpers/nearby', authMiddleware, asyncHandler(async (req, res) => {
   const { latitude, longitude, radius_km = 3 } = req.query;
   if (typeof latitude !== 'string' || typeof longitude !== 'string') {
     res.status(400).json({ error: 'latitude y longitude requeridos' });
@@ -647,16 +689,16 @@ api.get('/helpers/nearby', authMiddleware, async (req, res) => {
         [lat, lon, radiusM]
       );
   res.json(r.rows);
-});
+}));
 
-api.get('/users', authMiddleware, requireRole('admin'), async (req, res) => {
+api.get('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const r = await pool.query(
     'SELECT id, phone, name, role, is_active, last_location_at, created_at FROM users ORDER BY name'
   );
   res.json(r.rows);
-});
+}));
 
-api.post('/users', authMiddleware, requireRole('admin'), async (req, res) => {
+api.post('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { phone, name, role } = req.body;
   if (!phone || typeof phone !== 'string' || !name || typeof name !== 'string') {
     res.status(400).json({ error: 'Teléfono y nombre requeridos' });
@@ -673,9 +715,9 @@ api.post('/users', authMiddleware, requireRole('admin'), async (req, res) => {
     [phone.trim(), name.trim(), finalRole]
   );
   res.status(201).json(r.rows[0]);
-});
+}));
 
-api.put('/users/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+api.put('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { name, phone } = req.body;
   const updates: string[] = [];
@@ -708,9 +750,9 @@ api.put('/users/:id', authMiddleware, requireRole('admin'), async (req, res) => 
     return;
   }
   res.json(r.rows[0]);
-});
+}));
 
-api.put('/users/:id/role', authMiddleware, requireRole('admin'), async (req, res) => {
+api.put('/users/:id/role', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
   if (!['driver', 'helper', 'admin'].includes(role)) {
@@ -726,9 +768,9 @@ api.put('/users/:id/role', authMiddleware, requireRole('admin'), async (req, res
     return;
   }
   res.json(r.rows[0]);
-});
+}));
 
-api.put('/users/:id/block', authMiddleware, requireRole('admin'), async (req, res) => {
+api.put('/users/:id/block', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const r = await pool.query(
     'UPDATE users SET is_active = NOT COALESCE(is_active, true), updated_at = NOW() WHERE id = $1 RETURNING id, phone, name, role, is_active',
@@ -739,9 +781,9 @@ api.put('/users/:id/block', authMiddleware, requireRole('admin'), async (req, re
     return;
   }
   res.json(r.rows[0]);
-});
+}));
 
-api.delete('/users/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+api.delete('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { userId } = (req as any).user;
   if (id === userId) {
@@ -754,4 +796,4 @@ api.delete('/users/:id', authMiddleware, requireRole('admin'), async (req, res) 
     return;
   }
   res.json({ success: true });
-});
+}));

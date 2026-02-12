@@ -189,6 +189,10 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
     if (res.ok) {
       await load();
       setEditingUser(null);
+    } else if (res.status === 404) {
+      await load();
+      setEditingUser(null);
+      setError('El usuario ya no existe. Lista actualizada.');
     } else {
       setError(data.error || 'Error al actualizar');
     }
@@ -211,6 +215,9 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
     }
     if (res.ok) {
       await load();
+    } else if (res.status === 404) {
+      await load();
+      setError('El usuario ya no existe. Lista actualizada.');
     } else {
       setError(data.error || 'Error al eliminar');
     }
@@ -231,6 +238,9 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
     }
     if (res.ok) {
       await load();
+    } else if (res.status === 404) {
+      await load();
+      setError('El usuario ya no existe. Lista actualizada.');
     } else {
       setError(data.error || 'Error al bloquear/desbloquear');
     }
@@ -388,6 +398,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
                           userId={d.id}
                           currentRole={d.role}
                           onRoleChange={(role) => handleRoleChange(d.id, role)}
+                          onDeleted={() => { load(); setError('El usuario ya no existe. Lista actualizada.'); }}
                           currentUserId={currentUserId ?? undefined}
                         />
                       </div>
@@ -442,6 +453,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
                       userId={u.id}
                       currentRole={u.role}
                       onRoleChange={(role) => handleRoleChange(u.id, role)}
+                      onDeleted={() => { load(); setError('El usuario ya no existe. Lista actualizada.'); }}
                       currentUserId={currentUserId ?? undefined}
                     />
                   </div>

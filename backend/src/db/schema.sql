@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS otp_codes (
   code VARCHAR(6) NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   used BOOLEAN DEFAULT false,
+  attempts INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

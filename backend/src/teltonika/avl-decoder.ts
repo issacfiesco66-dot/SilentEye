@@ -184,7 +184,8 @@ function parseAvlRecord(data: Buffer, offset: number, codec8e: boolean): { recor
 
   const din1 = io[DIN1_AVL_ID] ?? io[DIN1_AVL_ID_EXT];
   const din1Value = typeof din1 === 'bigint' ? Number(din1) : (din1 as number);
-  const isPanic = din1Value === 1 || priority === 2;
+  // Panic: priority=2 (Teltonika panic), eventIoId=1 (DIN1 change event), or DIN1=1 (High Level)
+  const isPanic = priority === 2 || eventIoId === DIN1_AVL_ID || eventIoId === DIN1_AVL_ID_EXT || din1Value === 1;
 
   return {
     record: {

@@ -107,9 +107,9 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
     if (postgis) {
       const incidentResult = await client.query(
         `INSERT INTO incidents (vehicle_id, driver_id, imei, status, geom, latitude, longitude, started_at)
-         VALUES ($1, $2, $3, 'active', ST_SetSRID(ST_MakePoint($5, $4), 4326), $4, $5, to_timestamp($6))
+         VALUES ($1, $2, $3, 'active', ST_SetSRID(ST_MakePoint($5, $4), 4326), $4, $5, NOW())
          RETURNING id`,
-        [vehicle?.id ?? null, vehicle?.driver_id ?? null, imei, latitude, longitude, timestamp / 1000]
+        [vehicle?.id ?? null, vehicle?.driver_id ?? null, imei, latitude, longitude]
       );
       const incident = incidentResult.rows[0];
       const nearbyResult = await client.query(
@@ -149,9 +149,9 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
     } else {
       const incidentResult = await client.query(
         `INSERT INTO incidents (vehicle_id, driver_id, imei, status, latitude, longitude, started_at)
-         VALUES ($1, $2, $3, 'active', $4, $5, to_timestamp($6))
+         VALUES ($1, $2, $3, 'active', $4, $5, NOW())
          RETURNING id`,
-        [vehicle?.id ?? null, vehicle?.driver_id ?? null, imei, latitude, longitude, timestamp / 1000]
+        [vehicle?.id ?? null, vehicle?.driver_id ?? null, imei, latitude, longitude]
       );
       const incident = incidentResult.rows[0];
       const nearbyResult = await client.query(

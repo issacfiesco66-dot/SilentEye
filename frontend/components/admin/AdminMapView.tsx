@@ -8,7 +8,7 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
-const LIMA_CENTER = { longitude: -77.0428, latitude: -12.0464 };
+
 
 const MapboxMap = dynamic(() => import('../MapboxMap'), {
   ssr: false,

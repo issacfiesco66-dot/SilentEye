@@ -20,7 +20,7 @@ const MAX_AVL_DATA_LENGTH = 512 * 1024; // 512 KB
 const MAX_IMEI_LENGTH = 64;
 const MAX_CONNECTION_BUFFER = 1024 * 1024; // 1 MB
 const IMEI_LOGIN_TIMEOUT_MS = 30000;   // 30s para recibir IMEI
-const AVL_IDLE_TIMEOUT_MS = 120000;    // 2 min sin datos AVL → log
+const AVL_IDLE_TIMEOUT_MS = 600000;    // 10 min sin datos AVL → desconectar
 
 // Aceptar cualquier IMEI cuando TELTONIKA_SKIP_WHITELIST=true/1/yes (o no definido)
 const _skip = (process.env.TELTONIKA_SKIP_WHITELIST || '').toLowerCase();
@@ -75,9 +75,11 @@ function sendRecordCount(socket: net.Socket, count: number): void {
 function logAvlRecord(imei: string, record: AVLRecord, index: number): void {
   const ts = new Date(record.timestamp).toISOString();
   const ign = record.io[78] ?? record.io[0x004E];
+  const din1 = record.io[1] ?? record.io[0x0001];
+  const ioKeys = Object.keys(record.io).map(k => `${k}=${record.io[Number(k)]}`).join(',');
   logger.info(
     `[AVL][${imei}][rec=${index}] ts=${ts} lat=${record.latitude.toFixed(5)} lng=${record.longitude.toFixed(5)} ` +
-    `speed=${record.speed} sat=${record.satellites} priority=${record.priority} eventIoId=${record.eventIoId} ignition=${ign ?? '-'}`
+    `speed=${record.speed} sat=${record.satellites} priority=${record.priority} eventIoId=${record.eventIoId} ignition=${ign ?? '-'} din1=${din1 ?? '-'} isPanic=${record.isPanic} io={${ioKeys}}`
   );
 }
 

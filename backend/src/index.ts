@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { createTeltonikaTcpServer } from './teltonika/tcp-server.js';
 import { createWebSocketServer, getWebSocketClientCount } from './services/websocket.js';
 import { api } from './api/routes.js';
+import { startOtpCleanup } from './api/auth.js';
 import { logger } from './utils/logger.js';
 
 const TCP_PORT = parseInt(process.env.TCP_PORT || '5000', 10);
@@ -42,7 +43,20 @@ app.use(cors({
   preflightContinue: false,
 }));
 
-app.use(express.json());
+// Security headers
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '0');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(self), camera=(), microphone=()');
+  if (isProd) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
+app.use(express.json({ limit: '1mb' }));
 
 app.use(
   rateLimit({
@@ -119,4 +133,5 @@ createWebSocketServer(server);
 server.listen(HTTP_PORT, '0.0.0.0', () => {
   logger.info(`API HTTP + WebSocket en 0.0.0.0:${HTTP_PORT} (path /ws)`);
   logger.info(`TCP Teltonika: 0.0.0.0:${TCP_PORT} | HTTP: ${HTTP_PORT}`);
+  startOtpCleanup();
 });

@@ -196,10 +196,19 @@ export default function HelperDashboardLayout() {
         const panic = p as { incidentId: string; vehicleId?: string; imei?: string; latitude: number; longitude: number; plate?: string };
         handlePanicLike(panic.incidentId, panic.latitude, panic.longitude, panic.plate, panic.imei, panic.vehicleId);
       }
-      if (msg.type === 'alert' && (p as { alertType?: string }).alertType === 'panic') {
-        const a = p as { id?: string; latitude?: number; longitude?: number; plate?: string; deviceImei?: string; vehicleId?: string };
-        if (a.id && typeof a.latitude === 'number' && typeof a.longitude === 'number') {
+      if (msg.type === 'alert' && (p as { alertType?: string }).alertType) {
+        const a = p as { id?: string; alertType?: string; latitude?: number; longitude?: number; plate?: string; deviceImei?: string; vehicleId?: string; speed?: number };
+        if (a.alertType === 'panic' && a.id && typeof a.latitude === 'number' && typeof a.longitude === 'number') {
           handlePanicLike(a.id, a.latitude, a.longitude, a.plate, a.deviceImei, a.vehicleId);
+        } else if (a.id && typeof a.latitude === 'number' && typeof a.longitude === 'number') {
+          // Non-panic alerts: browser notification
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            const label = (a.alertType || 'alert').toUpperCase();
+            new Notification(`⚠️ SilentEye - ${label}`, {
+              body: `${a.plate || a.deviceImei || 'Vehículo'} · ${a.latitude?.toFixed(4)}, ${a.longitude?.toFixed(4)}`,
+              tag: a.id,
+            });
+          }
         }
       }
 

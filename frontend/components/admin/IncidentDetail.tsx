@@ -167,7 +167,7 @@ export default function IncidentDetail({
             </div>
             <div>
               <p className="text-slate-400 text-sm">Fecha de inicio</p>
-              <p>{new Date(incident.started_at).toLocaleString('es')}</p>
+              <p>{new Date(incident.started_at).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
             </div>
             <div>
               <p className="text-slate-400 text-sm">Coordenadas (lat / lng)</p>

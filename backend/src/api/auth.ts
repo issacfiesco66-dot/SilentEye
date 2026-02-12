@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { randomInt } from 'crypto';
 import { pool } from '../db/pool.js';
 import { logger } from '../utils/logger.js';
 
@@ -13,8 +14,10 @@ const JWT_SECRET: string = _rawSecret;
 const OTP_EXPIRY_MINUTES = 10;
 const OTP_LENGTH = 6;
 
+const MAX_OTP_ATTEMPTS = 5;
+
 export function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return randomInt(100000, 999999).toString();
 }
 
 export async function createOtp(phone: string): Promise<string> {
@@ -24,24 +27,78 @@ export async function createOtp(phone: string): Promise<string> {
     'INSERT INTO otp_codes (phone, code, expires_at) VALUES ($1, $2, $3)',
     [phone, code, expiresAt]
   );
-  logger.info(`OTP creado para ${phone} (expira en ${OTP_EXPIRY_MINUTES} min)`);
+  logger.info(`OTP creado para ***${phone.slice(-4)} (expira en ${OTP_EXPIRY_MINUTES} min)`);
   return code;
 }
 
-export async function verifyOtp(phone: string, code: string): Promise<{ valid: boolean; user: { id: string; phone: string; name: string; role: string } | null }> {
-  const result = await pool.query(
-    `UPDATE otp_codes SET used = true
-     WHERE phone = $1 AND code = $2 AND expires_at > NOW() AND NOT used
-     RETURNING id`,
-    [phone, code]
-  );
+export async function verifyOtp(phone: string, code: string): Promise<{ valid: boolean; user: { id: string; phone: string; name: string; role: string } | null; error?: string }> {
+  // Brute-force protection (graceful: skip if 'attempts' column doesn't exist yet)
+  let hasAttemptsCol = true;
+  try {
+    const attempts = await pool.query(
+      `SELECT COUNT(*)::int as cnt FROM otp_codes
+       WHERE phone = $1 AND NOT used AND expires_at > NOW() AND attempts >= $2`,
+      [phone, MAX_OTP_ATTEMPTS]
+    );
+    if ((attempts.rows[0]?.cnt ?? 0) > 0) {
+      logger.warn(`OTP bloqueado por intentos excesivos: ***${phone.slice(-4)}`);
+      return { valid: false, user: null, error: 'Demasiados intentos. Solicita un nuevo código.' };
+    }
+    await pool.query(
+      `UPDATE otp_codes SET attempts = COALESCE(attempts, 0) + 1
+       WHERE phone = $1 AND NOT used AND expires_at > NOW()`,
+      [phone]
+    );
+  } catch (e: unknown) {
+    const err = e as { code?: string };
+    if (err?.code === '42703') {
+      // Column "attempts" does not exist — skip brute-force protection
+      hasAttemptsCol = false;
+    } else {
+      throw e;
+    }
+  }
+
+  const result = hasAttemptsCol
+    ? await pool.query(
+        `UPDATE otp_codes SET used = true
+         WHERE phone = $1 AND code = $2 AND expires_at > NOW() AND NOT used AND COALESCE(attempts, 0) <= $3
+         RETURNING id`,
+        [phone, code, MAX_OTP_ATTEMPTS]
+      )
+    : await pool.query(
+        `UPDATE otp_codes SET used = true
+         WHERE phone = $1 AND code = $2 AND expires_at > NOW() AND NOT used
+         RETURNING id`,
+        [phone, code]
+      );
   if (result.rowCount === 0) return { valid: false, user: null };
 
   const userResult = await pool.query(
-    'SELECT id, phone, name, role FROM users WHERE phone = $1',
+    'SELECT id, phone, name, role, is_active FROM users WHERE phone = $1',
     [phone]
   );
-  return { valid: true, user: userResult.rows[0] ?? null };
+  const user = userResult.rows[0] ?? null;
+  if (user && user.is_active === false) {
+    logger.warn(`Login bloqueado: usuario desactivado ***${phone.slice(-4)}`);
+    return { valid: false, user: null, error: 'Cuenta desactivada. Contacta al administrador.' };
+  }
+  return { valid: true, user: user ? { id: user.id, phone: user.phone, name: user.name, role: user.role } : null };
+}
+
+// Cleanup expired OTPs periodically (every 30 min)
+let _otpCleanupStarted = false;
+export function startOtpCleanup(): void {
+  if (_otpCleanupStarted) return;
+  _otpCleanupStarted = true;
+  setInterval(async () => {
+    try {
+      const r = await pool.query("DELETE FROM otp_codes WHERE expires_at < NOW() - INTERVAL '1 hour'");
+      if ((r.rowCount ?? 0) > 0) logger.info(`OTP cleanup: ${r.rowCount} códigos expirados eliminados`);
+    } catch (err) {
+      logger.warn('OTP cleanup error:', err);
+    }
+  }, 30 * 60 * 1000);
 }
 
 export async function findOrCreateUser(phone: string, name?: string): Promise<{ id: string; phone: string; name: string; role: string }> {

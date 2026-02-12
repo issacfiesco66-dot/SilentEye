@@ -7,7 +7,7 @@ app = 'silenteye-3rrwnq'
 primary_region = 'dfw'
 
 [build]
-  dockerfile = 'Dockerfile.backend'
+  dockerfile = 'Dockerfile'
 
 [deploy]
   release_command = 'true'

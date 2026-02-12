@@ -58,14 +58,14 @@ export async function processAlert(alert: NormalizedAlert): Promise<StoredAlert 
       createdAt: row.created_at,
     };
 
-    // Solo conductores dentro del radio reciben la alerta (admin siempre)
+    // Conductores Y helpers dentro del radio reciben la alerta (admin siempre via broadcastAlert filter)
     let nearbyUserIds: string[] = [];
     if (postgis) {
       const nearby = await client.query(
         `SELECT DISTINCT u.id FROM users u
-         JOIN vehicles v ON v.driver_id = u.id
+         LEFT JOIN vehicles v ON v.driver_id = u.id
          LEFT JOIN helper_locations hl ON hl.user_id = u.id
-         WHERE u.is_active AND (
+         WHERE u.is_active AND u.role IN ('driver', 'helper') AND (
            (hl.user_id IS NOT NULL AND ST_DWithin(hl.geom::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))
            OR (hl.user_id IS NULL AND u.last_location IS NOT NULL AND ST_DWithin(u.last_location::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))
          )`,
@@ -75,8 +75,9 @@ export async function processAlert(alert: NormalizedAlert): Promise<StoredAlert 
     } else {
       const nearby = await client.query(
         `SELECT DISTINCT u.id FROM users u
-         JOIN vehicles v ON v.driver_id = u.id
-         WHERE u.is_active AND u.last_lat IS NOT NULL AND u.last_lng IS NOT NULL
+         LEFT JOIN vehicles v ON v.driver_id = u.id
+         WHERE u.is_active AND u.role IN ('driver', 'helper')
+           AND u.last_lat IS NOT NULL AND u.last_lng IS NOT NULL
            AND (6371000 * acos(LEAST(1, GREATEST(-1,
              cos(radians($1)) * cos(radians(u.last_lat)) * cos(radians(u.last_lng) - radians($2)) + sin(radians($1)) * sin(radians(u.last_lat))
            )))) <= $3`,

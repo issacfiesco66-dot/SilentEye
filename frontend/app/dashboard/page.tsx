@@ -171,9 +171,23 @@ export default function DashboardPage() {
         handlePanicLike(p.incidentId, p.latitude, p.longitude, p.plate, p.imei, p.vehicleId);
       }
       if (msg.type === 'alert' && msg.payload) {
-        const a = msg.payload as { id?: string; alertType?: string; latitude?: number; longitude?: number; plate?: string; deviceImei?: string; vehicleId?: string };
+        const a = msg.payload as { id?: string; alertType?: string; latitude?: number; longitude?: number; plate?: string; deviceImei?: string; vehicleId?: string; priority?: number; speed?: number };
         if (a.alertType === 'panic' && a.id && typeof a.latitude === 'number' && typeof a.longitude === 'number') {
           handlePanicLike(a.id, a.latitude, a.longitude, a.plate, a.deviceImei, a.vehicleId);
+        } else if (a.id && typeof a.latitude === 'number' && typeof a.longitude === 'number') {
+          // Non-panic alerts: update live location + browser notification
+          const key = a.deviceImei || a.vehicleId || a.id;
+          setLiveLocations((prev) => ({
+            ...prev,
+            [key]: { imei: a.deviceImei ?? '', vehicleId: a.vehicleId, latitude: a.latitude!, longitude: a.longitude!, speed: a.speed ?? 0, plate: a.plate },
+          }));
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            const label = (a.alertType || 'alert').toUpperCase();
+            new Notification(`⚠️ SilentEye - ${label}`, {
+              body: `${a.plate || a.deviceImei || 'Vehículo'} · ${a.latitude?.toFixed(4)}, ${a.longitude?.toFixed(4)}`,
+              tag: a.id,
+            });
+          }
         }
       }
     },

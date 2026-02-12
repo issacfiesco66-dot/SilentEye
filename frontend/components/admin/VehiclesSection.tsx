@@ -123,6 +123,9 @@ export default function VehiclesSection() {
     }
     if (res.ok) {
       await load();
+    } else if (res.status === 404) {
+      await load();
+      setError('El vehículo ya no existe. Lista actualizada.');
     } else {
       setError(data.error || 'Error al eliminar');
     }
@@ -157,6 +160,11 @@ export default function VehiclesSection() {
       await load();
       setEditingVehicle(null);
       setForm({ plate: '', name: '', imei: '', driver_id: '' });
+    } else if (res.status === 404) {
+      await load();
+      setEditingVehicle(null);
+      setForm({ plate: '', name: '', imei: '', driver_id: '' });
+      setError('El vehículo ya no existe. Lista actualizada.');
     } else {
       setError(data.error || 'Error al actualizar');
     }

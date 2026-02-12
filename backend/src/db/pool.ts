@@ -13,7 +13,15 @@ export const pool = new Pool({
   connectionString: connString || 'postgresql://postgres:postgres@localhost:5432/silenteye',
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 5000,
+  ...(isProd && connString && !connString.includes('sslmode=disable')
+    ? { ssl: { rejectUnauthorized: false } }
+    : {}),
+});
+
+// Set statement_timeout per-session (not all providers support it as a startup param)
+pool.on('connect', (client: { query: (sql: string) => Promise<unknown> }) => {
+  client.query('SET statement_timeout = 30000').catch(() => {});
 });
 
 pool.on('error', (err: Error) => {

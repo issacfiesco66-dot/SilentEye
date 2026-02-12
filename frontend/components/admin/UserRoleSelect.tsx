@@ -14,11 +14,13 @@ export default function UserRoleSelect({
   userId,
   currentRole,
   onRoleChange,
+  onDeleted,
   currentUserId,
 }: {
   userId: string;
   currentRole: string;
   onRoleChange: (newRole: string) => void;
+  onDeleted?: () => void;
   currentUserId?: string;
 }) {
   const router = useRouter();
@@ -52,6 +54,8 @@ export default function UserRoleSelect({
       }
       if (res.ok) {
         onRoleChange(role);
+      } else if (res.status === 404 && onDeleted) {
+        onDeleted();
       } else {
         const data = await res.json().catch(() => ({}));
         setError(data.error || 'Error al cambiar rol');

@@ -109,7 +109,7 @@ export default function IncidentesSection() {
                 <span className="font-medium text-white">{inc.plate || 'Sin placa'}</span>
                 <p className="text-slate-500 text-sm">{inc.driver_name || 'Sin conductor'}</p>
                 <p className="text-slate-400 text-xs mt-1">
-                  {new Date(inc.started_at).toLocaleString('es')} · {inc.latitude?.toFixed(4)}, {inc.longitude?.toFixed(4)}
+                  {new Date(inc.started_at).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })} · {inc.latitude?.toFixed(4)}, {inc.longitude?.toFixed(4)}
                 </p>
               </div>
               <span
