@@ -923,6 +923,41 @@ api.post('/panic', authMiddleware, panicRateLimit, asyncHandler(async (req, res)
   }
 }));
 
+// Location update: any authenticated user can report their position
+const locationRateLimit = rateLimit({
+  windowMs: 10 * 1000,
+  max: 5,
+  message: { error: 'Demasiadas actualizaciones de ubicación' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req as any).user?.userId || req.ip || 'unknown',
+});
+
+api.post('/location', authMiddleware, locationRateLimit, asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const { latitude, longitude } = req.body;
+
+  if (!isValidCoords(latitude, longitude)) {
+    res.status(400).json({ error: 'Ubicación GPS requerida (latitude, longitude)' });
+    return;
+  }
+
+  const pg = await hasPostGis();
+  if (pg) {
+    await pool.query(
+      `UPDATE users SET last_location = ST_SetSRID(ST_MakePoint($2, $1), 4326), last_location_at = NOW(), updated_at = NOW() WHERE id = $3`,
+      [latitude, longitude, userId]
+    );
+  } else {
+    await pool.query(
+      `UPDATE users SET last_lat = $1, last_lng = $2, last_location_at = NOW(), updated_at = NOW() WHERE id = $3`,
+      [latitude, longitude, userId]
+    );
+  }
+
+  res.json({ success: true });
+}));
+
 api.delete('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { userId } = (req as any).user;

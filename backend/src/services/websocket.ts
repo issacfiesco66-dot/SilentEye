@@ -74,7 +74,7 @@ interface WSMessage {
 
 const clients = new Map<WsSocket, { userId?: string; role?: string; vehicleId?: string }>();
 
-const VALID_ROLES = ['admin', 'helper', 'driver'];
+const VALID_ROLES = ['admin', 'helper', 'driver', 'citizen'];
 
 export function createWebSocketServer(portOrServer: number | HttpServer): WebSocketServer {
   const wss = typeof portOrServer === 'number'
@@ -152,8 +152,7 @@ export function broadcastLocation(update: LocationUpdate) {
 export function broadcastPanic(event: PanicEvent, nearbyUserIds?: string[]) {
   const filter = (meta: { userId?: string; role?: string; vehicleId?: string }) =>
     meta.role === 'admin' ||
-    (meta.role === 'driver' && (nearbyUserIds ?? []).includes(meta.userId ?? '')) ||
-    (meta.role === 'helper' && (nearbyUserIds ?? []).includes(meta.userId ?? ''));
+    (nearbyUserIds ?? []).includes(meta.userId ?? '');
   const recipientCount = [...clients.values()].filter(filter).length;
   logger.info(`broadcastPanic incident=${event.incidentId} plate=${event.plate} → ${recipientCount} clientes`);
   broadcast({ type: 'panic', payload: event }, filter);

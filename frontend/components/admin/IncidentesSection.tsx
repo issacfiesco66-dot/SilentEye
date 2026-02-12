@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import IncidentDetail from './IncidentDetail';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -61,7 +62,37 @@ export default function IncidentesSection() {
 
   useEffect(() => {
     fetchIncidents();
+    // Polling every 10s as fallback
+    const interval = setInterval(fetchIncidents, 10000);
+    return () => clearInterval(interval);
   }, []);
+
+  // Real-time: listen for panic events via WebSocket
+  const wsToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  useWebSocket({
+    token: wsToken,
+    enabled: !!wsToken,
+    onMessage: useCallback((msg: { type: string; payload: unknown }) => {
+      if (msg.type === 'panic' && msg.payload) {
+        const p = msg.payload as { incidentId?: string; plate?: string; latitude?: number; longitude?: number; timestamp?: number; nearbyCount?: number };
+        if (p.incidentId) {
+          setIncidents((prev) => {
+            if (prev.some((inc) => inc.id === p.incidentId)) return prev;
+            const newInc: Incident = {
+              id: p.incidentId!,
+              status: 'active',
+              plate: p.plate || 'SOS Móvil',
+              driver_name: '',
+              started_at: new Date().toISOString(),
+              latitude: p.latitude ?? 0,
+              longitude: p.longitude ?? 0,
+            };
+            return [newInc, ...prev];
+          });
+        }
+      }
+    }, []),
+  });
 
   const handleStatusChange = () => {
     fetchIncidents();

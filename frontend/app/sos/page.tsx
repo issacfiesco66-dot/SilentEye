@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -11,6 +12,14 @@ type Status = 'idle' | 'locating' | 'sending' | 'sent' | 'error';
 interface PanicResult {
   incidentId: string;
   nearbyCount: number;
+}
+
+interface IncomingAlert {
+  incidentId: string;
+  plate?: string;
+  latitude: number;
+  longitude: number;
+  timestamp: number;
 }
 
 export default function SOSPage() {
@@ -23,8 +32,11 @@ export default function SOSPage() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<number>(0);
+  const [incomingAlerts, setIncomingAlerts] = useState<IncomingAlert[]>([]);
   const watchRef = useRef<number | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  const locationReportRef = useRef<NodeJS.Timeout | null>(null);
+  const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
 
   // Auth check
   useLayoutEffect(() => {
@@ -54,12 +66,13 @@ export default function SOSPage() {
     const startWatch = (highAccuracy: boolean) => {
       watchRef.current = navigator.geolocation.watchPosition(
         (pos) => {
-          setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          const newCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setCoords(newCoords);
+          coordsRef.current = newCoords;
           setGpsAccuracy(Math.round(pos.coords.accuracy));
         },
         (err) => {
           if (highAccuracy && err.code !== 1) {
-            // Retry without high accuracy (some devices fail with high accuracy)
             startWatch(false);
           }
         },
@@ -74,6 +87,63 @@ export default function SOSPage() {
       }
     };
   }, []);
+
+  // Report location to backend every 15 seconds so nearby detection works
+  useEffect(() => {
+    if (!token) return;
+
+    const reportLocation = async () => {
+      const c = coordsRef.current;
+      if (!c) return;
+      try {
+        await fetch(`${API}/api/location`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ latitude: c.lat, longitude: c.lng }),
+        });
+      } catch {
+        // Silently ignore
+      }
+    };
+
+    // Report immediately once coords are available
+    const initialDelay = setTimeout(reportLocation, 2000);
+    locationReportRef.current = setInterval(reportLocation, 15000);
+
+    return () => {
+      clearTimeout(initialDelay);
+      if (locationReportRef.current) clearInterval(locationReportRef.current);
+    };
+  }, [token]);
+
+  // WebSocket: receive panic alerts from other users
+  useWebSocket({
+    token,
+    enabled: !!token,
+    onMessage: useCallback((msg: { type: string; payload: unknown }) => {
+      if (msg.type === 'panic' && msg.payload) {
+        const p = msg.payload as { incidentId?: string; plate?: string; latitude?: number; longitude?: number; timestamp?: number };
+        if (p.incidentId && typeof p.latitude === 'number') {
+          const alert: IncomingAlert = {
+            incidentId: p.incidentId,
+            plate: p.plate,
+            latitude: p.latitude,
+            longitude: p.longitude ?? 0,
+            timestamp: p.timestamp ?? Date.now(),
+          };
+          setIncomingAlerts((prev) => {
+            if (prev.some((a) => a.incidentId === alert.incidentId)) return prev;
+            return [alert, ...prev].slice(0, 10);
+          });
+          // Vibrate to notify
+          if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+        }
+      }
+    }, []),
+  });
 
   const sendPanic = useCallback(async (lat: number, lng: number) => {
     if (!token) return;
@@ -320,6 +390,29 @@ export default function SOSPage() {
           )}
         </div>
       </main>
+
+      {/* Incoming alerts from nearby users */}
+      {incomingAlerts.length > 0 && (
+        <div className="px-4 pb-4 space-y-2">
+          <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider text-center">
+            Alertas cercanas recibidas
+          </p>
+          {incomingAlerts.map((a) => (
+            <div
+              key={a.incidentId}
+              className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-center animate-pulse"
+              style={{ animationDuration: '2s' }}
+            >
+              <p className="text-red-300 font-semibold text-sm">
+                Emergencia: {a.plate || 'SOS'}
+              </p>
+              <p className="text-slate-400 text-xs mt-1">
+                {a.latitude.toFixed(4)}, {a.longitude.toFixed(4)} · {new Date(a.timestamp).toLocaleTimeString('es-MX')}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Footer info */}
       <footer className="px-6 py-4 border-t border-slate-800/50 text-center">
