@@ -209,6 +209,14 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Floating SOS button */}
+      <a
+        href="/sos"
+        className="fixed bottom-6 right-6 z-50 w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-sm flex items-center justify-center shadow-2xl shadow-red-500/40 hover:scale-110 active:scale-95 transition-all"
+      >
+        SOS
+      </a>
+
       <header className="bg-slate-800 border-b border-slate-700 px-4 py-3 flex items-center justify-between">
         <h1 className="font-bold text-lg">SilentEye</h1>
         <div className="flex items-center gap-4">

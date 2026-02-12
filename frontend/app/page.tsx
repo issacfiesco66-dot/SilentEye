@@ -27,6 +27,12 @@ export default function Home() {
               FAQ
             </a>
             <Link
+              href="/sos"
+              className="px-5 py-2.5 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-500 transition-all"
+            >
+              SOS
+            </Link>
+            <Link
               href="/login"
               className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-500 transition-all"
             >

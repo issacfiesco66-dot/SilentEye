@@ -10,6 +10,7 @@ import {
   verifyToken,
 } from './auth.js';
 import { getAlerts, deleteAlerts } from '../services/alert-service.js';
+import { broadcastPanic } from '../services/websocket.js';
 import { logger } from '../utils/logger.js';
 import { runMigrate } from '../db/run-migrate.js';
 import { runSeed } from '../db/run-seed.js';
@@ -781,6 +782,143 @@ api.put('/users/:id/block', authMiddleware, requireRole('admin'), asyncHandler(a
     return;
   }
   res.json(r.rows[0]);
+}));
+
+// Mobile panic button: any authenticated user can trigger a panic from their phone
+const panicRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 3,
+  message: { error: 'Demasiadas alertas. Espera 1 minuto.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req as any).user?.userId || req.ip || 'unknown',
+});
+
+api.post('/panic', authMiddleware, panicRateLimit, asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const { latitude, longitude } = req.body;
+
+  if (!isValidCoords(latitude, longitude)) {
+    res.status(400).json({ error: 'Ubicación GPS requerida (latitude, longitude)' });
+    return;
+  }
+
+  const pg = await hasPostGis();
+  const client = await pool.connect();
+  try {
+    // Get user info
+    const userResult = await client.query(
+      'SELECT id, name, phone, role FROM users WHERE id = $1',
+      [userId]
+    );
+    const user = userResult.rows[0];
+    if (!user) {
+      res.status(404).json({ error: 'Usuario no encontrado' });
+      return;
+    }
+
+    // Check if user has a vehicle (optional)
+    const vehicleResult = await client.query(
+      'SELECT id, plate, imei FROM vehicles WHERE driver_id = $1 LIMIT 1',
+      [userId]
+    );
+    const vehicle = vehicleResult.rows[0];
+
+    // Create incident
+    let incidentResult;
+    if (pg) {
+      incidentResult = await client.query(
+        `INSERT INTO incidents (vehicle_id, driver_id, imei, status, geom, latitude, longitude, started_at, source)
+         VALUES ($1, $2, $3, 'active', ST_SetSRID(ST_MakePoint($5, $4), 4326), $4, $5, NOW(), 'mobile')
+         RETURNING id`,
+        [vehicle?.id ?? null, userId, vehicle?.imei ?? null, latitude, longitude]
+      );
+    } else {
+      incidentResult = await client.query(
+        `INSERT INTO incidents (vehicle_id, driver_id, imei, status, latitude, longitude, started_at, source)
+         VALUES ($1, $2, $3, 'active', $4, $5, NOW(), 'mobile')
+         RETURNING id`,
+        [vehicle?.id ?? null, userId, vehicle?.imei ?? null, latitude, longitude]
+      );
+    }
+    const incident = incidentResult.rows[0];
+
+    // Update user location
+    if (pg) {
+      await client.query(
+        `UPDATE users SET last_location = ST_SetSRID(ST_MakePoint($2, $1), 4326), last_location_at = NOW(), updated_at = NOW() WHERE id = $3`,
+        [latitude, longitude, userId]
+      );
+    } else {
+      await client.query(
+        `UPDATE users SET last_lat = $1, last_lng = $2, last_location_at = NOW(), updated_at = NOW() WHERE id = $3`,
+        [latitude, longitude, userId]
+      );
+    }
+
+    // Find nearby helpers/drivers
+    const radiusM = parseInt(process.env.PANIC_ALERT_RADIUS_M || '2000', 10) || 2000;
+    let nearbyDrivers: { id: string; phone: string; name: string }[] = [];
+    if (pg) {
+      const nearbyResult = await client.query(
+        `SELECT DISTINCT u.id, u.phone, u.name
+         FROM users u
+         LEFT JOIN helper_locations hl ON hl.user_id = u.id
+         WHERE u.is_active AND u.id != $4
+           AND (
+             (hl.user_id IS NOT NULL AND ST_DWithin(hl.geom::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))
+             OR (hl.user_id IS NULL AND u.last_location IS NOT NULL AND ST_DWithin(u.last_location::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))
+           )`,
+        [latitude, longitude, radiusM, userId]
+      );
+      nearbyDrivers = nearbyResult.rows;
+    } else {
+      const nearbyResult = await client.query(
+        `SELECT DISTINCT u.id, u.phone, u.name
+         FROM users u
+         WHERE u.is_active AND u.id != $4
+           AND u.last_lat IS NOT NULL AND u.last_lng IS NOT NULL
+           AND (6371000 * acos(LEAST(1, GREATEST(-1,
+             cos(radians($1)) * cos(radians(u.last_lat)) * cos(radians(u.last_lng) - radians($2)) + sin(radians($1)) * sin(radians(u.last_lat))
+           )))) <= $3`,
+        [latitude, longitude, radiusM, userId]
+      );
+      nearbyDrivers = nearbyResult.rows;
+    }
+
+    // Add nearby users as incident followers
+    for (const driver of nearbyDrivers) {
+      await client.query(
+        'INSERT INTO incident_followers (incident_id, user_id, status) VALUES ($1, $2, $3) ON CONFLICT (incident_id, user_id) DO NOTHING',
+        [incident.id, driver.id, 'notified']
+      );
+    }
+
+    // Broadcast panic via WebSocket
+    broadcastPanic(
+      {
+        incidentId: incident.id,
+        imei: vehicle?.imei ?? 'mobile',
+        vehicleId: vehicle?.id,
+        plate: vehicle?.plate ?? user.name ?? 'SOS Móvil',
+        latitude,
+        longitude,
+        timestamp: Date.now(),
+        nearbyCount: nearbyDrivers.length,
+      },
+      nearbyDrivers.map((d) => d.id)
+    );
+
+    logger.info(`MOBILE PANIC userId=${userId} name=${user.name} lat=${latitude} lng=${longitude} nearby=${nearbyDrivers.length}`);
+
+    res.json({
+      success: true,
+      incidentId: incident.id,
+      nearbyCount: nearbyDrivers.length,
+    });
+  } finally {
+    client.release();
+  }
 }));
 
 api.delete('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {

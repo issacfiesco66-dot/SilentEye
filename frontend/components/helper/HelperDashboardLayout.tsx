@@ -272,6 +272,14 @@ export default function HelperDashboardLayout() {
     <div className="min-h-screen flex flex-col bg-slate-950">
       <HelperHeader status={helperStatus} onLogout={handleLogout} />
 
+      {/* Floating SOS button */}
+      <a
+        href="/sos"
+        className="fixed bottom-6 right-6 z-50 w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-sm flex items-center justify-center shadow-2xl shadow-red-500/40 hover:scale-110 active:scale-95 transition-all"
+      >
+        SOS
+      </a>
+
       <main className="flex-1 flex flex-col p-4 gap-4">
         {loading ? (
           <div className="flex-1 flex items-center justify-center text-slate-400">
