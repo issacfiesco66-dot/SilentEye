@@ -1,5 +1,4 @@
 /** @type {import('next').NextConfig} */
-/* v3 */
 const path = require('path');
 
 module.exports = {
