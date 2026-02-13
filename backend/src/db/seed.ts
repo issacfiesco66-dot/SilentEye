@@ -6,7 +6,7 @@ async function seed() {
     ('+51999999999', 'Admin', 'admin'),
     ('+51999999998', 'Helper 1', 'helper'),
     ('+51999999997', 'Conductor 1', 'driver')
-    ON CONFLICT (phone) DO NOTHING
+    ON CONFLICT (phone) DO UPDATE SET role = EXCLUDED.role, name = EXCLUDED.name
   `);
 
   await pool.query(

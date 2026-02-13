@@ -716,6 +716,19 @@ api.get('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req,
   res.json(r.rows);
 }));
 
+api.get('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const r = await pool.query(
+    'SELECT id, phone, name, role, is_active, last_location_at, created_at FROM users WHERE id = $1',
+    [id]
+  );
+  if (!r.rows[0]) {
+    res.status(404).json({ error: 'Usuario no encontrado' });
+    return;
+  }
+  res.json(r.rows[0]);
+}));
+
 api.post('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { phone, name, role } = req.body;
   if (!phone || typeof phone !== 'string' || !name || typeof name !== 'string') {
