@@ -2,311 +2,315 @@ import Link from 'next/link';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 overflow-x-hidden">
-      {/* Background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-[700px] h-[700px] rounded-full bg-blue-600/[0.08] blur-[150px]" />
-        <div className="absolute top-1/3 -left-40 w-[500px] h-[500px] rounded-full bg-red-500/[0.05] blur-[120px]" />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full bg-cyan-500/[0.04] blur-[100px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(59,130,246,0.1),transparent_70%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(71,85,105,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(71,85,105,0.03)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
-      </div>
+    <div className="min-h-screen bg-white text-zinc-900 overflow-x-hidden selection:bg-blue-600/10">
 
-      {/* Navigation */}
-      <nav className="relative z-10 border-b border-slate-800/40 bg-slate-950/70 backdrop-blur-2xl">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 8v4l3 3" />
-              </svg>
+      {/* ── Nav ── */}
+      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-zinc-100">
+        <div className="max-w-7xl mx-auto flex items-center justify-between px-6 h-16">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
             </div>
-            <span className="text-xl font-bold tracking-tight text-white">SilentEye</span>
+            <span className="text-lg font-bold tracking-tight">SilentEye</span>
+          </Link>
+
+          <div className="hidden md:flex items-center gap-8 text-[13px] font-medium text-zinc-500">
+            <a href="#producto" className="hover:text-zinc-900 transition-colors">Producto</a>
+            <a href="#como-funciona" className="hover:text-zinc-900 transition-colors">Proceso</a>
+            <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
           </div>
-          <div className="flex items-center gap-3 sm:gap-5">
-            <a href="#beneficios" className="hidden md:inline text-slate-400 hover:text-white text-sm font-medium transition-colors">
-              Beneficios
-            </a>
-            <a href="#como-funciona" className="hidden md:inline text-slate-400 hover:text-white text-sm font-medium transition-colors">
-              Cómo funciona
-            </a>
-            <a href="#faq" className="hidden md:inline text-slate-400 hover:text-white text-sm font-medium transition-colors">
-              FAQ
-            </a>
-            <Link
-              href="/sos"
-              className="relative px-4 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-500 transition-all shadow-lg shadow-red-600/25 hover:shadow-red-500/40"
-            >
-              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-400 animate-ping" />
-              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-400" />
+
+          <div className="flex items-center gap-3">
+            <Link href="/sos" className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
               SOS
             </Link>
-            <Link
-              href="/login"
-              className="px-4 py-2 text-sm font-semibold text-white bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 hover:border-slate-600 transition-all"
-            >
+            <Link href="/login" className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors">
               Acceder
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* Hero */}
-      <header className="relative px-6 pt-20 pb-16 md:pt-28 md:pb-24">
-        <div className="max-w-5xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 text-xs font-semibold tracking-[0.15em] uppercase text-blue-400 bg-blue-500/10 rounded-full border border-blue-500/20">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            Seguridad inteligente en tiempo real
+      {/* ── Hero ── */}
+      <header className="relative px-6 pt-20 pb-24 md:pt-32 md:pb-36 overflow-hidden">
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,white_60%,#f8fafc)]" />
+        <div className="relative max-w-7xl mx-auto">
+          <div className="max-w-3xl">
+            <p className="text-[13px] font-semibold text-blue-600 tracking-wide uppercase mb-6">
+              Plataforma de seguridad vehicular
+            </p>
+            <h1 className="text-[clamp(2.5rem,6vw,4.5rem)] font-extrabold leading-[1.05] tracking-tight text-zinc-900 mb-6">
+              Monitoreo GPS y{' '}
+              <span className="relative inline-block">
+                respuesta inmediata
+                <span className="absolute -bottom-1 left-0 w-full h-3 bg-blue-600/10 -skew-x-6 rounded-sm" />
+              </span>{' '}
+              ante emergencias
+            </h1>
+            <p className="text-lg md:text-xl text-zinc-500 leading-relaxed max-w-xl mb-10">
+              Rastrea tus vehículos en tiempo real. Activa alertas de pánico
+              desde el GPS o desde cualquier celular. La ayuda llega en segundos.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors"
+              >
+                Comenzar gratis
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </Link>
+              <Link
+                href="/sos"
+                className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+                Emergencia SOS
+              </Link>
+            </div>
           </div>
-          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold tracking-tight mb-8 leading-[0.95]">
-            <span className="block text-white">Protección</span>
-            <span className="block bg-gradient-to-r from-blue-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">
-              cuando más importa
-            </span>
-          </h1>
-          <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto mb-12 leading-relaxed">
-            Monitoreo vehicular GPS en tiempo real y botón de pánico ciudadano.
-            Alertas instantáneas, red de apoyo cercana y respuesta inmediata.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/login"
-              className="group inline-flex items-center justify-center gap-2 px-8 py-4 text-base font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-500 transition-all shadow-xl shadow-blue-600/25 hover:shadow-blue-500/40 hover:-translate-y-0.5"
-            >
-              Comenzar ahora
-              <span className="group-hover:translate-x-1 transition-transform">→</span>
-            </Link>
-            <Link
-              href="/sos"
-              className="group inline-flex items-center justify-center gap-3 px-8 py-4 text-base font-semibold text-red-300 border-2 border-red-500/40 rounded-xl hover:border-red-500/70 hover:text-white hover:bg-red-600/10 transition-all"
-            >
-              <span className="w-3 h-3 rounded-full bg-red-500 group-hover:animate-ping" />
-              Emergencia SOS
-            </Link>
+
+          {/* Hero visual – CSS art dashboard mockup */}
+          <div className="hidden lg:block absolute right-0 top-8 w-[480px]" aria-hidden="true">
+            <div className="relative bg-zinc-900 rounded-xl p-4 shadow-2xl shadow-zinc-900/20 border border-zinc-800">
+              <div className="flex items-center gap-1.5 mb-3">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                <span className="w-2.5 h-2.5 rounded-full bg-green-400" />
+                <span className="ml-3 text-[10px] text-zinc-500 font-mono">dashboard / mapa en vivo</span>
+              </div>
+              {/* Fake map */}
+              <div className="relative bg-zinc-800 rounded-lg h-52 overflow-hidden">
+                <div className="absolute inset-0 opacity-20 bg-[linear-gradient(to_right,#374151_1px,transparent_1px),linear-gradient(to_bottom,#374151_1px,transparent_1px)] bg-[size:24px_24px]" />
+                {/* Fake route line */}
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 480 208">
+                  <path d="M40,160 C80,140 120,80 200,90 S320,40 420,60" stroke="#3b82f6" strokeWidth="2" fill="none" strokeDasharray="6,4" opacity="0.6"/>
+                  {/* Vehicle dots */}
+                  <circle cx="200" cy="90" r="5" fill="#3b82f6"><animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/></circle>
+                  <circle cx="200" cy="90" r="10" fill="none" stroke="#3b82f6" strokeWidth="1" opacity="0.3"><animate attributeName="r" values="10;20;10" dur="2s" repeatCount="indefinite"/></circle>
+                  <circle cx="420" cy="60" r="4" fill="#22c55e"/>
+                  <circle cx="80" cy="145" r="4" fill="#22c55e"/>
+                  {/* SOS pin */}
+                  <circle cx="320" cy="130" r="7" fill="#ef4444"><animate attributeName="opacity" values="1;0.5;1" dur="1s" repeatCount="indefinite"/></circle>
+                  <circle cx="320" cy="130" r="14" fill="none" stroke="#ef4444" strokeWidth="1" opacity="0.4"><animate attributeName="r" values="14;24;14" dur="1.5s" repeatCount="indefinite"/></circle>
+                  <text x="332" y="126" fill="#fca5a5" fontSize="8" fontFamily="monospace">SOS</text>
+                </svg>
+              </div>
+              {/* Fake status bar */}
+              <div className="flex items-center justify-between mt-3 px-1">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-mono"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> 3 en línea</span>
+                  <span className="flex items-center gap-1 text-[10px] text-red-400 font-mono"><span className="w-1.5 h-1.5 rounded-full bg-red-400" /> 1 alerta</span>
+                </div>
+                <span className="text-[10px] text-zinc-600 font-mono">Puebla, MX</span>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Two-mode showcase */}
-      <section className="relative px-6 py-16 md:py-20">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* GPS Card */}
-            <div className="group relative p-8 md:p-10 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-900/50 border border-slate-800 hover:border-blue-500/30 transition-all duration-500 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="relative">
-                <div className="w-14 h-14 rounded-2xl bg-blue-500/15 border border-blue-500/20 flex items-center justify-center mb-6">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgb(96,165,250)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M12 2v4m0 12v4m10-10h-4M6 12H2" />
-                    <path d="M12 2a10 10 0 0 1 10 10" opacity="0.4" />
-                    <path d="M12 2a10 10 0 0 0-10 10" opacity="0.4" />
-                  </svg>
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-3">Rastreo GPS vehicular</h3>
-                <p className="text-slate-400 leading-relaxed mb-6">
-                  Monitoreo 24/7 de tu vehículo con GPS Teltonika. Ubicación en tiempo real, historial de rutas y alertas automáticas ante movimientos sospechosos.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {['Tiempo real', 'Geocercas', 'Historial', 'Alertas'].map((tag) => (
-                    <span key={tag} className="px-3 py-1 text-xs font-medium text-blue-300 bg-blue-500/10 rounded-full border border-blue-500/20">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
+      {/* ── Metrics strip ── */}
+      <section className="border-y border-zinc-100 bg-zinc-50/50">
+        <div className="max-w-7xl mx-auto px-6 py-10 grid grid-cols-2 md:grid-cols-4 gap-8">
+          {[
+            { val: '24/7', label: 'Monitoreo continuo' },
+            { val: '<3s', label: 'Tiempo de alerta' },
+            { val: '2 km', label: 'Radio de respuesta' },
+            { val: '0', label: 'Apps que instalar' },
+          ].map((m, i) => (
+            <div key={i} className="text-center md:text-left">
+              <div className="text-2xl md:text-3xl font-extrabold text-zinc-900 tracking-tight font-mono">{m.val}</div>
+              <div className="text-sm text-zinc-400 mt-0.5">{m.label}</div>
             </div>
-
-            {/* SOS Card */}
-            <div className="group relative p-8 md:p-10 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-900/50 border border-slate-800 hover:border-red-500/30 transition-all duration-500 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-red-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="relative">
-                <div className="w-14 h-14 rounded-2xl bg-red-500/15 border border-red-500/20 flex items-center justify-center mb-6">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgb(248,113,113)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 9v4" />
-                    <path d="M12 17h.01" />
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-3">Botón de pánico SOS</h3>
-                <p className="text-slate-400 leading-relaxed mb-6">
-                  Cualquier persona puede enviar una alerta de emergencia desde su celular. Tu ubicación se comparte al instante con la red de apoyo más cercana.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {['Sin instalar app', 'Geolocalización', 'Red de apoyo', 'Gratis'].map((tag) => (
-                    <span key={tag} className="px-3 py-1 text-xs font-medium text-red-300 bg-red-500/10 rounded-full border border-red-500/20">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="relative px-6 py-16 border-y border-slate-800/40 bg-slate-900/20">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
-            {[
-              { value: '24/7', label: 'Monitoreo continuo', color: 'text-blue-400' },
-              { value: '<3s', label: 'Tiempo de alerta', color: 'text-emerald-400' },
-              { value: '2km', label: 'Radio de notificación', color: 'text-amber-400' },
-              { value: '100%', label: 'Desde el navegador', color: 'text-cyan-400' },
-            ].map((stat, i) => (
-              <div key={i} className="text-center group">
-                <div className={`text-3xl md:text-4xl font-extrabold ${stat.color} mb-1 group-hover:scale-105 transition-transform`}>
-                  {stat.value}
+      {/* ── Product: Bento grid ── */}
+      <section id="producto" className="px-6 py-24 md:py-32">
+        <div className="max-w-7xl mx-auto">
+          <div className="max-w-xl mb-16">
+            <p className="text-[13px] font-semibold text-blue-600 tracking-wide uppercase mb-3">Producto</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">Dos sistemas, una plataforma</h2>
+            <p className="text-zinc-500 leading-relaxed">Protección profesional GPS para flotas y un botón de pánico ciudadano abierto a todos, unificados en un solo panel.</p>
+          </div>
+
+          <div className="grid md:grid-cols-5 gap-4">
+            {/* GPS – large */}
+            <div className="md:col-span-3 group relative bg-zinc-50 border border-zinc-200 rounded-xl p-8 overflow-hidden hover:border-blue-200 transition-colors">
+              <div className="flex items-start justify-between mb-6">
+                <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m10-10h-4M6 12H2"/></svg>
                 </div>
-                <div className="text-slate-500 text-sm font-medium">{stat.label}</div>
+                <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md uppercase tracking-wider">GPS</span>
+              </div>
+              <h3 className="text-xl font-bold mb-2">Rastreo vehicular en tiempo real</h3>
+              <p className="text-zinc-500 text-[15px] leading-relaxed mb-6 max-w-md">
+                Monitorea tu flota completa con GPS Teltonika. Ubicación en vivo, historial de
+                recorridos, alertas de exceso de velocidad y geocercas automáticas.
+              </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-2 text-[12px] font-medium text-zinc-400">
+                <span className="flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg> Ubicación en vivo</span>
+                <span className="flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg> Historial de rutas</span>
+                <span className="flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg> Alertas automáticas</span>
+                <span className="flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg> Botón de pánico físico</span>
+              </div>
+            </div>
+
+            {/* SOS – tall */}
+            <div className="md:col-span-2 group relative bg-red-600 text-white rounded-xl p-8 overflow-hidden">
+              <div className="flex items-start justify-between mb-6">
+                <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+                </div>
+                <span className="text-[11px] font-bold text-white/70 bg-white/10 px-2.5 py-1 rounded-md uppercase tracking-wider">SOS</span>
+              </div>
+              <h3 className="text-xl font-bold mb-2">Botón de emergencia ciudadano</h3>
+              <p className="text-red-100 text-[15px] leading-relaxed mb-6">
+                Cualquier persona. Sin app. Un toque envía tu ubicación a
+                toda la red de ayuda cercana. Gratis y anónimo.
+              </p>
+              <Link href="/sos" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-white text-red-600 rounded-lg hover:bg-red-50 transition-colors">
+                Activar SOS
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </Link>
+            </div>
+
+            {/* Small feature cards */}
+            {[
+              { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8Z"/><circle cx="12" cy="10" r="3"/></svg>, title: 'Geolocalización precisa', desc: 'GPS industrial + geolocalización del navegador. Precisión metro a metro.' },
+              { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, title: 'Red de apoyo', desc: 'Voluntarios y conductores cercanos reciben tu alerta en tiempo real.' },
+              { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>, title: 'Autenticación segura', desc: 'Verificación OTP por teléfono. Sin contraseñas, sin datos innecesarios.' },
+              { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/></svg>, title: 'Respuesta inmediata', desc: 'De alerta a notificación en menos de 3 segundos. Cada segundo importa.' },
+              { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>, title: 'Desde el navegador', desc: 'Sin apps que instalar. Abre el link, regístrate con tu teléfono y listo.' },
+            ].map((f, i) => (
+              <div key={i} className="md:col-span-1 bg-zinc-50 border border-zinc-200 rounded-xl p-5 hover:border-zinc-300 transition-colors">
+                <div className="w-9 h-9 rounded-lg bg-zinc-200/70 flex items-center justify-center text-zinc-600 mb-3">
+                  {f.icon}
+                </div>
+                <h4 className="text-[14px] font-bold mb-1">{f.title}</h4>
+                <p className="text-[13px] text-zinc-400 leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Benefits */}
-      <section id="beneficios" className="relative px-6 py-24 md:py-32">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <span className="text-sm font-semibold text-blue-400 tracking-wider uppercase">Beneficios</span>
-            <h2 className="text-4xl md:text-5xl font-bold text-white mt-3 mb-4">
-              ¿Por qué SilentEye?
-            </h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto">
-              Protección real para tu vehículo y tu seguridad personal.
-            </p>
+      {/* ── How it works ── */}
+      <section id="como-funciona" className="px-6 py-24 md:py-32 bg-zinc-50 border-y border-zinc-100">
+        <div className="max-w-7xl mx-auto">
+          <div className="max-w-xl mb-20">
+            <p className="text-[13px] font-semibold text-blue-600 tracking-wide uppercase mb-3">Proceso</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">Funciona en 3 pasos</h2>
+            <p className="text-zinc-500 leading-relaxed">Elige el modo que necesitas. Ambos funcionan desde el primer minuto.</p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { icon: '🛰️', title: 'GPS en tiempo real', desc: 'Ubicación exacta de tu vehículo actualizada cada segundo. Mapa interactivo con historial de rutas.' },
-              { icon: '🚨', title: 'Alerta instantánea', desc: 'Botón de pánico físico en el vehículo o desde tu celular. Las personas cercanas son notificadas al instante.' },
-              { icon: '👥', title: 'Red de apoyo', desc: 'Conductores y voluntarios cercanos reciben tu alerta y pueden acudir a ayudarte en minutos.' },
-              { icon: '📱', title: 'Sin instalar apps', desc: 'Funciona directo desde el navegador de tu celular. Regístrate con tu teléfono y listo.' },
-              { icon: '🔒', title: 'Datos protegidos', desc: 'Tu ubicación solo se comparte durante emergencias. Autenticación segura con código OTP.' },
-              { icon: '⚡', title: 'Respuesta rápida', desc: 'Desde que presionas el botón hasta que llega la ayuda. Cada segundo cuenta y SilentEye lo sabe.' },
-            ].map((item, i) => (
-              <div
-                key={i}
-                className="group p-7 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all duration-300 hover:-translate-y-1"
-              >
-                <div className="w-14 h-14 rounded-2xl bg-slate-800/80 flex items-center justify-center mb-5 text-2xl group-hover:scale-110 transition-transform">
-                  {item.icon}
+
+          <div className="grid md:grid-cols-2 gap-16 md:gap-24">
+            {/* GPS column */}
+            <div>
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m10-10h-4M6 12H2"/></svg>
                 </div>
-                <h3 className="font-semibold text-white mb-2 text-lg">{item.title}</h3>
-                <p className="text-slate-400 text-sm leading-relaxed">{item.desc}</p>
+                <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Protección GPS</h3>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section id="como-funciona" className="relative px-6 py-24 md:py-32 border-t border-slate-800/40 bg-slate-900/20">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-16">
-            <span className="text-sm font-semibold text-emerald-400 tracking-wider uppercase">Cómo funciona</span>
-            <h2 className="text-4xl md:text-5xl font-bold text-white mt-3 mb-4">
-              Simple y efectivo
-            </h2>
-            <p className="text-slate-400 text-lg">
-              Dos formas de protección. Un solo sistema.
-            </p>
-          </div>
-
-          {/* GPS flow */}
-          <div className="mb-16">
-            <h3 className="text-sm font-bold text-blue-400 tracking-wider uppercase mb-8 text-center">Protección vehicular GPS</h3>
-            <div className="grid md:grid-cols-3 gap-6">
-              {[
-                { step: '01', title: 'Instalación', desc: 'Un técnico instala el GPS de forma discreta en tu vehículo. Rápido y sin complicaciones.' },
-                { step: '02', title: 'Monitorea', desc: 'Accede al panel desde tu celular. Ve la ubicación de tu auto en el mapa en tiempo real.' },
-                { step: '03', title: 'Protege', desc: 'Ante emergencia, el botón de pánico del vehículo alerta a la red de apoyo con tu ubicación.' },
-              ].map((item, i) => (
-                <div key={i} className="relative p-6 rounded-2xl bg-slate-900/60 border border-slate-800">
-                  <div className="text-5xl font-black text-blue-500/10 absolute top-4 right-5">{item.step}</div>
-                  <div className="relative">
-                    <h4 className="font-semibold text-white text-lg mb-2">{item.title}</h4>
-                    <p className="text-slate-400 text-sm">{item.desc}</p>
+              <div className="space-y-10">
+                {[
+                  { n: '01', t: 'Instalación', d: 'Un técnico instala el GPS Teltonika en tu vehículo. Discreto, sin modificaciones visibles. 30 minutos.' },
+                  { n: '02', t: 'Monitorea', d: 'Accede al panel desde cualquier dispositivo. Mapa en vivo, historial, velocidad y estado de cada vehículo.' },
+                  { n: '03', t: 'Respuesta', d: 'Ante emergencia, el botón físico del GPS alerta a toda la red con ubicación exacta. Respuesta coordinada.' },
+                ].map((s) => (
+                  <div key={s.n} className="flex gap-5">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-extrabold font-mono">{s.n}</div>
+                    <div>
+                      <h4 className="font-bold text-zinc-900 mb-1">{s.t}</h4>
+                      <p className="text-[15px] text-zinc-500 leading-relaxed">{s.d}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* SOS flow */}
-          <div>
-            <h3 className="text-sm font-bold text-red-400 tracking-wider uppercase mb-8 text-center">Emergencia ciudadana SOS</h3>
-            <div className="grid md:grid-cols-3 gap-6">
-              {[
-                { step: '01', title: 'Regístrate', desc: 'Entra desde tu celular, ingresa tu teléfono y recibe un código de verificación.' },
-                { step: '02', title: 'Presiona SOS', desc: 'Un gran botón rojo. Un toque y tu ubicación exacta se envía como alerta de emergencia.' },
-                { step: '03', title: 'Ayuda en camino', desc: 'Personas cercanas y administradores reciben tu alerta al instante con tu ubicación.' },
-              ].map((item, i) => (
-                <div key={i} className="relative p-6 rounded-2xl bg-slate-900/60 border border-slate-800">
-                  <div className="text-5xl font-black text-red-500/10 absolute top-4 right-5">{item.step}</div>
-                  <div className="relative">
-                    <h4 className="font-semibold text-white text-lg mb-2">{item.title}</h4>
-                    <p className="text-slate-400 text-sm">{item.desc}</p>
-                  </div>
+            {/* SOS column */}
+            <div>
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-8 h-8 rounded bg-red-600 flex items-center justify-center">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
                 </div>
-              ))}
+                <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Emergencia SOS</h3>
+              </div>
+              <div className="space-y-10">
+                {[
+                  { n: '01', t: 'Regístrate', d: 'Abre SilentEye en tu celular. Ingresa tu número de teléfono y verifica con el código que recibes. Sin apps.' },
+                  { n: '02', t: 'Presiona SOS', d: 'Un botón rojo, grande y claro. Un toque envía tu ubicación GPS como alerta de emergencia inmediata.' },
+                  { n: '03', t: 'Ayuda en camino', d: 'Administradores y voluntarios cercanos reciben la alerta con tu ubicación en tiempo real. Coordinación inmediata.' },
+                ].map((s) => (
+                  <div key={s.n} className="flex gap-5">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center text-sm font-extrabold font-mono">{s.n}</div>
+                    <div>
+                      <h4 className="font-bold text-zinc-900 mb-1">{s.t}</h4>
+                      <p className="text-[15px] text-zinc-500 leading-relaxed">{s.d}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* FAQ */}
-      <section id="faq" className="relative px-6 py-24 md:py-32">
+      {/* ── FAQ ── */}
+      <section id="faq" className="px-6 py-24 md:py-32">
         <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-16">
-            <span className="text-sm font-semibold text-amber-400 tracking-wider uppercase">FAQ</span>
-            <h2 className="text-4xl md:text-5xl font-bold text-white mt-3">
-              Preguntas frecuentes
-            </h2>
+          <div className="mb-14">
+            <p className="text-[13px] font-semibold text-blue-600 tracking-wide uppercase mb-3">Preguntas frecuentes</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">Lo que necesitas saber</h2>
           </div>
-          <div className="space-y-4">
+          <div className="divide-y divide-zinc-100">
             {[
-              { q: '¿Necesito instalar una app?', a: 'No. SilentEye funciona directo desde el navegador de tu celular. Solo necesitas registrarte con tu número de teléfono.' },
-              { q: '¿El botón SOS es gratuito?', a: 'Sí. Cualquier persona puede registrarse y usar el botón de emergencia SOS sin costo.' },
-              { q: '¿La instalación GPS es invasiva?', a: 'No. El equipo se instala de forma discreta y no afecta el funcionamiento ni la estética de tu vehículo.' },
-              { q: '¿Quién recibe mi alerta de emergencia?', a: 'Los administradores del sistema y cualquier conductor o voluntario registrado que esté cerca de tu ubicación.' },
-              { q: '¿Funciona en todo el país?', a: 'Sí. La cobertura depende de la red móvil. En áreas urbanas y la mayoría de carreteras tendrás conexión.' },
-              { q: '¿Puedo monitorear más de un vehículo?', a: 'Sí. SilentEye soporta flotas completas con ubicación independiente para cada vehículo.' },
+              { q: '¿Necesito instalar alguna app?', a: 'No. SilentEye funciona directo en el navegador de tu celular. Entra al sitio, regístrate con tu teléfono y listo. Sin descargas, sin espacio en tu celular.' },
+              { q: '¿El botón SOS tiene algún costo?', a: 'No. El botón de emergencia ciudadano es completamente gratuito para cualquier persona. Solo necesitas un número de teléfono para registrarte.' },
+              { q: '¿La instalación del GPS es invasiva?', a: 'No. El equipo GPS Teltonika se instala de forma discreta dentro del vehículo. No modifica la estética ni el funcionamiento. La instalación toma aproximadamente 30 minutos.' },
+              { q: '¿Quién recibe mis alertas de emergencia?', a: 'Los administradores del sistema y cualquier voluntario o conductor registrado que se encuentre dentro del radio de 2 km de tu ubicación. Entre más personas estén registradas, más rápida la respuesta.' },
+              { q: '¿Funciona en todo el país?', a: 'Sí, siempre que haya señal de telefonía móvil. En zonas urbanas y carreteras principales la cobertura es excelente. El GPS del vehículo utiliza red celular para transmitir datos.' },
+              { q: '¿Puedo monitorear más de un vehículo?', a: 'Sí. SilentEye soporta flotas completas. Cada vehículo aparece de forma independiente en el mapa con su propia información de ubicación, velocidad e historial.' },
             ].map((item, i) => (
-              <div key={i} className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-colors">
-                <h3 className="font-semibold text-white mb-2">{item.q}</h3>
-                <p className="text-slate-400 text-sm leading-relaxed">{item.a}</p>
-              </div>
+              <details key={i} className="group">
+                <summary className="flex items-center justify-between py-5 cursor-pointer list-none text-[15px] font-semibold text-zinc-900 hover:text-zinc-600 transition-colors">
+                  {item.q}
+                  <svg className="w-4 h-4 text-zinc-400 transition-transform group-open:rotate-45 flex-shrink-0 ml-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                </summary>
+                <p className="pb-5 text-[15px] text-zinc-500 leading-relaxed -mt-1">{item.a}</p>
+              </details>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="relative px-6 py-24 md:py-32 border-t border-slate-800/40">
-        <div className="max-w-4xl mx-auto">
-          <div className="relative p-10 md:p-16 rounded-3xl overflow-hidden border border-slate-700/50 bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950/30">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_120%,rgba(59,130,246,0.12),transparent)]" />
-            <div className="relative text-center">
-              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+      {/* ── Final CTA ── */}
+      <section className="px-6 pb-24 md:pb-32">
+        <div className="max-w-7xl mx-auto">
+          <div className="relative bg-zinc-900 text-white rounded-2xl px-8 py-16 md:px-16 md:py-20 overflow-hidden">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-blue-600/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="relative max-w-lg">
+              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">
                 Tu seguridad no puede esperar
               </h2>
-              <p className="text-slate-400 mb-10 max-w-xl mx-auto">
-                Protege tu vehículo con GPS o activa el botón de emergencia ciudadano. Empieza ahora.
+              <p className="text-zinc-400 text-[15px] leading-relaxed mb-8">
+                Protege tu vehículo con GPS industrial o activa el
+                botón de pánico ciudadano. Empieza hoy, es gratis.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <div className="flex flex-wrap gap-3">
                 <Link
                   href="/login"
-                  className="inline-flex items-center justify-center gap-2 px-10 py-4 text-base font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-500 transition-all shadow-xl shadow-blue-600/25"
+                  className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-zinc-900 bg-white rounded-lg hover:bg-zinc-100 transition-colors"
                 >
-                  Iniciar sesión →
+                  Crear cuenta
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                 </Link>
                 <Link
                   href="/sos"
-                  className="inline-flex items-center justify-center gap-2 px-10 py-4 text-base font-semibold text-red-300 border-2 border-red-500/30 rounded-xl hover:bg-red-600/10 hover:border-red-500/50 transition-all"
+                  className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-red-400 bg-white/10 rounded-lg hover:bg-white/15 transition-colors"
                 >
                   Emergencia SOS
                 </Link>
@@ -316,32 +320,22 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="relative px-6 py-12 border-t border-slate-800/40">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 8v4l3 3" />
-                </svg>
-              </div>
-              <div>
-                <span className="text-lg font-bold text-white">SilentEye</span>
-                <p className="text-slate-500 text-xs">Seguridad inteligente</p>
-              </div>
+      {/* ── Footer ── */}
+      <footer className="border-t border-zinc-100 px-6 py-10">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 bg-zinc-900 rounded-md flex items-center justify-center">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
             </div>
-            <div className="flex gap-6">
-              <a href="#beneficios" className="text-slate-500 hover:text-slate-300 text-sm transition-colors">Beneficios</a>
-              <a href="#como-funciona" className="text-slate-500 hover:text-slate-300 text-sm transition-colors">Cómo funciona</a>
-              <a href="#faq" className="text-slate-500 hover:text-slate-300 text-sm transition-colors">FAQ</a>
-              <Link href="/login" className="text-slate-500 hover:text-slate-300 text-sm transition-colors">Acceder</Link>
-            </div>
+            <span className="text-sm font-bold tracking-tight">SilentEye</span>
           </div>
-          <div className="mt-8 pt-6 border-t border-slate-800/40 text-center text-slate-600 text-xs">
-            SilentEye © {new Date().getFullYear()} — Todos los derechos reservados
+          <div className="flex items-center gap-6 text-[13px] text-zinc-400">
+            <a href="#producto" className="hover:text-zinc-900 transition-colors">Producto</a>
+            <a href="#como-funciona" className="hover:text-zinc-900 transition-colors">Proceso</a>
+            <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
+            <Link href="/login" className="hover:text-zinc-900 transition-colors">Acceder</Link>
           </div>
+          <p className="text-[12px] text-zinc-300">SilentEye &copy; {new Date().getFullYear()}</p>
         </div>
       </footer>
     </div>

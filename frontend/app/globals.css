@@ -10,3 +10,9 @@ body {
   font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
 }
 
+details summary::-webkit-details-marker,
+details summary::marker {
+  display: none;
+  content: '';
+}
+
