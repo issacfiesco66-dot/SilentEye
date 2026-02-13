@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -55,6 +56,7 @@ export default function AlertsSection() {
   };
 
   useEffect(() => {
+    initAudioOnInteraction();
     fetchAlerts();
     // Polling as fallback (WebSocket handles real-time below)
     const interval = setInterval(fetchAlerts, 15000);
@@ -86,6 +88,7 @@ export default function AlertsSection() {
             };
             return [newAlert, ...prev];
           });
+          if (a.priority === 2) playAlarmSound();
         }
       }
     }, []),

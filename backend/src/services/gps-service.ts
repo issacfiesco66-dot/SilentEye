@@ -143,7 +143,7 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
           timestamp,
           nearbyCount: nearbyDrivers.length,
         },
-        nearbyDrivers.map((d) => d.id)
+        nearbyDrivers.map((d: { id: string }) => d.id)
       );
       logger.info(`PANIC IMEI=${imei} conductores_cercanos=${nearbyDrivers.length}`);
     } else {
@@ -184,7 +184,7 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
           timestamp,
           nearbyCount: nearbyDrivers.length,
         },
-        nearbyDrivers.map((d) => d.id)
+        nearbyDrivers.map((d: { id: string }) => d.id)
       );
       logger.info(`PANIC IMEI=${imei} conductores_cercanos=${nearbyDrivers.length}`);
     }

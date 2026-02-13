@@ -134,6 +134,10 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
     const showCode = process.env.OTP_SHOW_IN_PROD === 'true' || process.env.NODE_ENV !== 'production';
 
     if (imei && typeof imei === 'string') {
+      if (!isValidImeiInput(imei)) {
+        res.status(400).json({ error: 'IMEI inválido. Debe ser 15 dígitos numéricos.' });
+        return;
+      }
       // Conductor: ingresa con número de GPS (IMEI). El GPS debe estar registrado por admin.
       const vRow = await pool.query(
         'SELECT v.driver_id, u.phone FROM vehicles v LEFT JOIN users u ON u.id = v.driver_id WHERE v.imei = $1 LIMIT 1',
@@ -154,10 +158,14 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
     }
 
     if (phone && typeof phone === 'string') {
+      if (!isValidPhone(phone)) {
+        res.status(400).json({ error: 'Teléfono inválido. Usa formato: +52 222 123 4567' });
+        return;
+      }
       // Admin, helper, or citizen: login with phone
       const role = mode === 'citizen' ? 'citizen' : undefined;
-      const code = await createOtp(phone);
-      await findOrCreateUser(phone, undefined, role);
+      const code = await createOtp(phone.trim());
+      await findOrCreateUser(phone.trim(), undefined, role);
       res.json(showCode ? { success: true, code } : { success: true });
       return;
     }
@@ -205,8 +213,12 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
     }
 
     if (phone && typeof phone === 'string') {
+      if (!isValidPhone(phone)) {
+        res.status(400).json({ error: 'Teléfono inválido' });
+        return;
+      }
       // Admin/citizen: verificar por teléfono
-      const { valid, user: existingUser, error: otpError } = await verifyOtp(phone, code);
+      const { valid, user: existingUser, error: otpError } = await verifyOtp(phone.trim(), code);
       if (!valid) {
         res.status(401).json({ error: otpError || 'Código inválido o expirado' });
         return;
@@ -396,6 +408,9 @@ api.get('/incidents', authMiddleware, asyncHandler(async (req, res) => {
     params.push(userId);
   } else if (role === 'driver') {
     query += ` WHERE i.driver_id = $1 OR EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $1)`;
+    params.push(userId);
+  } else if (role === 'citizen') {
+    query += ` WHERE i.driver_id = $1`;
     params.push(userId);
   }
   query += ` ORDER BY i.started_at DESC LIMIT 50`;
@@ -707,7 +722,7 @@ api.post('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req
     res.status(400).json({ error: 'Teléfono y nombre requeridos' });
     return;
   }
-  const finalRole = role === 'driver' || role === 'helper' || role === 'admin' ? role : 'driver';
+  const finalRole = ['driver', 'helper', 'admin', 'citizen'].includes(role) ? role : 'driver';
   const existing = await pool.query('SELECT id FROM users WHERE phone = $1', [phone]);
   if (existing.rows[0]) {
     res.status(409).json({ error: 'Ya existe un usuario con ese teléfono' });
@@ -758,7 +773,7 @@ api.put('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (
 api.put('/users/:id/role', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
-  if (!['driver', 'helper', 'admin'].includes(role)) {
+  if (!['driver', 'helper', 'admin', 'citizen'].includes(role)) {
     res.status(400).json({ error: 'Rol inválido' });
     return;
   }
@@ -808,6 +823,7 @@ api.post('/panic', authMiddleware, panicRateLimit, asyncHandler(async (req, res)
   const pg = await hasPostGis();
   const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     // Get user info
     const userResult = await client.query(
       'SELECT id, name, phone, role FROM users WHERE id = $1',
@@ -911,6 +927,8 @@ api.post('/panic', authMiddleware, panicRateLimit, asyncHandler(async (req, res)
       nearbyDrivers.map((d) => d.id)
     );
 
+    await client.query('COMMIT');
+
     logger.info(`MOBILE PANIC userId=${userId} name=${user.name} lat=${latitude} lng=${longitude} nearby=${nearbyDrivers.length}`);
 
     res.json({
@@ -918,6 +936,9 @@ api.post('/panic', authMiddleware, panicRateLimit, asyncHandler(async (req, res)
       incidentId: incident.id,
       nearbyCount: nearbyDrivers.length,
     });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
   } finally {
     client.release();
   }

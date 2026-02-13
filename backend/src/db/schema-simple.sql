@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   phone VARCHAR(20) UNIQUE NOT NULL,
   name VARCHAR(255) NOT NULL,
-  role VARCHAR(20) NOT NULL CHECK (role IN ('driver', 'helper', 'admin')),
+  role VARCHAR(20) NOT NULL CHECK (role IN ('driver', 'helper', 'admin', 'citizen')),
   last_lat DOUBLE PRECISION,
   last_lng DOUBLE PRECISION,
   last_location_at TIMESTAMPTZ,
