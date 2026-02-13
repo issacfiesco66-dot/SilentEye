@@ -85,116 +85,173 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-6 text-blue-400">SilentEye</h1>
-        <p className="text-slate-400 text-center mb-8">Seguridad vehicular</p>
+    <div className="min-h-screen bg-white flex">
 
-        <div className="flex gap-2 mb-4 p-1 bg-slate-800 rounded-lg">
-          <button
-            onClick={() => { setMode('citizen'); resetForm(); }}
-            className={`flex-1 py-2 rounded-md text-sm font-medium ${mode === 'citizen' ? 'bg-red-700 text-white' : 'text-slate-400 hover:text-white'}`}
-          >
-            SOS
-          </button>
-          <button
-            onClick={() => { setMode('driver'); resetForm(); }}
-            className={`flex-1 py-2 rounded-md text-sm font-medium ${mode === 'driver' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
-          >
-            Conductor
-          </button>
-          <button
-            onClick={() => { setMode('admin'); resetForm(); }}
-            className={`flex-1 py-2 rounded-md text-sm font-medium ${mode === 'admin' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
-          >
-            Admin
-          </button>
+      {/* Left panel – branding */}
+      <div className="hidden lg:flex lg:w-[45%] bg-zinc-900 text-white flex-col justify-between p-12 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.03] bg-[linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] bg-[size:32px_32px]" />
+        <div className="relative">
+          <div className="flex items-center gap-2.5 mb-16">
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#18181b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </div>
+            <span className="text-lg font-bold tracking-tight">SilentEye</span>
+          </div>
+          <h2 className="text-3xl font-extrabold tracking-tight leading-tight mb-4">
+            Seguridad vehicular<br />en tiempo real
+          </h2>
+          <p className="text-zinc-400 text-[15px] leading-relaxed max-w-sm">
+            Monitoreo GPS, botón de pánico y red de apoyo ciudadana. Todo desde tu navegador.
+          </p>
         </div>
 
-        <div className="bg-slate-800 rounded-xl p-6 shadow-xl">
-          {step === 'input' ? (
-            <>
-              {mode === 'citizen' && (
-                <p className="text-red-400/80 text-sm mb-3 text-center">
-                  Botón de emergencia para peatones
-                </p>
-              )}
-              <label className="block text-sm text-slate-300 mb-2">
-                {mode === 'driver' ? 'Número de GPS (IMEI)' : 'Teléfono'}
-              </label>
-              <input
-                type={mode === 'driver' ? 'text' : 'tel'}
-                value={mode === 'driver' ? imei : phone}
-                onChange={(e) => mode === 'driver' ? setImei(e.target.value) : setPhone(e.target.value)}
-                placeholder={mode === 'driver' ? '353691846029642' : '+52 222 123 4567'}
-                className="w-full px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
-              />
-              {mode === 'driver' && (
-                <p className="text-slate-500 text-xs mb-4">
-                  El GPS debe estar registrado por el administrador
-                </p>
-              )}
-              <button
-                onClick={requestOtp}
-                disabled={loading}
-                className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium disabled:opacity-50"
-              >
-                {loading ? 'Enviando...' : 'Enviar código'}
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="text-slate-400 text-sm mb-2">
-                Código enviado a {mode === 'driver' ? 'tu teléfono registrado' : phone}
-              </p>
-              {code && (
-                <p className="text-emerald-400 text-sm mb-2">
-                  Código generado (válido 10 min)
-                </p>
-              )}
-              <label className="block text-sm text-slate-300 mb-2">Código OTP</label>
-              <input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="123456"
-                maxLength={6}
-                className="w-full px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 mb-4"
-              />
-              {(mode === 'admin' || mode === 'citizen') && (
-                <>
-                  <label className="block text-sm text-slate-300 mb-2">Nombre (opcional)</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Tu nombre"
-                    className="w-full px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 mb-4"
-                  />
-                </>
-              )}
-              <button
-                onClick={verifyOtp}
-                disabled={loading}
-                className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium disabled:opacity-50 mb-2"
-              >
-                {loading ? 'Verificando...' : 'Verificar'}
-              </button>
-              <button
-                onClick={resetForm}
-                className="w-full text-slate-400 hover:text-white text-sm"
-              >
-                Cambiar {mode === 'driver' ? 'IMEI' : 'teléfono'}
-              </button>
-            </>
-          )}
-
-          {error && <p className="mt-4 text-red-400 text-sm text-center">{error}</p>}
+        <div className="relative space-y-4">
+          <div className="flex items-center gap-3 text-[13px] text-zinc-400">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Verificación OTP segura
+          </div>
+          <div className="flex items-center gap-3 text-[13px] text-zinc-400">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8Z"/><circle cx="12" cy="10" r="3"/></svg>
+            Tu ubicación solo se comparte en emergencias
+          </div>
+          <div className="flex items-center gap-3 text-[13px] text-zinc-400">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/></svg>
+            Alertas en menos de 3 segundos
+          </div>
         </div>
+      </div>
 
-        <p className="text-slate-500 text-xs text-center mt-6">
-          SOS: regístrate con tu teléfono. Conductor: IMEI del GPS. Admin: teléfono.
-        </p>
+      {/* Right panel – form */}
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm">
+
+          {/* Mobile logo */}
+          <div className="flex items-center gap-2.5 mb-10 lg:hidden">
+            <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </div>
+            <span className="text-lg font-bold tracking-tight text-zinc-900">SilentEye</span>
+          </div>
+
+          <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 mb-1">Iniciar sesión</h1>
+          <p className="text-[15px] text-zinc-400 mb-8">Elige tu tipo de acceso para continuar</p>
+
+          {/* Mode tabs */}
+          <div className="flex gap-1 mb-6 p-1 bg-zinc-100 rounded-lg">
+            <button
+              onClick={() => { setMode('citizen'); resetForm(); }}
+              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${mode === 'citizen' ? 'bg-white text-red-600 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+            >
+              SOS
+            </button>
+            <button
+              onClick={() => { setMode('driver'); resetForm(); }}
+              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${mode === 'driver' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+            >
+              Conductor
+            </button>
+            <button
+              onClick={() => { setMode('admin'); resetForm(); }}
+              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${mode === 'admin' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+            >
+              Admin
+            </button>
+          </div>
+
+          {/* Form */}
+          <div>
+            {step === 'input' ? (
+              <>
+                {mode === 'citizen' && (
+                  <div className="flex items-center gap-2 px-3 py-2.5 mb-5 bg-red-50 border border-red-100 rounded-lg">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+                    <span className="text-[13px] text-red-600 font-medium">Botón de emergencia ciudadano</span>
+                  </div>
+                )}
+                <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">
+                  {mode === 'driver' ? 'Número de GPS (IMEI)' : 'Número de teléfono'}
+                </label>
+                <input
+                  type={mode === 'driver' ? 'text' : 'tel'}
+                  value={mode === 'driver' ? imei : phone}
+                  onChange={(e) => mode === 'driver' ? setImei(e.target.value) : setPhone(e.target.value)}
+                  placeholder={mode === 'driver' ? '353691846029642' : '+52 222 123 4567'}
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all mb-1.5"
+                />
+                {mode === 'driver' && (
+                  <p className="text-zinc-400 text-[12px] mb-4">
+                    El GPS debe estar registrado por el administrador
+                  </p>
+                )}
+                {mode !== 'driver' && <div className="mb-4" />}
+                <button
+                  onClick={requestOtp}
+                  disabled={loading}
+                  className="w-full py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-semibold disabled:opacity-40 transition-colors"
+                >
+                  {loading ? 'Enviando...' : 'Enviar código de verificación'}
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-zinc-500 text-[13px] mb-4">
+                  Código enviado a <span className="font-semibold text-zinc-700">{mode === 'driver' ? 'tu teléfono registrado' : phone}</span>
+                </p>
+                {code && (
+                  <div className="flex items-center gap-2 px-3 py-2.5 mb-4 bg-emerald-50 border border-emerald-100 rounded-lg">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
+                    <span className="text-[13px] text-emerald-700 font-medium">Código generado &mdash; válido 10 min</span>
+                  </div>
+                )}
+                <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Código OTP</label>
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="123456"
+                  maxLength={6}
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] font-mono tracking-widest focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all mb-4"
+                />
+                {(mode === 'admin' || mode === 'citizen') && (
+                  <>
+                    <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Nombre <span className="font-normal text-zinc-400">(opcional)</span></label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Tu nombre"
+                      className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all mb-4"
+                    />
+                  </>
+                )}
+                <button
+                  onClick={verifyOtp}
+                  disabled={loading}
+                  className="w-full py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-semibold disabled:opacity-40 transition-colors mb-3"
+                >
+                  {loading ? 'Verificando...' : 'Verificar código'}
+                </button>
+                <button
+                  onClick={resetForm}
+                  className="w-full text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
+                >
+                  ← Cambiar {mode === 'driver' ? 'IMEI' : 'teléfono'}
+                </button>
+              </>
+            )}
+
+            {error && (
+              <div className="mt-4 flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-lg">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+                <span className="text-[13px] text-red-600">{error}</span>
+              </div>
+            )}
+          </div>
+
+          <p className="text-zinc-300 text-[12px] text-center mt-8">
+            SOS: teléfono &middot; Conductor: IMEI del GPS &middot; Admin: teléfono
+          </p>
+        </div>
       </div>
     </div>
   );
