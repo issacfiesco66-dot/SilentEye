@@ -27,7 +27,7 @@ function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => P
 // Stricter rate-limit for auth endpoints (prevent OTP brute-force)
 const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 20,
   message: { error: 'Demasiados intentos de autenticación. Intenta en 15 minutos.' },
   standardHeaders: true,
   legacyHeaders: false,
