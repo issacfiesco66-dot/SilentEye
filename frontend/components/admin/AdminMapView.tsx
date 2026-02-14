@@ -15,7 +15,7 @@ const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 const MapboxMap = dynamic(() => import('../MapboxMap'), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-full flex items-center justify-center bg-slate-700 text-slate-300">
+    <div className="w-full h-full flex items-center justify-center bg-zinc-50 text-zinc-400">
       Cargando mapa…
     </div>
   ),
@@ -193,7 +193,7 @@ export default function AdminMapView() {
 
   if (!TOKEN) {
     return (
-      <div className="h-[450px] flex flex-col items-center justify-center bg-slate-800 rounded-xl border border-slate-700 text-slate-400">
+      <div className="h-[450px] flex flex-col items-center justify-center bg-zinc-50 rounded-xl border border-zinc-200 text-zinc-400">
         <p>Añade NEXT_PUBLIC_MAPBOX_TOKEN para ver el mapa</p>
         <p className="text-sm mt-2">
           Vehículos: {Object.keys(liveVehicles).length} · Incidentes activos: {activeIncidents.length}
@@ -208,8 +208,8 @@ export default function AdminMapView() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span
-          className={`text-sm font-medium ${
-            wsConnected ? 'text-emerald-400' : 'text-slate-500'
+          className={`text-[13px] font-medium ${
+            wsConnected ? 'text-emerald-600' : 'text-zinc-400'
           }`}
         >
           {wsConnected ? '● WebSocket conectado' : '○ WebSocket desconectado'}
@@ -218,7 +218,7 @@ export default function AdminMapView() {
           {selectedIncidentId && (
             <button
               onClick={handleCenterOnIncident}
-              className="px-3 py-1.5 text-sm rounded-lg bg-slate-600 hover:bg-slate-500"
+              className="px-3 py-1.5 text-[13px] font-medium rounded-lg bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-colors"
             >
               Centrar en incidente
             </button>
@@ -227,12 +227,12 @@ export default function AdminMapView() {
       </div>
 
       {error && (
-        <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+        <div className="p-2 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm">
           {error}
         </div>
       )}
 
-      <div className="h-[450px] rounded-xl overflow-hidden border border-slate-700">
+      <div className="h-[450px] rounded-xl overflow-hidden border border-zinc-200">
         <MapboxMap
           token={TOKEN}
           incidents={activeIncidents}
@@ -243,7 +243,7 @@ export default function AdminMapView() {
         />
       </div>
 
-      <p className="text-slate-500 text-xs">
+      <p className="text-zinc-400 text-xs">
         Vehículos en vivo: {Object.keys(liveVehicles).length} · Incidentes activos: {activeIncidents.length}
       </p>
 

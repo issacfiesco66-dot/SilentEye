@@ -58,7 +58,7 @@ export default function DriverMyVehiclesMap() {
 
   if (loading && liveLocations.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-slate-400">
+      <div className="flex-1 flex items-center justify-center text-zinc-400">
         Cargando tus vehículos...
       </div>
     );
@@ -67,18 +67,18 @@ export default function DriverMyVehiclesMap() {
   return (
     <div className="flex-1 flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-semibold text-white">Mis vehículos</h2>
-        <p className="text-slate-500 text-sm mt-1">
+        <h2 className="text-lg font-bold text-zinc-900">Mis vehículos</h2>
+        <p className="text-zinc-400 text-sm mt-1">
           Ubicación en tiempo real de tus vehículos asignados
           {liveLocations.length === 0 && ' · Sin posiciones recientes'}
         </p>
       </div>
       {error && (
-        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm">
+        <div className="p-3 rounded-lg bg-amber-50 border border-amber-100 text-amber-600 text-sm">
           {error}
         </div>
       )}
-      <div className="w-full h-[400px] rounded-xl overflow-hidden border border-slate-700 bg-white/5">
+      <div className="w-full h-[400px] rounded-xl overflow-hidden border border-zinc-200 bg-zinc-50">
         <MapView
           incidents={[]}
           liveLocations={liveLocations}

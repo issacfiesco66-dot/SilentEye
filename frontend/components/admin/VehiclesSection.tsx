@@ -180,53 +180,53 @@ export default function VehiclesSection() {
   });
 
   if (loading) {
-    return <div className="p-6 text-slate-400">Cargando vehículos...</div>;
+    return <div className="p-6 text-zinc-400">Cargando vehículos...</div>;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Vehículos</h2>
+        <h2 className="text-lg font-bold text-zinc-900">Vehículos</h2>
         <button
           onClick={() => { setShowForm(!showForm); setError(''); }}
-          className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-500"
+          className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors"
         >
           Nuevo vehículo
         </button>
       </div>
 
       {error && (
-        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+        <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm">
           {error}
         </div>
       )}
 
       {showForm && (
-        <form onSubmit={createVehicle} className="p-4 rounded-xl bg-slate-800/80 border border-slate-700 space-y-3">
+        <form onSubmit={createVehicle} className="p-4 rounded-xl bg-white border border-zinc-200 space-y-3">
           <input
             required
             placeholder="Placa"
             value={form.plate}
             onChange={(e) => setForm((f) => ({ ...f, plate: e.target.value }))}
-            className="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600"
+            className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
           />
           <input
             placeholder="Nombre (opcional)"
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            className="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600"
+            className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
           />
           <input
             required
             placeholder="IMEI (15 dígitos)"
             value={form.imei}
             onChange={(e) => setForm((f) => ({ ...f, imei: e.target.value }))}
-            className="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600"
+            className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
           />
           <select
             value={form.driver_id}
             onChange={(e) => setForm((f) => ({ ...f, driver_id: e.target.value }))}
-            className="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600"
+            className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
           >
             <option value="">Sin conductor</option>
             {drivers.map((u) => (
@@ -234,8 +234,8 @@ export default function VehiclesSection() {
             ))}
           </select>
           <div className="flex gap-2">
-            <button type="submit" disabled={saving} className="px-4 py-2 bg-green-600 rounded-lg hover:bg-green-500 disabled:opacity-50">{saving ? 'Creando...' : 'Crear'}</button>
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-slate-600 rounded-lg">Cancelar</button>
+            <button type="submit" disabled={saving} className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 transition-colors">{saving ? 'Creando...' : 'Crear'}</button>
+            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">Cancelar</button>
           </div>
         </form>
       )}
@@ -243,29 +243,29 @@ export default function VehiclesSection() {
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
-            <tr className="border-b border-slate-700">
-              <th className="text-left py-3 px-2 text-slate-400 font-medium text-sm">Placa</th>
-              <th className="text-left py-3 px-2 text-slate-400 font-medium text-sm">Nombre</th>
-              <th className="text-left py-3 px-2 text-slate-400 font-medium text-sm">Conductor</th>
-              <th className="text-left py-3 px-2 text-slate-400 font-medium text-sm">IMEI</th>
-              <th className="text-left py-3 px-2 text-slate-400 font-medium text-sm">Estado</th>
-              <th className="text-right py-3 px-2 text-slate-400 font-medium text-sm">Acción</th>
+            <tr className="border-b border-zinc-200">
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Placa</th>
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Nombre</th>
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Conductor</th>
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">IMEI</th>
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Estado</th>
+              <th className="text-right py-3 px-2 text-zinc-400 font-medium text-[13px]">Acción</th>
             </tr>
           </thead>
           <tbody>
             {sortedVehicles.map((v) => (
-              <tr key={v.id} className="border-b border-slate-700/50 hover:bg-slate-800/30">
-                <td className="py-3 px-2 font-medium">{v.plate}</td>
-                <td className="py-3 px-2 text-slate-400">{v.name || '—'}</td>
-                <td className="py-3 px-2 text-slate-400">{v.driver_name || 'Sin asignar'}</td>
-                <td className="py-3 px-2 text-slate-500 font-mono text-sm">{maskImei(v.imei)}</td>
+              <tr key={v.id} className="border-b border-zinc-100 hover:bg-zinc-50 transition-colors">
+                <td className="py-3 px-2 font-semibold text-zinc-900 text-sm">{v.plate}</td>
+                <td className="py-3 px-2 text-zinc-500 text-sm">{v.name || '—'}</td>
+                <td className="py-3 px-2 text-zinc-500 text-sm">{v.driver_name || 'Sin asignar'}</td>
+                <td className="py-3 px-2 text-zinc-400 font-mono text-[13px]">{maskImei(v.imei)}</td>
                 <td className="py-3 px-2">
                   {hasActiveIncident(v.id) ? (
-                    <span className="px-2 py-0.5 text-xs rounded bg-red-500/20 text-red-400 font-medium">
+                    <span className="px-2 py-0.5 text-xs rounded bg-red-50 text-red-600 border border-red-100 font-medium">
                       Incidente activo
                     </span>
                   ) : (
-                    <span className="text-slate-500 text-sm">—</span>
+                    <span className="text-zinc-300 text-sm">—</span>
                   )}
                 </td>
                 <td className="py-3 px-2 text-right">
@@ -275,7 +275,7 @@ export default function VehiclesSection() {
                         setEditingVehicle(v);
                         setForm({ plate: v.plate, name: v.name || '', imei: v.imei, driver_id: v.driver_id || '' });
                       }}
-                      className="px-3 py-1.5 text-sm bg-slate-600 rounded-lg hover:bg-slate-500"
+                      className="px-3 py-1.5 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors"
                     >
                       Editar
                     </button>
@@ -284,7 +284,7 @@ export default function VehiclesSection() {
                         if (confirm(`¿Eliminar vehículo ${v.plate}?`)) deleteVehicle(v.id);
                       }}
                       disabled={hasActiveIncident(v.id)}
-                      className="px-3 py-1.5 text-sm bg-red-600/80 rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 text-[13px] font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       title={hasActiveIncident(v.id) ? 'No se puede eliminar con incidente activo' : 'Eliminar'}
                     >
                       Eliminar
@@ -298,38 +298,38 @@ export default function VehiclesSection() {
       </div>
 
       {vehicles.length === 0 && !showForm && (
-        <p className="p-6 text-slate-500 text-center">No hay vehículos</p>
+        <p className="p-6 text-zinc-400 text-center">No hay vehículos</p>
       )}
 
       {editingVehicle && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full border border-slate-700">
-            <h3 className="text-lg font-semibold mb-4">Editar vehículo</h3>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full border border-zinc-200 shadow-lg">
+            <h3 className="text-lg font-bold text-zinc-900 mb-4">Editar vehículo</h3>
             <form onSubmit={updateVehicle} className="space-y-3">
               <input
                 required
                 placeholder="Placa"
                 value={form.plate}
                 onChange={(e) => setForm((f) => ({ ...f, plate: e.target.value }))}
-                className="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
               <input
                 placeholder="Nombre"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
               <input
                 required
                 placeholder="IMEI"
                 value={form.imei}
                 onChange={(e) => setForm((f) => ({ ...f, imei: e.target.value }))}
-                className="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
               <select
                 value={form.driver_id}
                 onChange={(e) => setForm((f) => ({ ...f, driver_id: e.target.value }))}
-                className="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               >
                 <option value="">Sin conductor</option>
                 {drivers.map((u) => (
@@ -337,8 +337,8 @@ export default function VehiclesSection() {
                 ))}
               </select>
               <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-green-600 rounded-lg hover:bg-green-500 disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar'}</button>
-                <button type="button" onClick={() => setEditingVehicle(null)} className="px-4 py-2 bg-slate-600 rounded-lg">Cancelar</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 transition-colors">{saving ? 'Guardando...' : 'Guardar'}</button>
+                <button type="button" onClick={() => setEditingVehicle(null)} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">Cancelar</button>
               </div>
             </form>
           </div>

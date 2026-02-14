@@ -200,43 +200,48 @@ export default function DashboardPage() {
     router.replace('/login');
   };
 
-  if (!user) return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
+  if (!user) return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">Cargando...</div>;
 
   const role = String(user.role || '').toLowerCase();
   if (role === 'citizen') {
     router.replace('/sos');
-    return <div className="min-h-screen flex items-center justify-center">Redirigiendo a SOS...</div>;
+    return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">Redirigiendo a SOS...</div>;
   }
   if (role === 'helper' || role === 'driver') {
     return <HelperDashboardLayout />;
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen bg-white text-zinc-900 flex flex-col">
       {/* Floating SOS button */}
       <a
         href="/sos"
-        className="fixed bottom-6 right-6 z-50 w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-sm flex items-center justify-center shadow-2xl shadow-red-500/40 hover:scale-110 active:scale-95 transition-all"
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center justify-center shadow-lg shadow-red-600/25 hover:scale-105 active:scale-95 transition-all"
       >
         SOS
       </a>
 
-      <header className="bg-slate-800 border-b border-slate-700 px-4 py-3 flex items-center justify-between">
-        <h1 className="font-bold text-lg">SilentEye</h1>
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-lg border-b border-zinc-100 px-6 h-14 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 bg-zinc-900 rounded-md flex items-center justify-center">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+          <span className="text-sm font-bold tracking-tight">SilentEye</span>
+        </div>
         <div className="flex items-center gap-4">
-          <span className="text-slate-400 text-sm capitalize">{role}</span>
+          <span className="text-zinc-400 text-[13px] font-medium capitalize">{role}</span>
           <button
             onClick={handleLogout}
-            className="text-slate-400 hover:text-white text-sm"
+            className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
           >
             Salir
           </button>
         </div>
       </header>
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 md:p-6">
         <div className="lg:col-span-2">
-          <div className="bg-slate-800 rounded-xl overflow-hidden h-[400px] lg:h-[500px]">
+          <div className="bg-zinc-50 border border-zinc-200 rounded-xl overflow-hidden h-[400px] lg:h-[500px]">
             <MapView
               incidents={incidents}
               liveLocations={Object.values(liveLocations)}
@@ -247,11 +252,11 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="bg-slate-800 rounded-xl p-4">
-            <h2 className="font-semibold mb-3">Incidentes activos</h2>
+          <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4">
+            <h2 className="font-semibold text-[15px] mb-3">Incidentes activos</h2>
             <ul className="space-y-2 max-h-60 overflow-y-auto">
               {incidents.filter((i) => i.status === 'active' || i.status === 'attending').length === 0 && (
-                <li className="text-slate-500 text-sm">Sin incidentes activos</li>
+                <li className="text-zinc-400 text-sm">Sin incidentes activos</li>
               )}
               {incidents
                 .filter((i) => i.status === 'active' || i.status === 'attending')
@@ -259,24 +264,25 @@ export default function DashboardPage() {
                   <li
                     key={inc.id}
                     onClick={() => setSelectedIncident(inc.id)}
-                    className={`p-3 rounded-lg cursor-pointer ${
-                      selectedIncident === inc.id ? 'bg-panic/20 border border-panic' : 'bg-slate-700 hover:bg-slate-600'
+                    className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                      selectedIncident === inc.id ? 'bg-red-50 border border-red-200' : 'bg-white border border-zinc-200 hover:border-zinc-300'
                     }`}
                   >
-                    <span className="font-medium text-panic">🚨 {inc.plate || 'Sin placa'}</span>
-                    <p className="text-slate-400 text-sm">{inc.driver_name}</p>
+                    <span className="font-semibold text-red-600 text-sm">● {inc.plate || 'Sin placa'}</span>
+                    <p className="text-zinc-500 text-[13px]">{inc.driver_name}</p>
                   </li>
                 ))}
             </ul>
           </div>
 
           {role === 'admin' && (
-            <div className="bg-slate-800 rounded-xl p-4">
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4">
               <Link
                 href="/admin"
-                className="block py-2 text-blue-400 hover:text-blue-300"
+                className="flex items-center justify-between py-1 text-[13px] font-semibold text-zinc-900 hover:text-blue-600 transition-colors"
               >
-                Panel de administración →
+                Panel de administración
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
               </Link>
             </div>
           )}

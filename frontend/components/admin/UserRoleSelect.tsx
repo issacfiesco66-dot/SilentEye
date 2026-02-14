@@ -68,7 +68,7 @@ export default function UserRoleSelect({
   };
 
   if (currentRole === 'admin') {
-    return <span className="text-slate-400 text-sm">Admin</span>;
+    return <span className="text-zinc-400 text-sm">Admin</span>;
   }
 
   return (
@@ -77,7 +77,7 @@ export default function UserRoleSelect({
         value={ROLES.some((r) => r.value === currentRole) ? currentRole : 'driver'}
         onChange={(e) => handleChange(e.target.value)}
         disabled={!!disabled}
-        className="px-2 py-1 text-sm rounded bg-slate-700 border border-slate-600 disabled:opacity-50"
+        className="px-2 py-1 text-[13px] rounded bg-white border border-zinc-200 text-zinc-900 disabled:opacity-50 focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
       >
         {ROLES.map((r) => (
           <option key={r.value} value={r.value}>
@@ -86,9 +86,9 @@ export default function UserRoleSelect({
         ))}
       </select>
       {isOwnUser && (
-        <span className="text-slate-500 text-xs">No puedes cambiar tu propio rol</span>
+        <span className="text-zinc-400 text-xs">No puedes cambiar tu propio rol</span>
       )}
-      {error && <span className="text-red-400 text-xs">{error}</span>}
+      {error && <span className="text-red-600 text-xs">{error}</span>}
     </div>
   );
 }

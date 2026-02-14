@@ -128,14 +128,16 @@ export default function HelperIncidentCard({
   const isAttending = incident.status === 'attending';
 
   return (
-    <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+    <div className="bg-white rounded-xl p-4 border border-zinc-200 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-lg">🚨</span>
-        <h2 className="font-semibold text-panic">PANIC</h2>
+        <span className="w-6 h-6 rounded-full bg-red-50 flex items-center justify-center">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+        </span>
+        <h2 className="font-bold text-red-600 text-sm">PANIC</h2>
       </div>
-      <p className="font-medium">{incident.plate || 'Sin placa'}</p>
-      <p className="text-slate-400 text-sm">{incident.driver_name || 'Conductor'}</p>
-      <div className="mt-2 flex flex-wrap gap-3 text-sm text-slate-500">
+      <p className="font-semibold text-zinc-900">{incident.plate || 'Sin placa'}</p>
+      <p className="text-zinc-500 text-[13px]">{incident.driver_name || 'Conductor'}</p>
+      <div className="mt-2 flex flex-wrap gap-3 text-[13px] text-zinc-400">
         <span>{timeAgo(incident.started_at)}</span>
         {distanceKm != null && (
           <span>• ~{distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`}</span>
@@ -148,7 +150,7 @@ export default function HelperIncidentCard({
           <button
             onClick={handleVoyEnCamino}
             disabled={!canAct}
-            className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-medium text-white"
+            className="w-full py-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 font-semibold text-white text-sm transition-colors"
           >
             {loading === 'going' ? 'Enviando...' : 'Voy en camino'}
           </button>
@@ -157,13 +159,13 @@ export default function HelperIncidentCard({
           href={googleMapsLink}
           target="_blank"
           rel="noopener noreferrer"
-          className="w-full py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-center font-medium text-white"
+          className="w-full py-3 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-center font-semibold text-zinc-900 text-sm transition-colors"
         >
           Abrir en Google Maps
         </a>
         <a
           href={`tel:${EMERGENCY_NUMBER}`}
-          className="w-full py-3 rounded-lg bg-red-600 hover:bg-red-500 text-center font-medium text-white"
+          className="w-full py-3 rounded-lg bg-red-600 hover:bg-red-500 text-center font-semibold text-white text-sm transition-colors"
         >
           Llamar emergencia
         </a>
@@ -171,7 +173,7 @@ export default function HelperIncidentCard({
           <button
             onClick={() => setShowDeclineConfirm(true)}
             disabled={!canAct}
-            className="w-full py-3 rounded-lg border border-slate-600 text-slate-400 hover:bg-slate-700 disabled:opacity-50 text-sm"
+            className="w-full py-3 rounded-lg border border-zinc-200 text-zinc-400 hover:bg-zinc-50 disabled:opacity-50 text-[13px] transition-colors"
           >
             No puedo atender
           </button>
@@ -180,14 +182,14 @@ export default function HelperIncidentCard({
             <button
               onClick={() => setShowDeclineConfirm(false)}
               disabled={!canAct}
-              className="flex-1 py-2 rounded-lg border border-slate-600 text-slate-400 text-sm"
+              className="flex-1 py-2 rounded-lg border border-zinc-200 text-zinc-400 text-[13px]"
             >
               Cancelar
             </button>
             <button
               onClick={handleNoPuedoAtender}
               disabled={!canAct}
-              className="flex-1 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm disabled:opacity-50"
+              className="flex-1 py-2 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 hover:bg-amber-100 text-[13px] font-medium disabled:opacity-50 transition-colors"
             >
               {loading === 'decline' ? '...' : 'Confirmar'}
             </button>

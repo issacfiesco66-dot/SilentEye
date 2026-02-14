@@ -17,7 +17,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className={jakarta.variable}>
-      <body className="bg-slate-950 text-slate-100 antialiased" style={{ minHeight: '100vh', margin: 0 }}>
+      <body className="bg-white text-zinc-900 antialiased" style={{ minHeight: '100vh', margin: 0 }}>
         {children}
       </body>
     </html>

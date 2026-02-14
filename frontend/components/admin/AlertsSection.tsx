@@ -139,7 +139,7 @@ export default function AlertsSection() {
   };
 
   if (loading) {
-    return <div className="p-6 text-slate-400">Cargando alertas...</div>;
+    return <div className="p-6 text-zinc-400">Cargando alertas...</div>;
   }
 
   const priorityLabel = (p?: number) => {
@@ -151,26 +151,26 @@ export default function AlertsSection() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-2">
-        <h2 className="text-xl font-semibold">Alertas GPS</h2>
+        <h2 className="text-lg font-bold text-zinc-900">Alertas GPS</h2>
         <div className="flex gap-2">
           <button
             onClick={fetchAlerts}
             disabled={deleting}
-            className="px-3 py-1.5 text-sm bg-slate-600 rounded-lg hover:bg-slate-500 disabled:opacity-50"
+            className="px-3 py-1.5 text-[13px] font-medium bg-zinc-100 text-zinc-600 rounded-lg hover:bg-zinc-200 disabled:opacity-50 transition-colors"
           >
             Actualizar
           </button>
           <button
             onClick={() => handleDelete(7)}
             disabled={deleting}
-            className="px-3 py-1.5 text-sm bg-amber-600/80 rounded-lg hover:bg-amber-600 disabled:opacity-50"
+            className="px-3 py-1.5 text-[13px] font-medium bg-amber-50 text-amber-600 border border-amber-100 rounded-lg hover:bg-amber-100 disabled:opacity-50 transition-colors"
           >
             Borrar &gt; 7 días
           </button>
           <button
             onClick={() => handleDelete(undefined, true)}
             disabled={deleting || alerts.length === 0}
-            className="px-3 py-1.5 text-sm bg-red-600/80 rounded-lg hover:bg-red-600 disabled:opacity-50"
+            className="px-3 py-1.5 text-[13px] font-medium bg-red-50 text-red-600 border border-red-100 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
           >
             Borrar todas
           </button>
@@ -178,25 +178,25 @@ export default function AlertsSection() {
       </div>
 
       {error && (
-        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+        <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm">
           {error}
         </div>
       )}
 
-      <ul className="divide-y divide-slate-700 border border-slate-700 rounded-xl overflow-hidden">
+      <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-xl overflow-hidden">
         {alerts.length === 0 ? (
-          <li className="p-6 text-slate-500 text-center">No hay alertas</li>
+          <li className="p-6 text-zinc-400 text-center">No hay alertas</li>
         ) : (
           alerts.map((a) => (
-            <li key={a.id} className="p-4 flex justify-between items-start gap-4">
+            <li key={a.id} className="p-4 flex justify-between items-start gap-4 hover:bg-zinc-50 transition-colors">
               <div>
-                <span className="font-medium text-white">
+                <span className="font-semibold text-zinc-900 text-sm">
                   {a.plate || a.deviceImei}
                 </span>
-                <p className="text-slate-500 text-sm">
+                <p className="text-zinc-500 text-[13px]">
                   {a.alertType} · IMEI {a.deviceImei}
                 </p>
-                <p className="text-slate-400 text-xs mt-1">
+                <p className="text-zinc-400 text-xs mt-1">
                   {new Date(a.createdAt).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })} ·{' '}
                   {a.latitude.toFixed(4)}, {a.longitude.toFixed(4)} ·{' '}
                   {a.speed} km/h
@@ -206,17 +206,17 @@ export default function AlertsSection() {
                 <span
                   className={`px-2 py-1 rounded text-xs font-medium ${
                     a.priority === 2
-                      ? 'bg-red-500/20 text-red-400'
+                      ? 'bg-red-50 text-red-600 border border-red-100'
                       : a.priority === 1
-                      ? 'bg-amber-500/20 text-amber-400'
-                      : 'bg-slate-500/20 text-slate-400'
+                      ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                      : 'bg-zinc-100 text-zinc-500'
                   }`}
                 >
                   {priorityLabel(a.priority)}
                 </span>
                 <button
                   onClick={() => deleteSingleAlert(a.id)}
-                  className="px-2 py-1 text-xs bg-red-600/60 rounded hover:bg-red-600"
+                  className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 border border-red-100 rounded hover:bg-red-100 transition-colors"
                   title="Eliminar alerta"
                 >
                   Eliminar

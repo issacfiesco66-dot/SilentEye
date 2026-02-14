@@ -254,18 +254,19 @@ export default function SOSPage() {
   };
 
   if (!token) {
-    return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Cargando...</div>;
+    return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">Cargando...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
+    <div className="min-h-screen bg-white text-zinc-900 flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-slate-800/50 bg-slate-950/90 backdrop-blur-sm">
-        <Link href="/dashboard" className="text-slate-400 hover:text-white text-sm font-medium transition-colors">
-          ← Dashboard
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-lg border-b border-zinc-100 px-6 h-14 flex items-center justify-between">
+        <Link href="/dashboard" className="flex items-center gap-1 text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+          Dashboard
         </Link>
         <span className="text-sm font-bold tracking-tight">SilentEye SOS</span>
-        <button onClick={handleLogout} className="text-slate-400 hover:text-white text-sm transition-colors">
+        <button onClick={handleLogout} className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors">
           Salir
         </button>
       </header>
@@ -275,26 +276,26 @@ export default function SOSPage() {
         {/* Background pulse effect when idle */}
         {status === 'idle' && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-80 h-80 rounded-full bg-red-500/5 animate-ping" style={{ animationDuration: '3s' }} />
+            <div className="w-80 h-80 rounded-full bg-red-50 animate-ping" style={{ animationDuration: '3s' }} />
           </div>
         )}
 
         {/* Sent success pulse */}
         {status === 'sent' && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-96 h-96 rounded-full bg-emerald-500/10 animate-ping" style={{ animationDuration: '2s' }} />
+            <div className="w-96 h-96 rounded-full bg-emerald-50 animate-ping" style={{ animationDuration: '2s' }} />
           </div>
         )}
 
         {/* User greeting */}
-        <p className="text-slate-400 text-sm mb-2">
+        <p className="text-zinc-400 text-sm mb-2">
           {userName ? `Hola, ${userName}` : 'SOS Móvil'}
         </p>
 
         {/* GPS status */}
         <div className="flex items-center gap-2 mb-8">
-          <div className={`w-2 h-2 rounded-full ${coords ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`} />
-          <span className="text-xs text-slate-500">
+          <div className={`w-2 h-2 rounded-full ${coords ? 'bg-emerald-500' : 'bg-amber-400 animate-pulse'}`} />
+          <span className="text-xs text-zinc-400">
             {coords
               ? `GPS activo · ${gpsAccuracy ? `±${gpsAccuracy}m` : ''} · ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`
               : 'Obteniendo ubicación...'}
@@ -308,47 +309,47 @@ export default function SOSPage() {
           className={`
             relative w-56 h-56 rounded-full font-bold text-2xl uppercase tracking-widest
             transition-all duration-300 select-none
-            focus:outline-none focus:ring-4 focus:ring-offset-4 focus:ring-offset-slate-950
+            focus:outline-none focus:ring-4 focus:ring-offset-4 focus:ring-offset-white
             ${status === 'idle'
-              ? 'bg-gradient-to-br from-red-500 to-red-700 text-white shadow-2xl shadow-red-500/40 hover:shadow-red-500/60 hover:scale-105 active:scale-95 focus:ring-red-500/50'
+              ? 'bg-red-600 text-white shadow-xl shadow-red-600/25 hover:shadow-red-600/40 hover:scale-105 active:scale-95 focus:ring-red-500/30'
               : status === 'locating' || status === 'sending'
-              ? 'bg-gradient-to-br from-amber-500 to-amber-700 text-white shadow-2xl shadow-amber-500/30 animate-pulse cursor-wait'
+              ? 'bg-amber-500 text-white shadow-xl shadow-amber-500/20 animate-pulse cursor-wait'
               : status === 'sent'
-              ? 'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-2xl shadow-emerald-500/30'
-              : 'bg-gradient-to-br from-slate-600 to-slate-800 text-slate-300 shadow-xl'
+              ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20'
+              : 'bg-zinc-200 text-zinc-500 shadow-lg'
             }
           `}
         >
           {/* Outer ring animation */}
           {status === 'idle' && (
             <>
-              <span className="absolute inset-0 rounded-full border-4 border-red-400/30 animate-ping" style={{ animationDuration: '2s' }} />
-              <span className="absolute -inset-3 rounded-full border-2 border-red-500/20 animate-ping" style={{ animationDuration: '3s' }} />
+              <span className="absolute inset-0 rounded-full border-4 border-red-300/30 animate-ping" style={{ animationDuration: '2s' }} />
+              <span className="absolute -inset-3 rounded-full border-2 border-red-400/15 animate-ping" style={{ animationDuration: '3s' }} />
             </>
           )}
 
           {status === 'idle' && <span>SOS</span>}
           {status === 'locating' && (
             <span className="text-lg">
-              <span className="block text-3xl mb-1">📡</span>
+              <svg className="mx-auto mb-2" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8Z"/><circle cx="12" cy="10" r="3"/></svg>
               Ubicando...
             </span>
           )}
           {status === 'sending' && (
             <span className="text-lg">
-              <span className="block text-3xl mb-1">📤</span>
+              <svg className="mx-auto mb-2" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4 20-7Z"/></svg>
               Enviando...
             </span>
           )}
           {status === 'sent' && (
             <span className="text-lg">
-              <span className="block text-3xl mb-1">✓</span>
+              <svg className="mx-auto mb-2" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
               Enviado
             </span>
           )}
           {status === 'error' && (
             <span className="text-base">
-              <span className="block text-3xl mb-1">⚠️</span>
+              <svg className="mx-auto mb-2" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
               Reintentar
             </span>
           )}
@@ -357,21 +358,21 @@ export default function SOSPage() {
         {/* Status messages */}
         <div className="mt-8 text-center min-h-[80px]">
           {status === 'idle' && (
-            <p className="text-slate-400 text-sm max-w-xs">
+            <p className="text-zinc-400 text-sm max-w-xs">
               Presiona el botón para enviar una alerta de emergencia con tu ubicación
             </p>
           )}
 
           {status === 'sent' && result && (
             <div className="space-y-2">
-              <p className="text-emerald-400 font-semibold">Alerta enviada correctamente</p>
-              <p className="text-slate-400 text-sm">
+              <p className="text-emerald-600 font-semibold">Alerta enviada correctamente</p>
+              <p className="text-zinc-500 text-sm">
                 {result.nearbyCount > 0
                   ? `${result.nearbyCount} persona${result.nearbyCount > 1 ? 's' : ''} cercana${result.nearbyCount > 1 ? 's' : ''} notificada${result.nearbyCount > 1 ? 's' : ''}`
                   : 'Administradores notificados'}
               </p>
               {countdown > 0 && (
-                <p className="text-slate-500 text-xs mt-2">
+                <p className="text-zinc-400 text-xs mt-2">
                   Puedes enviar otra alerta en {countdown}s
                 </p>
               )}
@@ -380,10 +381,10 @@ export default function SOSPage() {
 
           {status === 'error' && (
             <div className="space-y-2">
-              <p className="text-red-400 font-semibold">{error}</p>
+              <p className="text-red-600 font-semibold">{error}</p>
               <button
                 onClick={() => { setStatus('idle'); setError(''); }}
-                className="text-slate-400 hover:text-white text-sm underline"
+                className="text-zinc-400 hover:text-zinc-600 text-sm underline transition-colors"
               >
                 Intentar de nuevo
               </button>
@@ -391,7 +392,7 @@ export default function SOSPage() {
           )}
 
           {(status === 'locating' || status === 'sending') && (
-            <p className="text-amber-400 text-sm animate-pulse">
+            <p className="text-amber-600 text-sm animate-pulse">
               {status === 'locating' ? 'Obteniendo tu ubicación GPS...' : 'Enviando alerta de emergencia...'}
             </p>
           )}
@@ -401,19 +402,19 @@ export default function SOSPage() {
       {/* Incoming alerts from nearby users */}
       {incomingAlerts.length > 0 && (
         <div className="px-4 pb-4 space-y-2">
-          <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider text-center">
+          <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider text-center">
             Alertas cercanas recibidas
           </p>
           {incomingAlerts.map((a) => (
             <div
               key={a.incidentId}
-              className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-center animate-pulse"
+              className="p-3 rounded-xl bg-red-50 border border-red-100 text-center animate-pulse"
               style={{ animationDuration: '2s' }}
             >
-              <p className="text-red-300 font-semibold text-sm">
+              <p className="text-red-600 font-semibold text-sm">
                 Emergencia: {a.plate || 'SOS'}
               </p>
-              <p className="text-slate-400 text-xs mt-1">
+              <p className="text-zinc-400 text-xs mt-1">
                 {a.latitude.toFixed(4)}, {a.longitude.toFixed(4)} · {new Date(a.timestamp).toLocaleTimeString('es-MX')}
               </p>
             </div>
@@ -422,8 +423,8 @@ export default function SOSPage() {
       )}
 
       {/* Footer info */}
-      <footer className="px-6 py-4 border-t border-slate-800/50 text-center">
-        <p className="text-slate-600 text-xs">
+      <footer className="px-6 py-4 border-t border-zinc-100 text-center">
+        <p className="text-zinc-300 text-xs">
           Tu ubicación se comparte solo durante emergencias.
           Administradores y personas cercanas serán notificados.
         </p>

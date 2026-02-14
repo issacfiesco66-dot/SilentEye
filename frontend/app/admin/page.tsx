@@ -47,51 +47,53 @@ export default function AdminPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900">
-        <span className="text-slate-400">Cargando...</span>
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <span className="text-zinc-400">Cargando...</span>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <header className="bg-slate-800 border-b border-slate-700 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-        <Link href="/dashboard" className="text-blue-400 hover:text-blue-300 text-sm">
-          ← Dashboard
+    <div className="min-h-screen bg-white text-zinc-900">
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-lg border-b border-zinc-100 px-6 h-14 flex items-center justify-between">
+        <Link href="/dashboard" className="flex items-center gap-1 text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+          Dashboard
         </Link>
-        <h1 className="font-bold">Admin</h1>
+        <span className="text-sm font-bold tracking-tight">Administración</span>
+        <div className="w-20" />
       </header>
 
-      <div className="p-4 max-w-5xl mx-auto">
+      <div className="p-4 md:p-6 max-w-6xl mx-auto">
         <AdminTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
         <div className="mt-6">
           {activeTab === 'incidents' && (
-            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+            <div className="bg-zinc-50 rounded-xl p-6 border border-zinc-200">
               <IncidentesSection />
             </div>
           )}
 
           {activeTab === 'alerts' && (
-            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+            <div className="bg-zinc-50 rounded-xl p-6 border border-zinc-200">
               <AlertsSection />
             </div>
           )}
 
           {activeTab === 'map' && (
-            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+            <div className="bg-zinc-50 rounded-xl p-6 border border-zinc-200">
               <AdminMapView />
             </div>
           )}
 
           {activeTab === 'vehicles' && (
-            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+            <div className="bg-zinc-50 rounded-xl p-6 border border-zinc-200">
               <VehiclesSection />
             </div>
           )}
 
           {activeTab === 'drivers' && (
-            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+            <div className="bg-zinc-50 rounded-xl p-6 border border-zinc-200">
               <DriversSection currentUserId={user.id} />
             </div>
           )}

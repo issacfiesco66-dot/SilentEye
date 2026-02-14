@@ -109,57 +109,57 @@ export default function IncidentesSection() {
 
   if (loading) {
     return (
-      <div className="p-6 text-slate-400">Cargando incidentes...</div>
+      <div className="p-6 text-zinc-400">Cargando incidentes...</div>
     );
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Incidentes</h2>
+        <h2 className="text-lg font-bold text-zinc-900">Incidentes</h2>
         <button
           onClick={fetchIncidents}
           disabled={refreshing}
-          className={`px-3 py-1.5 text-sm rounded-lg ${refreshing ? 'bg-slate-700 text-slate-400 cursor-wait' : 'bg-slate-600 hover:bg-slate-500'}`}
+          className={`px-3 py-1.5 text-[13px] font-medium rounded-lg transition-colors ${refreshing ? 'bg-zinc-100 text-zinc-400 cursor-wait' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`}
         >
           {refreshing ? 'Cargando...' : 'Actualizar'}
         </button>
       </div>
 
       {error && (
-        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+        <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm">
           {error}
         </div>
       )}
 
-      <ul className="divide-y divide-slate-700 border border-slate-700 rounded-xl overflow-hidden">
+      <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-xl overflow-hidden">
         {sortedIncidents.length === 0 ? (
-          <li className="p-6 text-slate-500 text-center">No hay incidentes</li>
+          <li className="p-6 text-zinc-400 text-center">No hay incidentes</li>
         ) : (
           sortedIncidents.map((inc) => (
             <li
               key={inc.id}
               onClick={() => setSelectedIncidentId(inc.id)}
-              className={`p-4 flex justify-between items-center hover:bg-slate-800/50 cursor-pointer ${
-                inc.status === 'active' ? 'bg-red-500/5 border-l-4 border-l-red-500' : ''
+              className={`p-4 flex justify-between items-center hover:bg-zinc-50 cursor-pointer transition-colors ${
+                inc.status === 'active' ? 'bg-red-50/50 border-l-4 border-l-red-500' : ''
               }`}
             >
               <div>
-                <span className="font-medium text-white">{inc.plate || 'Sin placa'}</span>
-                <p className="text-slate-500 text-sm">{inc.driver_name || 'Sin conductor'}</p>
-                <p className="text-slate-400 text-xs mt-1">
+                <span className="font-semibold text-zinc-900 text-sm">{inc.plate || 'Sin placa'}</span>
+                <p className="text-zinc-500 text-[13px]">{inc.driver_name || 'Sin conductor'}</p>
+                <p className="text-zinc-400 text-xs mt-1">
                   {new Date(inc.started_at).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })} · {inc.latitude?.toFixed(4)}, {inc.longitude?.toFixed(4)}
                 </p>
               </div>
               <span
                 className={`px-2 py-1 rounded text-xs font-medium ${
                   inc.status === 'active'
-                    ? 'bg-red-500/20 text-red-400'
+                    ? 'bg-red-50 text-red-600 border border-red-100'
                     : inc.status === 'attending'
-                    ? 'bg-amber-500/20 text-amber-400'
+                    ? 'bg-amber-50 text-amber-600 border border-amber-100'
                     : inc.status === 'resolved'
-                    ? 'bg-emerald-500/20 text-emerald-400'
-                    : 'bg-slate-500/20 text-slate-400'
+                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                    : 'bg-zinc-100 text-zinc-500'
                 }`}
               >
                 {inc.status}

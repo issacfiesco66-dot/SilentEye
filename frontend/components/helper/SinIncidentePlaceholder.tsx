@@ -8,13 +8,13 @@ export default function SinIncidentePlaceholder({ wsConnected }: SinIncidentePla
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
       <div
-        className={`w-4 h-4 rounded-full mb-4 ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`}
+        className={`w-3 h-3 rounded-full mb-4 ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-300'}`}
         title={wsConnected ? 'Conectado' : 'Desconectado'}
       />
-      <p className="text-slate-400 text-lg">
+      <p className="text-zinc-500 text-lg font-semibold">
         {wsConnected ? 'Sin alertas asignadas' : 'Sin conexión. Revisa tu red.'}
       </p>
-      <p className="text-slate-500 text-sm mt-2">
+      <p className="text-zinc-400 text-sm mt-2">
         {wsConnected ? 'Esperando próximas alertas de pánico.' : 'Conecta para recibir alertas.'}
       </p>
     </div>

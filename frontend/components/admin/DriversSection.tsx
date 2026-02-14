@@ -11,7 +11,7 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 const MapboxMap = dynamic(() => import('../MapboxMap'), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-full flex items-center justify-center bg-slate-700 text-slate-300">
+    <div className="w-full h-full flex items-center justify-center bg-zinc-50 text-zinc-400">
       Cargando mapa…
     </div>
   ),
@@ -250,36 +250,36 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
     vehicles.find((v) => v.driver_id === driverId)?.plate;
 
   if (loading) {
-    return <div className="p-6 text-slate-400">Cargando conductores...</div>;
+    return <div className="p-6 text-zinc-400">Cargando conductores...</div>;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Conductores</h2>
+        <h2 className="text-lg font-bold text-zinc-900">Conductores</h2>
         <button
           type="button"
           onClick={() => { setShowForm(true); setError(''); }}
-          className="px-4 py-2 bg-emerald-600 rounded-lg hover:bg-emerald-500"
+          className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors"
         >
           Nuevo conductor
         </button>
       </div>
 
       {error && (
-        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+        <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm">
           {error}
         </div>
       )}
 
-      <div className="rounded-xl overflow-hidden border border-slate-700">
-        <div className="px-4 py-2 bg-slate-800/80 border-b border-slate-700">
-          <h3 className="text-sm font-medium text-slate-300">Mapa de conductores y vehículos GPS</h3>
-          <p className="text-xs text-slate-500 mt-0.5">
+      <div className="rounded-xl overflow-hidden border border-zinc-200">
+        <div className="px-4 py-2 bg-white border-b border-zinc-200">
+          <h3 className="text-sm font-semibold text-zinc-900">Mapa de conductores y vehículos GPS</h3>
+          <p className="text-xs text-zinc-400 mt-0.5">
             Ubicación en tiempo real de los vehículos asignados a conductores ({liveLocationsForMap.length} en mapa)
           </p>
         </div>
-        <div className="h-[350px] bg-slate-800/50">
+        <div className="h-[350px] bg-zinc-50">
           {MAPBOX_TOKEN ? (
             <MapboxMap
               token={MAPBOX_TOKEN}
@@ -289,7 +289,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
               onSelectIncident={() => {}}
             />
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-4">
+            <div className="w-full h-full flex flex-col items-center justify-center text-zinc-400 p-4">
               <p>Configura NEXT_PUBLIC_MAPBOX_TOKEN para ver el mapa</p>
               <p className="text-sm mt-2">
                 Vehículos con conductor: {liveLocationsForMap.length}
@@ -300,28 +300,28 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full border border-slate-700">
-            <h3 className="text-lg font-semibold mb-4">Nuevo conductor</h3>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full border border-zinc-200 shadow-lg">
+            <h3 className="text-lg font-bold text-zinc-900 mb-4">Nuevo conductor</h3>
             <form onSubmit={createDriver} className="space-y-3">
               <input
                 required
                 placeholder="Nombre completo"
                 value={driverForm.name}
                 onChange={(e) => setDriverForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
               <input
                 required
                 placeholder="Teléfono (ej. +51999999999)"
                 value={driverForm.phone}
                 onChange={(e) => setDriverForm((f) => ({ ...f, phone: e.target.value }))}
-                className="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
-              <p className="text-slate-500 text-xs">El conductor usará este teléfono para iniciar sesión con OTP.</p>
+              <p className="text-zinc-400 text-xs">El conductor usará este teléfono para iniciar sesión con OTP.</p>
               <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-green-600 rounded-lg hover:bg-green-500 disabled:opacity-50">{saving ? 'Creando...' : 'Crear conductor'}</button>
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-slate-600 rounded-lg">Cancelar</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 transition-colors">{saving ? 'Creando...' : 'Crear conductor'}</button>
+                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">Cancelar</button>
               </div>
             </form>
           </div>
@@ -331,18 +331,18 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
-            <tr className="border-b border-slate-700">
-              <th className="text-left py-3 px-2 text-slate-400 font-medium text-sm">Nombre</th>
-              <th className="text-left py-3 px-2 text-slate-400 font-medium text-sm">Teléfono</th>
-              <th className="text-left py-3 px-2 text-slate-400 font-medium text-sm">Vehículo</th>
-              <th className="text-left py-3 px-2 text-slate-400 font-medium text-sm">Rol</th>
-              <th className="text-right py-3 px-2 text-slate-400 font-medium text-sm">Acción</th>
+            <tr className="border-b border-zinc-200">
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Nombre</th>
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Teléfono</th>
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Vehículo</th>
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Rol</th>
+              <th className="text-right py-3 px-2 text-zinc-400 font-medium text-[13px]">Acción</th>
             </tr>
           </thead>
           <tbody>
             {drivers.length === 0 && !showForm ? (
               <tr>
-                <td colSpan={5} className="py-8 text-slate-500 text-center">
+                <td colSpan={5} className="py-8 text-zinc-400 text-center">
                   No hay conductores. Añade uno para asignar a vehículos.
                 </td>
               </tr>
@@ -351,22 +351,22 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
                 const vehiclePlate = getVehicleForDriver(d.id);
                 const hasNoVehicle = !vehiclePlate;
                 return (
-                  <tr key={d.id} className="border-b border-slate-700/50 hover:bg-slate-800/30">
-                    <td className="py-3 px-2 font-medium">{d.name}</td>
-                    <td className="py-3 px-2 text-slate-400">{d.phone}</td>
+                  <tr key={d.id} className="border-b border-zinc-100 hover:bg-zinc-50 transition-colors">
+                    <td className="py-3 px-2 font-semibold text-zinc-900 text-sm">{d.name}</td>
+                    <td className="py-3 px-2 text-zinc-500 text-sm">{d.phone}</td>
                     <td className="py-3 px-2">
                       {hasNoVehicle ? (
-                        <span className="px-2 py-0.5 text-xs rounded bg-amber-500/20 text-amber-400">
+                        <span className="px-2 py-0.5 text-xs rounded bg-amber-50 text-amber-600 border border-amber-100">
                           Sin vehículo
                         </span>
                       ) : (
-                        <span className="text-slate-400">{vehiclePlate}</span>
+                        <span className="text-zinc-500 text-sm">{vehiclePlate}</span>
                       )}
                     </td>
                     <td className="py-3 px-2">
-                      <span className="text-slate-400 capitalize">{d.role}</span>
+                      <span className="text-zinc-500 text-sm capitalize">{d.role}</span>
                       {d.is_active === false && (
-                        <span className="ml-2 px-2 py-0.5 text-xs rounded bg-red-500/20 text-red-400">Bloqueado</span>
+                        <span className="ml-2 px-2 py-0.5 text-xs rounded bg-red-50 text-red-600 border border-red-100">Bloqueado</span>
                       )}
                     </td>
                     <td className="py-3 px-2 text-right">
@@ -376,20 +376,20 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
                             setEditingUser(d);
                             setEditForm({ name: d.name, phone: d.phone });
                           }}
-                          className="px-2 py-1 text-sm bg-slate-600 rounded hover:bg-slate-500"
+                          className="px-2 py-1 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded hover:bg-zinc-200 transition-colors"
                         >
                           Editar
                         </button>
                         <button
                           onClick={() => blockUser(d)}
-                          className={`px-2 py-1 text-sm rounded ${d.is_active === false ? 'bg-emerald-600/80 hover:bg-emerald-600' : 'bg-amber-600/80 hover:bg-amber-600'}`}
+                          className={`px-2 py-1 text-[13px] font-medium rounded transition-colors ${d.is_active === false ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100 hover:bg-amber-100'}`}
                         >
                           {d.is_active === false ? 'Desbloquear' : 'Bloquear'}
                         </button>
                         <button
                           onClick={() => deleteUser(d)}
                           disabled={d.id === currentUserId}
-                          className="px-2 py-1 text-sm bg-red-600/80 rounded hover:bg-red-600 disabled:opacity-50"
+                          className="px-2 py-1 text-[13px] font-medium text-red-600 bg-red-50 border border-red-100 rounded hover:bg-red-100 disabled:opacity-50 transition-colors"
                           title={d.id === currentUserId ? 'No puedes eliminarte a ti mismo' : 'Eliminar'}
                         >
                           Eliminar
@@ -413,39 +413,39 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
 
       {users.filter((u) => u.role !== 'driver').length > 0 && (
         <div className="mt-6">
-          <h3 className="text-sm font-medium text-slate-400 mb-2">Otros usuarios</h3>
+          <h3 className="text-[13px] font-semibold text-zinc-400 mb-2">Otros usuarios</h3>
           <ul className="space-y-2">
             {users
               .filter((u) => u.role !== 'driver')
               .map((u) => (
                 <li
                   key={u.id}
-                  className="flex justify-between items-center p-3 rounded-lg bg-slate-800/50 border border-slate-700"
+                  className="flex justify-between items-center p-3 rounded-lg bg-white border border-zinc-200 hover:border-zinc-300 transition-colors"
                 >
                   <div>
-                    <span className="font-medium">{u.name}</span>
-                    <p className="text-slate-500 text-sm">{u.phone}</p>
+                    <span className="font-semibold text-zinc-900 text-sm">{u.name}</span>
+                    <p className="text-zinc-500 text-[13px]">{u.phone}</p>
                     {u.is_active === false && (
-                      <span className="text-xs text-red-400">Bloqueado</span>
+                      <span className="text-xs text-red-600">Bloqueado</span>
                     )}
                   </div>
                   <div className="flex gap-2 items-center">
                     <button
                       onClick={() => { setEditingUser(u); setEditForm({ name: u.name, phone: u.phone }); }}
-                      className="px-2 py-1 text-sm bg-slate-600 rounded hover:bg-slate-500"
+                      className="px-2 py-1 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded hover:bg-zinc-200 transition-colors"
                     >
                       Editar
                     </button>
                     <button
                       onClick={() => blockUser(u)}
-                      className={`px-2 py-1 text-sm rounded ${u.is_active === false ? 'bg-emerald-600/80' : 'bg-amber-600/80'}`}
+                      className={`px-2 py-1 text-[13px] font-medium rounded transition-colors ${u.is_active === false ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100 hover:bg-amber-100'}`}
                     >
                       {u.is_active === false ? 'Desbloquear' : 'Bloquear'}
                     </button>
                     <button
                       onClick={() => deleteUser(u)}
                       disabled={u.id === currentUserId || u.role === 'admin'}
-                      className="px-2 py-1 text-sm bg-red-600/80 rounded hover:bg-red-600 disabled:opacity-50"
+                      className="px-2 py-1 text-[13px] font-medium text-red-600 bg-red-50 border border-red-100 rounded hover:bg-red-100 disabled:opacity-50 transition-colors"
                     >
                       Eliminar
                     </button>
@@ -464,27 +464,27 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
       )}
 
       {editingUser && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full border border-slate-700">
-            <h3 className="text-lg font-semibold mb-4">Editar usuario</h3>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full border border-zinc-200 shadow-lg">
+            <h3 className="text-lg font-bold text-zinc-900 mb-4">Editar usuario</h3>
             <form onSubmit={updateUser} className="space-y-3">
               <input
                 required
                 placeholder="Nombre"
                 value={editForm.name}
                 onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
               <input
                 required
                 placeholder="Teléfono"
                 value={editForm.phone}
                 onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
-                className="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600"
+                className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
               <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-green-600 rounded-lg hover:bg-green-500 disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar'}</button>
-                <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 bg-slate-600 rounded-lg">Cancelar</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 transition-colors">{saving ? 'Guardando...' : 'Guardar'}</button>
+                <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">Cancelar</button>
               </div>
             </form>
           </div>

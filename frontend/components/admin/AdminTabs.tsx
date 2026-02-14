@@ -17,15 +17,15 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function AdminTabs({ activeTab, onTabChange }: AdminTabsProps) {
   return (
-    <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg border border-slate-700">
+    <div className="flex gap-1 p-1 bg-zinc-100 rounded-lg">
       {TABS.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`px-4 py-2 rounded-md text-[13px] font-semibold transition-all ${
             activeTab === tab.id
-              ? 'bg-slate-700 text-white'
-              : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              ? 'bg-white text-zinc-900 shadow-sm'
+              : 'text-zinc-400 hover:text-zinc-600'
           }`}
         >
           {tab.label}
