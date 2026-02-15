@@ -31,6 +31,15 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
+      // Client-side validation for citizen phone (min 10 digits)
+      if (mode === 'citizen') {
+        const digits = phone.replace(/[^\d]/g, '');
+        if (digits.length < 10) {
+          setError('Ingresa un número de teléfono real con al menos 10 dígitos');
+          setLoading(false);
+          return;
+        }
+      }
       const res = await fetch(`${API}/api/auth/otp/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -39,7 +48,8 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al solicitar OTP');
       setStep('otp');
-      if (data.code) {
+      // Only auto-fill code for driver/admin modes (never for citizen)
+      if (data.code && mode !== 'citizen') {
         setCode(data.code);
       }
     } catch (e: unknown) {
@@ -52,6 +62,15 @@ export default function LoginPage() {
   const verifyOtp = async () => {
     if (!code.trim()) {
       setError('Ingresa el código');
+      return;
+    }
+    // Citizen mode: require name for new registrations
+    if (mode === 'citizen' && !name.trim()) {
+      setError('Tu nombre es requerido para registrarte');
+      return;
+    }
+    if (mode === 'citizen' && name.trim().length < 2) {
+      setError('Nombre muy corto (mínimo 2 caracteres)');
       return;
     }
     setLoading(true);
@@ -163,9 +182,12 @@ export default function LoginPage() {
             {step === 'input' ? (
               <>
                 {mode === 'citizen' && (
-                  <div className="flex items-center gap-2 px-3 py-2.5 mb-5 bg-red-50 border border-red-100 rounded-lg">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-                    <span className="text-[13px] text-red-600 font-medium">Botón de emergencia ciudadano</span>
+                  <div className="space-y-2 mb-5">
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-lg">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+                      <span className="text-[13px] text-red-600 font-medium">Botón de emergencia ciudadano</span>
+                    </div>
+                    <p className="text-[12px] text-zinc-400 px-1">Ingresa tu número real. Se requiere verificación por código.</p>
                   </div>
                 )}
                 <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">
@@ -195,9 +217,12 @@ export default function LoginPage() {
             ) : (
               <>
                 <p className="text-zinc-500 text-[13px] mb-4">
-                  Código enviado a <span className="font-semibold text-zinc-700">{mode === 'driver' ? 'tu teléfono registrado' : phone}</span>
+                  {mode === 'citizen'
+                    ? <>Ingresa el código de verificación para <span className="font-semibold text-zinc-700">{phone}</span></>
+                    : <>Código enviado a <span className="font-semibold text-zinc-700">{mode === 'driver' ? 'tu teléfono registrado' : phone}</span></>
+                  }
                 </p>
-                {code && (
+                {code && mode !== 'citizen' && (
                   <div className="flex items-center gap-2 px-3 py-2.5 mb-4 bg-emerald-50 border border-emerald-100 rounded-lg">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
                     <span className="text-[13px] text-emerald-700 font-medium">Código generado &mdash; válido 10 min</span>
@@ -214,7 +239,7 @@ export default function LoginPage() {
                 />
                 {(mode === 'admin' || mode === 'citizen') && (
                   <>
-                    <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Nombre <span className="font-normal text-zinc-400">(opcional)</span></label>
+                    <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Nombre {mode === 'citizen' ? <span className="text-red-500">*</span> : <span className="font-normal text-zinc-400">(opcional)</span>}</label>
                     <input
                       type="text"
                       value={name}

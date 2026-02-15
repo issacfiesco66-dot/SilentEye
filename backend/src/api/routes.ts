@@ -43,10 +43,45 @@ const authRateLimit = rateLimit({
 
 // Input validation helpers
 const PHONE_REGEX = /^\+?[\d\s\-()]{6,20}$/;
+const CITIZEN_PHONE_REGEX = /^\+?\d[\d\s\-()]{9,19}$/; // min 10 digits for citizens
 const IMEI_REGEX = /^\d{15}$/;
 
 function isValidPhone(phone: string): boolean {
   return typeof phone === 'string' && PHONE_REGEX.test(phone.trim()) && phone.trim().length <= 20;
+}
+
+/** Stricter validation for citizen registration: requires at least 10 actual digits */
+function isValidCitizenPhone(phone: string): boolean {
+  if (!isValidPhone(phone)) return false;
+  const digits = phone.replace(/[^\d]/g, '');
+  return digits.length >= 10 && CITIZEN_PHONE_REGEX.test(phone.trim());
+}
+
+/** Per-phone cooldown: returns seconds remaining if too soon, 0 if ok */
+async function checkPhoneCooldown(phone: string, cooldownSec: number): Promise<number> {
+  try {
+    const r = await pool.query(
+      `SELECT EXTRACT(EPOCH FROM (NOW() - MAX(created_at)))::int as elapsed
+       FROM otp_codes WHERE phone = $1 AND created_at > NOW() - INTERVAL '5 minutes'`,
+      [phone]
+    );
+    const elapsed = r.rows[0]?.elapsed;
+    if (elapsed !== null && elapsed < cooldownSec) {
+      return cooldownSec - elapsed;
+    }
+  } catch { /* ignore if column issues */ }
+  return 0;
+}
+
+/** Per-phone hourly limit */
+async function checkPhoneHourlyLimit(phone: string, maxPerHour: number): Promise<boolean> {
+  try {
+    const r = await pool.query(
+      `SELECT COUNT(*)::int as cnt FROM otp_codes WHERE phone = $1 AND created_at > NOW() - INTERVAL '1 hour'`,
+      [phone]
+    );
+    return (r.rows[0]?.cnt ?? 0) < maxPerHour;
+  } catch { return true; }
 }
 
 function isValidImeiInput(imei: string): boolean {
@@ -159,15 +194,50 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
     }
 
     if (phone && typeof phone === 'string') {
-      if (!isValidPhone(phone)) {
-        res.status(400).json({ error: 'Teléfono inválido. Usa formato: +52 222 123 4567' });
+      const isCitizen = mode === 'citizen';
+
+      // Citizen mode: stricter phone validation (min 10 digits)
+      if (isCitizen) {
+        if (!isValidCitizenPhone(phone)) {
+          res.status(400).json({ error: 'Teléfono inválido. Ingresa un número real con al menos 10 dígitos, ej: +52 222 123 4567' });
+          return;
+        }
+      } else {
+        if (!isValidPhone(phone)) {
+          res.status(400).json({ error: 'Teléfono inválido. Usa formato: +52 222 123 4567' });
+          return;
+        }
+      }
+
+      const cleanPhone = phone.trim();
+
+      // Per-phone cooldown (60s for citizens, 30s for admin/helper)
+      const cooldownSec = isCitizen ? 60 : 30;
+      const remaining = await checkPhoneCooldown(cleanPhone, cooldownSec);
+      if (remaining > 0) {
+        res.status(429).json({ error: `Espera ${remaining} segundos antes de solicitar otro código` });
         return;
       }
-      // Admin, helper, or citizen: login with phone
-      const role = mode === 'citizen' ? 'citizen' : undefined;
-      const code = await createOtp(phone.trim());
-      await findOrCreateUser(phone.trim(), undefined, role);
-      res.json(showCode ? { success: true, code } : { success: true });
+
+      // Per-phone hourly limit (5 for citizens, 10 for admin/helper)
+      const hourlyLimit = isCitizen ? 5 : 10;
+      const withinLimit = await checkPhoneHourlyLimit(cleanPhone, hourlyLimit);
+      if (!withinLimit) {
+        res.status(429).json({ error: 'Demasiados códigos solicitados. Intenta en 1 hora.' });
+        return;
+      }
+
+      const code = await createOtp(cleanPhone);
+
+      // For admin/helper: find or create user and optionally show code
+      // For citizen: do NOT create user yet (only on verify) and NEVER show code
+      if (!isCitizen) {
+        await findOrCreateUser(cleanPhone);
+        res.json(showCode ? { success: true, code } : { success: true });
+      } else {
+        // Citizen: never return code — they must receive it via a real channel
+        res.json({ success: true });
+      }
       return;
     }
 
@@ -214,18 +284,37 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
     }
 
     if (phone && typeof phone === 'string') {
-      if (!isValidPhone(phone)) {
-        res.status(400).json({ error: 'Teléfono inválido' });
-        return;
+      const isCitizen = mode === 'citizen';
+
+      // Citizen: stricter phone validation
+      if (isCitizen) {
+        if (!isValidCitizenPhone(phone)) {
+          res.status(400).json({ error: 'Teléfono inválido. Mínimo 10 dígitos.' });
+          return;
+        }
+      } else {
+        if (!isValidPhone(phone)) {
+          res.status(400).json({ error: 'Teléfono inválido' });
+          return;
+        }
       }
-      // Admin/citizen: verificar por teléfono
+
       const { valid, user: existingUser, error: otpError } = await verifyOtp(phone.trim(), code);
       if (!valid) {
         res.status(401).json({ error: otpError || 'Código inválido o expirado' });
         return;
       }
-      const role = mode === 'citizen' ? 'citizen' : undefined;
-      const user = existingUser ?? await findOrCreateUser(phone, name, role);
+
+      // For new citizen accounts: require a real name
+      if (isCitizen && !existingUser) {
+        if (!name || typeof name !== 'string' || name.trim().length < 2) {
+          res.status(400).json({ error: 'Tu nombre es requerido para registrarte (mín. 2 caracteres)' });
+          return;
+        }
+      }
+
+      const role = isCitizen ? 'citizen' : undefined;
+      const user = existingUser ?? await findOrCreateUser(phone.trim(), name?.trim(), role);
       const token = signToken({ userId: user.id, role: user.role });
       res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
       return;
