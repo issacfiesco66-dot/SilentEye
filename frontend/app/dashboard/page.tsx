@@ -6,6 +6,7 @@ import Link from 'next/link';
 import MapView from '@/components/MapView';
 import HelperDashboardLayout from '@/components/helper/HelperDashboardLayout';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { usePushNotifications } from '@/lib/usePushNotifications';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -42,6 +43,9 @@ export default function DashboardPage() {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [liveLocations, setLiveLocations] = useState<Record<string, Location>>({});
   const [selectedIncident, setSelectedIncident] = useState<string | null>(null);
+  const [pushToken, setPushToken] = useState<string | null>(null);
+
+  usePushNotifications(pushToken);
 
   const SESSION_MAX_HOURS = 8;
 
@@ -75,9 +79,7 @@ export default function DashboardPage() {
       }
       // Normalizar role por si viene con mayúsculas
       setUser({ ...parsed, role: role as User['role'] });
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
-      }
+      setPushToken(t);
     } catch {
       localStorage.removeItem('token');
       localStorage.removeItem('user');

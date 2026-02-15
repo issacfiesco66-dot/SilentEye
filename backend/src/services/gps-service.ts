@@ -3,6 +3,7 @@ import { hasPostGis } from '../db/postgis-check.js';
 import type { AVLRecord } from '../teltonika/avl-decoder.js';
 import { logger } from '../utils/logger.js';
 import { broadcastLocation, broadcastPanic } from './websocket.js';
+import { sendPushToUsers } from './push-service.js';
 
 const PANIC_TRACKING_INTERVAL_SEC = 4;
 const NEARBY_DRIVERS_RADIUS_M = parseInt(process.env.PANIC_ALERT_RADIUS_M || '2000', 10) || 2000; // 1–3 km
@@ -145,6 +146,18 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
         },
         nearbyDrivers.map((d: { id: string }) => d.id)
       );
+      // Push notifications (non-blocking)
+      sendPushToUsers(
+        nearbyDrivers.map((d: { id: string }) => d.id),
+        {
+          title: 'ALERTA DE PÁNICO',
+          body: `${vehicle?.plate ?? 'Vehículo'} (IMEI: ${imei}) necesita ayuda`,
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
+          tag: `panic-${incident.id}`,
+          data: { url: '/dashboard', incidentId: incident.id, latitude, longitude },
+        }
+      ).catch((err) => logger.error('Push send error (GPS panic):', err));
       logger.info(`PANIC IMEI=${imei} conductores_cercanos=${nearbyDrivers.length}`);
     } else {
       const incidentResult = await client.query(
@@ -186,6 +199,18 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
         },
         nearbyDrivers.map((d: { id: string }) => d.id)
       );
+      // Push notifications (non-blocking)
+      sendPushToUsers(
+        nearbyDrivers.map((d: { id: string }) => d.id),
+        {
+          title: 'ALERTA DE PÁNICO',
+          body: `${vehicle?.plate ?? 'Vehículo'} (IMEI: ${imei}) necesita ayuda`,
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
+          tag: `panic-${incident.id}`,
+          data: { url: '/dashboard', incidentId: incident.id, latitude, longitude },
+        }
+      ).catch((err) => logger.error('Push send error (GPS panic simple):', err));
       logger.info(`PANIC IMEI=${imei} conductores_cercanos=${nearbyDrivers.length}`);
     }
   } finally {

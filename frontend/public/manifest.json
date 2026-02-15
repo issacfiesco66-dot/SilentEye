@@ -2,20 +2,22 @@
   "name": "SilentEye - Seguridad Vehicular",
   "short_name": "SilentEye",
   "description": "Plataforma de seguridad vehicular con GPS y botón de pánico",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#1e40af",
+  "background_color": "#ffffff",
+  "theme_color": "#18181b",
   "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

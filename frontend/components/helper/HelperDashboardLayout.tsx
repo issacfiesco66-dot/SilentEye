@@ -8,6 +8,7 @@ import HelperMapSection from './HelperMapSection';
 import SinIncidentePlaceholder from './SinIncidentePlaceholder';
 import DriverMyVehiclesMap from './DriverMyVehiclesMap';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { usePushNotifications } from '@/lib/usePushNotifications';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -59,6 +60,9 @@ export default function HelperDashboardLayout() {
   const [loading, setLoading] = useState(true);
   const [lastLocationSentAt, setLastLocationSentAt] = useState<number | null>(null);
   const [helperLocation, setHelperLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [pushToken, setPushToken] = useState<string | null>(null);
+
+  usePushNotifications(pushToken);
 
   // Incidente activo: el primero que está active o attending
   const activeIncident = incidents.find(
@@ -94,9 +98,7 @@ export default function HelperDashboardLayout() {
         return;
       }
       setUser({ ...u, role });
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
-      }
+      setPushToken(token);
     } catch {
       localStorage.removeItem('token');
       localStorage.removeItem('user');

@@ -11,6 +11,7 @@ import {
 } from './auth.js';
 import { getAlerts, deleteAlerts } from '../services/alert-service.js';
 import { broadcastPanic } from '../services/websocket.js';
+import { sendPushToUsers, saveSubscription, removeSubscription, getVapidPublicKey } from '../services/push-service.js';
 import { logger } from '../utils/logger.js';
 import { runMigrate } from '../db/run-migrate.js';
 import { runSeed } from '../db/run-seed.js';
@@ -718,15 +719,20 @@ api.get('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req,
 
 api.get('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const r = await pool.query(
-    'SELECT id, phone, name, role, is_active, last_location_at, created_at FROM users WHERE id = $1',
-    [id]
-  );
-  if (!r.rows[0]) {
-    res.status(404).json({ error: 'Usuario no encontrado' });
-    return;
+  try {
+    const r = await pool.query(
+      'SELECT id, phone, name, role, is_active, last_location_at, created_at FROM users WHERE id = $1',
+      [id]
+    );
+    if (!r.rows[0]) {
+      res.status(404).json({ error: 'Usuario no encontrado' });
+      return;
+    }
+    res.json(r.rows[0]);
+  } catch (err) {
+    logger.error('GET /users/:id error:', err);
+    res.status(500).json({ error: 'Error al obtener usuario' });
   }
-  res.json(r.rows[0]);
 }));
 
 api.post('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
@@ -942,6 +948,19 @@ api.post('/panic', authMiddleware, panicRateLimit, asyncHandler(async (req, res)
 
     await client.query('COMMIT');
 
+    // Send push notifications (non-blocking, after commit)
+    sendPushToUsers(
+      nearbyDrivers.map((d) => d.id),
+      {
+        title: 'ALERTA DE PÁNICO',
+        body: `${vehicle?.plate ?? user.name ?? 'SOS Móvil'} necesita ayuda`,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        tag: `panic-${incident.id}`,
+        data: { url: '/dashboard', incidentId: incident.id, latitude, longitude },
+      }
+    ).catch((err) => logger.error('Push send error (mobile panic):', err));
+
     logger.info(`MOBILE PANIC userId=${userId} name=${user.name} lat=${latitude} lng=${longitude} nearby=${nearbyDrivers.length}`);
 
     res.json({
@@ -992,6 +1011,50 @@ api.post('/location', authMiddleware, locationRateLimit, asyncHandler(async (req
   res.json({ success: true });
 }));
 
+// ── Push Notifications ──────────────────────────────────────────────────────
+
+api.get('/push/vapid-key', (_req, res) => {
+  const key = getVapidPublicKey();
+  if (!key) {
+    res.status(503).json({ error: 'Push notifications no configuradas' });
+    return;
+  }
+  res.json({ publicKey: key });
+});
+
+api.post('/push/subscribe', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const { subscription } = req.body;
+  if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+    res.status(400).json({ error: 'Subscription inválida' });
+    return;
+  }
+  try {
+    await saveSubscription(userId, subscription);
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('POST /push/subscribe error:', err);
+    res.status(500).json({ error: 'Error al guardar subscription' });
+  }
+}));
+
+api.post('/push/unsubscribe', authMiddleware, asyncHandler(async (req, res) => {
+  const { endpoint } = req.body;
+  if (!endpoint) {
+    res.status(400).json({ error: 'Endpoint requerido' });
+    return;
+  }
+  try {
+    await removeSubscription(endpoint);
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('POST /push/unsubscribe error:', err);
+    res.status(500).json({ error: 'Error al eliminar subscription' });
+  }
+}));
+
+// ── Delete user ─────────────────────────────────────────────────────────────
+
 api.delete('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { userId } = (req as any).user;
@@ -999,10 +1062,17 @@ api.delete('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(asyn
     res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
     return;
   }
-  const r = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [id]);
-  if (!r.rows[0]) {
-    res.status(404).json({ error: 'Usuario no encontrado' });
-    return;
+  try {
+    // Unassign user from vehicles first (FK has no ON DELETE CASCADE)
+    await pool.query('UPDATE vehicles SET driver_id = NULL WHERE driver_id = $1', [id]);
+    const r = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [id]);
+    if (!r.rows[0]) {
+      res.status(404).json({ error: 'Usuario no encontrado' });
+      return;
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('DELETE /users/:id error:', err);
+    res.status(500).json({ error: 'Error al eliminar usuario' });
   }
-  res.json({ success: true });
 }));

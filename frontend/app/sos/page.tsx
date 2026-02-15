@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
+import { usePushNotifications } from '@/lib/usePushNotifications';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -26,6 +27,8 @@ interface IncomingAlert {
 export default function SOSPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
+
+  usePushNotifications(token);
   const [userName, setUserName] = useState<string>('');
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string>('');
