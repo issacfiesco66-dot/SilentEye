@@ -12,6 +12,7 @@ import {
 import { getAlerts, deleteAlerts } from '../services/alert-service.js';
 import { broadcastPanic } from '../services/websocket.js';
 import { sendPushToUsers, saveSubscription, removeSubscription, getVapidPublicKey } from '../services/push-service.js';
+import { sendOtpSms, isSmsEnabled } from '../services/sms-service.js';
 import { logger } from '../utils/logger.js';
 import { runMigrate } from '../db/run-migrate.js';
 import { runSeed } from '../db/run-seed.js';
@@ -230,13 +231,24 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       const code = await createOtp(cleanPhone);
 
       // For admin/helper: find or create user and optionally show code
-      // For citizen: do NOT create user yet (only on verify) and NEVER show code
+      // For citizen: send OTP via SMS and NEVER return code in response
       if (!isCitizen) {
         await findOrCreateUser(cleanPhone);
         res.json(showCode ? { success: true, code } : { success: true });
       } else {
-        // Citizen: never return code — they must receive it via a real channel
-        res.json({ success: true });
+        // Citizen: send OTP via Twilio SMS
+        if (isSmsEnabled()) {
+          const sent = await sendOtpSms(cleanPhone, code);
+          if (!sent) {
+            res.status(500).json({ error: 'No se pudo enviar el SMS. Verifica tu número e intenta de nuevo.' });
+            return;
+          }
+          res.json({ success: true, smsSent: true });
+        } else {
+          // Fallback: SMS not configured — block citizen registration
+          logger.warn(`OTP citizen sin SMS: phone=***${cleanPhone.slice(-4)}`);
+          res.status(503).json({ error: 'Servicio de verificación SMS no disponible. Intenta más tarde.' });
+        }
       }
       return;
     }

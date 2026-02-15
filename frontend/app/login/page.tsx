@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [smsSent, setSmsSent] = useState(false);
 
   const requestOtp = async () => {
     setLoading(true);
@@ -51,6 +52,9 @@ export default function LoginPage() {
       // Only auto-fill code for driver/admin modes (never for citizen)
       if (data.code && mode !== 'citizen') {
         setCode(data.code);
+      }
+      if (data.smsSent) {
+        setSmsSent(true);
       }
     } catch (e: unknown) {
       setError((e as Error).message || 'Error. ¿El backend está corriendo?');
@@ -101,6 +105,7 @@ export default function LoginPage() {
     setStep('input');
     setCode('');
     setError('');
+    setSmsSent(false);
   };
 
   return (
@@ -222,6 +227,12 @@ export default function LoginPage() {
                     : <>Código enviado a <span className="font-semibold text-zinc-700">{mode === 'driver' ? 'tu teléfono registrado' : phone}</span></>
                   }
                 </p>
+                {smsSent && mode === 'citizen' && (
+                  <div className="flex items-center gap-2 px-3 py-2.5 mb-4 bg-blue-50 border border-blue-100 rounded-lg">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
+                    <span className="text-[13px] text-blue-700 font-medium">SMS enviado &mdash; revisa tu teléfono</span>
+                  </div>
+                )}
                 {code && mode !== 'citizen' && (
                   <div className="flex items-center gap-2 px-3 py-2.5 mb-4 bg-emerald-50 border border-emerald-100 rounded-lg">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
