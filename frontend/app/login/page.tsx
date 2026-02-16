@@ -13,30 +13,36 @@ export default function LoginPage() {
   const [step, setStep] = useState<'input' | 'otp'>('input');
   const [imei, setImei] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [smsSent, setSmsSent] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const requestOtp = async () => {
     setLoading(true);
     setError('');
     try {
-      const body = mode === 'driver'
-        ? { imei: imei.trim() }
-        : { phone: phone.trim(), mode: mode === 'citizen' ? 'citizen' : undefined };
-      const identifier = mode === 'driver' ? imei.trim() : phone.trim();
+      let body: Record<string, string | undefined>;
+      if (mode === 'driver') {
+        body = { imei: imei.trim() };
+      } else if (mode === 'citizen') {
+        body = { email: email.trim().toLowerCase(), mode: 'citizen' };
+      } else {
+        body = { phone: phone.trim() };
+      }
+      const identifier = mode === 'driver' ? imei.trim() : mode === 'citizen' ? email.trim() : phone.trim();
       if (!identifier) {
-        setError(mode === 'driver' ? 'Ingresa el número de GPS (IMEI)' : 'Ingresa tu teléfono');
+        setError(mode === 'driver' ? 'Ingresa el número de GPS (IMEI)' : mode === 'citizen' ? 'Ingresa tu correo electrónico' : 'Ingresa tu teléfono');
         setLoading(false);
         return;
       }
-      // Client-side validation for citizen phone (min 10 digits)
+      // Client-side email validation for citizen
       if (mode === 'citizen') {
-        const digits = phone.replace(/[^\d]/g, '');
-        if (digits.length < 10) {
-          setError('Ingresa un número de teléfono real con al menos 10 dígitos');
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email.trim())) {
+          setError('Ingresa un correo electrónico válido');
           setLoading(false);
           return;
         }
@@ -53,8 +59,8 @@ export default function LoginPage() {
       if (data.code && mode !== 'citizen') {
         setCode(data.code);
       }
-      if (data.smsSent) {
-        setSmsSent(true);
+      if (data.emailSent) {
+        setEmailSent(true);
       }
     } catch (e: unknown) {
       setError((e as Error).message || 'Error. ¿El backend está corriendo?');
@@ -80,9 +86,14 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const body = mode === 'driver'
-        ? { imei: imei.trim(), code: code.trim() }
-        : { phone: phone.trim(), code: code.trim(), name: name.trim() || undefined, mode: mode === 'citizen' ? 'citizen' : undefined };
+      let body: Record<string, string | undefined>;
+      if (mode === 'driver') {
+        body = { imei: imei.trim(), code: code.trim() };
+      } else if (mode === 'citizen') {
+        body = { email: email.trim().toLowerCase(), code: code.trim(), name: name.trim() || undefined, mode: 'citizen' };
+      } else {
+        body = { phone: phone.trim(), code: code.trim(), name: name.trim() || undefined };
+      }
       const res = await fetch(`${API}/api/auth/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -105,7 +116,7 @@ export default function LoginPage() {
     setStep('input');
     setCode('');
     setError('');
-    setSmsSent(false);
+    setEmailSent(false);
   };
 
   return (
@@ -192,17 +203,17 @@ export default function LoginPage() {
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
                       <span className="text-[13px] text-red-600 font-medium">Botón de emergencia ciudadano</span>
                     </div>
-                    <p className="text-[12px] text-zinc-400 px-1">Ingresa tu número real. Se requiere verificación por código.</p>
+                    <p className="text-[12px] text-zinc-400 px-1">Ingresa tu correo electrónico. Recibirás un código de verificación.</p>
                   </div>
                 )}
                 <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">
-                  {mode === 'driver' ? 'Número de GPS (IMEI)' : 'Número de teléfono'}
+                  {mode === 'driver' ? 'Número de GPS (IMEI)' : mode === 'citizen' ? 'Correo electrónico' : 'Número de teléfono'}
                 </label>
                 <input
-                  type={mode === 'driver' ? 'text' : 'tel'}
-                  value={mode === 'driver' ? imei : phone}
-                  onChange={(e) => mode === 'driver' ? setImei(e.target.value) : setPhone(e.target.value)}
-                  placeholder={mode === 'driver' ? '353691846029642' : '+52 222 123 4567'}
+                  type={mode === 'driver' ? 'text' : mode === 'citizen' ? 'email' : 'tel'}
+                  value={mode === 'driver' ? imei : mode === 'citizen' ? email : phone}
+                  onChange={(e) => mode === 'driver' ? setImei(e.target.value) : mode === 'citizen' ? setEmail(e.target.value) : setPhone(e.target.value)}
+                  placeholder={mode === 'driver' ? 'Ej: 123456789012345' : mode === 'citizen' ? 'tu@correo.com' : '+52 222 123 4567'}
                   className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all mb-1.5"
                 />
                 {mode === 'driver' && (
@@ -223,14 +234,14 @@ export default function LoginPage() {
               <>
                 <p className="text-zinc-500 text-[13px] mb-4">
                   {mode === 'citizen'
-                    ? <>Ingresa el código de verificación para <span className="font-semibold text-zinc-700">{phone}</span></>
+                    ? <>Ingresa el código de verificación enviado a <span className="font-semibold text-zinc-700">{email}</span></>
                     : <>Código enviado a <span className="font-semibold text-zinc-700">{mode === 'driver' ? 'tu teléfono registrado' : phone}</span></>
                   }
                 </p>
-                {smsSent && mode === 'citizen' && (
+                {emailSent && mode === 'citizen' && (
                   <div className="flex items-center gap-2 px-3 py-2.5 mb-4 bg-blue-50 border border-blue-100 rounded-lg">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
-                    <span className="text-[13px] text-blue-700 font-medium">SMS enviado &mdash; revisa tu teléfono</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                    <span className="text-[13px] text-blue-700 font-medium">Código enviado a tu correo &mdash; revisa tu bandeja de entrada</span>
                   </div>
                 )}
                 {code && mode !== 'citizen' && (
@@ -271,7 +282,7 @@ export default function LoginPage() {
                   onClick={resetForm}
                   className="w-full text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
                 >
-                  ← Cambiar {mode === 'driver' ? 'IMEI' : 'teléfono'}
+                  ← Cambiar {mode === 'driver' ? 'IMEI' : mode === 'citizen' ? 'correo' : 'teléfono'}
                 </button>
               </>
             )}
@@ -285,7 +296,7 @@ export default function LoginPage() {
           </div>
 
           <p className="text-zinc-300 text-[12px] text-center mt-8">
-            SOS: teléfono &middot; Conductor: IMEI del GPS &middot; Admin: teléfono
+            SOS: correo electrónico &middot; Conductor: IMEI del GPS &middot; Admin: teléfono
           </p>
         </div>
       </div>
