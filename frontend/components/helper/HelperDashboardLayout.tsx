@@ -294,7 +294,23 @@ export default function HelperDashboardLayout() {
             <SinIncidentePlaceholder wsConnected={wsConnected} />
           )
         ) : (
-          <>
+          <div className="flex-1 flex flex-col gap-3 min-h-0">
+            {/* Map first — takes most of the screen */}
+            <div className="flex-1 min-h-[50vh]">
+              <HelperMapSection
+                incident={activeIncident}
+                vehicleLocation={
+                  liveLocations[activeIncident.vehicle_id!] ??
+                  liveLocations[activeIncident.imei!] ??
+                  Object.values(liveLocations).find(
+                    (l) => l.plate === activeIncident.plate || l.imei === activeIncident.imei
+                  )
+                }
+                onLocationSent={() => setLastLocationSentAt(Date.now())}
+                onHelperLocationChange={setHelperLocation}
+              />
+            </div>
+            {/* Incident card below map */}
             <HelperIncidentCard
               incident={activeIncident}
               helperLocation={helperLocation}
@@ -308,19 +324,7 @@ export default function HelperDashboardLayout() {
               onStatusChange={fetchIncidents}
               onDecline={onIncidentCleared}
             />
-            <HelperMapSection
-              incident={activeIncident}
-              vehicleLocation={
-                liveLocations[activeIncident.vehicle_id!] ??
-                liveLocations[activeIncident.imei!] ??
-                Object.values(liveLocations).find(
-                  (l) => l.plate === activeIncident.plate || l.imei === activeIncident.imei
-                )
-              }
-              onLocationSent={() => setLastLocationSentAt(Date.now())}
-              onHelperLocationChange={setHelperLocation}
-            />
-          </>
+          </div>
         )}
       </main>
     </div>

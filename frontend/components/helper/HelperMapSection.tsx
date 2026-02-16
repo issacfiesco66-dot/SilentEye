@@ -176,7 +176,7 @@ export default function HelperMapSection({
   }, [onLocationSent]);
 
   return (
-    <div className="flex-1 min-h-[300px] rounded-xl overflow-hidden bg-slate-800 border border-slate-700 relative">
+    <div className="w-full h-full min-h-[300px] rounded-xl overflow-hidden bg-slate-800 border border-slate-700 relative">
       {!geoReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-800/90 z-10">
           <span className="text-slate-400">Obteniendo ubicación…</span>
@@ -192,6 +192,14 @@ export default function HelperMapSection({
             selectedId={incident.id}
             onSelectIncident={() => {}}
             centerOnIncidentId={incident.id}
+            routeLine={
+              localHelperLoc
+                ? [
+                    [localHelperLoc.longitude ?? 0, localHelperLoc.latitude ?? 0],
+                    [vehicleCoords.longitude, vehicleCoords.latitude],
+                  ]
+                : undefined
+            }
           />
           <button
             onClick={centerOnIncident}

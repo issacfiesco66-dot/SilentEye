@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Map, { Marker } from 'react-map-gl';
+import Map, { Marker, Source, Layer } from 'react-map-gl';
 import type { MapRef } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -32,6 +32,7 @@ export default function MapboxMap({
   selectedId,
   onSelectIncident,
   centerOnIncidentId,
+  routeLine,
 }: {
   token: string;
   incidents: Incident[];
@@ -39,6 +40,7 @@ export default function MapboxMap({
   selectedId: string | null;
   onSelectIncident: (id: string | null) => void;
   centerOnIncidentId?: string | null;
+  routeLine?: [number, number][];
 }) {
   const [userLocation, setUserLocation] = useState<{ longitude: number; latitude: number } | null>(null);
   const [geoReady, setGeoReady] = useState(false);
@@ -161,6 +163,31 @@ export default function MapboxMap({
             </div>
           </Marker>
         ))}
+        {routeLine && routeLine.length >= 2 && (
+          <Source
+            id="route-line"
+            type="geojson"
+            data={{
+              type: 'Feature',
+              properties: {},
+              geometry: {
+                type: 'LineString',
+                coordinates: routeLine,
+              },
+            }}
+          >
+            <Layer
+              id="route-line-layer"
+              type="line"
+              paint={{
+                'line-color': '#2563eb',
+                'line-width': 3,
+                'line-dasharray': [2, 2],
+                'line-opacity': 0.8,
+              }}
+            />
+          </Source>
+        )}
         {liveLocations.map((loc, idx) => (
           <Marker
             key={`loc-${loc.imei || loc.vehicleId || idx}`}
