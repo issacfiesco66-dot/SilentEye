@@ -17,6 +17,13 @@ export default function AdminPage() {
   const [user, setUser] = useState<{ id: string; role: string } | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('incidents');
 
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('loginAt');
+    window.location.href = '/login';
+  };
+
   const SESSION_MAX_HOURS = 8;
 
   useEffect(() => {
@@ -61,7 +68,12 @@ export default function AdminPage() {
           Dashboard
         </Link>
         <span className="text-sm font-bold tracking-tight">Administración</span>
-        <div className="w-20" />
+        <button
+          onClick={handleLogout}
+          className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
+        >
+          Salir
+        </button>
       </header>
 
       <div className="p-4 md:p-6 max-w-6xl mx-auto">

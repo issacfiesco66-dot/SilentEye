@@ -18,8 +18,8 @@ const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || '200', 10);
 
 const app = express();
 
-// Cloudflare: OBLIGATORIO antes de cualquier middleware (rate-limit, auth, etc.)
-app.set('trust proxy', true);
+// Fly.io / Cloudflare: trust only the IMMEDIATE proxy (1 hop). Never use `true` — it trusts ALL X-Forwarded-For headers.
+app.set('trust proxy', 1);
 
 // CORS: en producción solo dominios explícitos; nunca origin: true
 const isProd = process.env.NODE_ENV === 'production';
@@ -50,8 +50,9 @@ app.use((_req, res, next) => {
   res.setHeader('X-XSS-Protection', '0');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'geolocation=(self), camera=(), microphone=()');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
   if (isProd) {
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   }
   next();
 });
@@ -108,8 +109,8 @@ app.get('/health/db', async (_req, res) => {
 });
 
 app.get('/health/ws', (_req, res) => {
-  const { total, byRole } = getWebSocketClientCount();
-  res.json({ status: 'ok', websocket: { clients: total, byRole } });
+  const { total } = getWebSocketClientCount();
+  res.json({ status: 'ok', websocket: { clients: total } });
 });
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

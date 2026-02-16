@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
-import { usePushNotifications } from '@/lib/usePushNotifications';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -47,6 +47,8 @@ export default function SOSPage() {
     initAudioOnInteraction();
   }, []);
 
+  const [userRole, setUserRole] = useState<string>('');
+
   // Auth check
   useLayoutEffect(() => {
     try {
@@ -63,6 +65,7 @@ export default function SOSPage() {
       }
       setToken(t);
       setUserName(parsed.name || parsed.phone || '');
+      setUserRole(String(parsed.role || '').toLowerCase());
     } catch {
       window.location.href = '/login';
     }
@@ -253,141 +256,136 @@ export default function SOSPage() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('loginAt');
-    router.replace('/login');
+    window.location.href = '/login';
   };
 
   if (!token) {
-    return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">Cargando...</div>;
+    return <div className="min-h-screen bg-zinc-50 flex items-center justify-center text-zinc-400 text-sm">Cargando...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-white text-zinc-900 flex flex-col">
+    <div className="min-h-screen bg-zinc-50 text-zinc-900 flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-lg border-b border-zinc-100 px-6 h-14 flex items-center justify-between">
-        <Link href="/dashboard" className="flex items-center gap-1 text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-          Dashboard
+      <header className="sticky top-0 z-10 bg-white/90 backdrop-blur-lg border-b border-zinc-200/60 px-4 h-12 flex items-center justify-between">
+        <Link href={userRole === 'citizen' ? '/' : '/dashboard'} className="flex items-center gap-1 text-zinc-400 hover:text-zinc-600 text-xs font-medium transition-colors">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+          {userRole === 'citizen' ? 'Inicio' : 'Dashboard'}
         </Link>
-        <span className="text-sm font-bold tracking-tight">SilentEye SOS</span>
-        <button onClick={handleLogout} className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors">
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+          <span className="text-xs font-bold tracking-tight text-zinc-700">SilentEye SOS</span>
+        </div>
+        <button onClick={handleLogout} className="text-zinc-400 hover:text-zinc-600 text-xs font-medium transition-colors">
           Salir
         </button>
       </header>
 
+      {/* GPS status bar */}
+      <div className="bg-white border-b border-zinc-100 px-4 py-1.5 flex items-center justify-center gap-2">
+        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${coords ? 'bg-emerald-500' : 'bg-amber-400 animate-pulse'}`} />
+        <span className="text-[11px] text-zinc-400 truncate">
+          {coords
+            ? `GPS listo · ±${gpsAccuracy || '?'}m · ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
+            : 'Obteniendo ubicación…'}
+        </span>
+      </div>
+
       {/* Main content */}
-      <main className="flex-1 flex flex-col items-center justify-center px-6 py-8 relative overflow-hidden">
-        {/* Background pulse effect when idle */}
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-6 relative overflow-hidden">
+        {/* Background pulse — subtle */}
         {status === 'idle' && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-80 h-80 rounded-full bg-red-50 animate-ping" style={{ animationDuration: '3s' }} />
+            <div className="w-52 h-52 rounded-full bg-red-100/40 animate-ping" style={{ animationDuration: '3s' }} />
           </div>
         )}
-
-        {/* Sent success pulse */}
         {status === 'sent' && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-96 h-96 rounded-full bg-emerald-50 animate-ping" style={{ animationDuration: '2s' }} />
+            <div className="w-56 h-56 rounded-full bg-emerald-100/40 animate-ping" style={{ animationDuration: '2s' }} />
           </div>
         )}
 
-        {/* User greeting */}
-        <p className="text-zinc-400 text-sm mb-2">
-          {userName ? `Hola, ${userName}` : 'SOS Móvil'}
-        </p>
+        {/* Greeting */}
+        {userName && (
+          <p className="text-zinc-400 text-xs mb-4">Hola, {userName}</p>
+        )}
 
-        {/* GPS status */}
-        <div className="flex items-center gap-2 mb-8">
-          <div className={`w-2 h-2 rounded-full ${coords ? 'bg-emerald-500' : 'bg-amber-400 animate-pulse'}`} />
-          <span className="text-xs text-zinc-400">
-            {coords
-              ? `GPS activo · ${gpsAccuracy ? `±${gpsAccuracy}m` : ''} · ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`
-              : 'Obteniendo ubicación...'}
-          </span>
-        </div>
-
-        {/* Panic button */}
+        {/* SOS button */}
         <button
           onClick={handlePanic}
           disabled={status === 'sending' || status === 'locating' || countdown > 0}
           className={`
-            relative w-56 h-56 rounded-full font-bold text-2xl uppercase tracking-widest
+            relative w-36 h-36 rounded-full font-bold text-xl uppercase tracking-widest
             transition-all duration-300 select-none
-            focus:outline-none focus:ring-4 focus:ring-offset-4 focus:ring-offset-white
+            focus:outline-none focus:ring-4 focus:ring-offset-2 focus:ring-offset-zinc-50
             ${status === 'idle'
-              ? 'bg-red-600 text-white shadow-xl shadow-red-600/25 hover:shadow-red-600/40 hover:scale-105 active:scale-95 focus:ring-red-500/30'
+              ? 'bg-red-600 text-white shadow-lg shadow-red-600/20 hover:shadow-red-600/35 hover:scale-105 active:scale-95 focus:ring-red-500/30'
               : status === 'locating' || status === 'sending'
-              ? 'bg-amber-500 text-white shadow-xl shadow-amber-500/20 animate-pulse cursor-wait'
+              ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/15 animate-pulse cursor-wait'
               : status === 'sent'
-              ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20'
-              : 'bg-zinc-200 text-zinc-500 shadow-lg'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/15'
+              : 'bg-zinc-200 text-zinc-500 shadow'
             }
           `}
         >
-          {/* Outer ring animation */}
           {status === 'idle' && (
-            <>
-              <span className="absolute inset-0 rounded-full border-4 border-red-300/30 animate-ping" style={{ animationDuration: '2s' }} />
-              <span className="absolute -inset-3 rounded-full border-2 border-red-400/15 animate-ping" style={{ animationDuration: '3s' }} />
-            </>
+            <span className="absolute inset-0 rounded-full border-[3px] border-red-300/25 animate-ping" style={{ animationDuration: '2s' }} />
           )}
 
-          {status === 'idle' && <span>SOS</span>}
+          {status === 'idle' && 'SOS'}
           {status === 'locating' && (
-            <span className="text-lg">
-              <svg className="mx-auto mb-2" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8Z"/><circle cx="12" cy="10" r="3"/></svg>
-              Ubicando...
+            <span className="flex flex-col items-center text-sm gap-1">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8Z"/><circle cx="12" cy="10" r="3"/></svg>
+              Ubicando
             </span>
           )}
           {status === 'sending' && (
-            <span className="text-lg">
-              <svg className="mx-auto mb-2" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4 20-7Z"/></svg>
-              Enviando...
+            <span className="flex flex-col items-center text-sm gap-1">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4 20-7Z"/></svg>
+              Enviando
             </span>
           )}
           {status === 'sent' && (
-            <span className="text-lg">
-              <svg className="mx-auto mb-2" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
+            <span className="flex flex-col items-center text-sm gap-1">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
               Enviado
             </span>
           )}
           {status === 'error' && (
-            <span className="text-base">
-              <svg className="mx-auto mb-2" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+            <span className="flex flex-col items-center text-xs gap-1">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
               Reintentar
             </span>
           )}
         </button>
 
-        {/* Status messages */}
-        <div className="mt-8 text-center min-h-[80px]">
+        {/* Status feedback */}
+        <div className="mt-5 text-center min-h-[56px] max-w-xs">
           {status === 'idle' && (
-            <p className="text-zinc-400 text-sm max-w-xs">
+            <p className="text-zinc-400 text-xs leading-relaxed">
               Presiona el botón para enviar una alerta de emergencia con tu ubicación
             </p>
           )}
 
           {status === 'sent' && result && (
-            <div className="space-y-2">
-              <p className="text-emerald-600 font-semibold">Alerta enviada correctamente</p>
-              <p className="text-zinc-500 text-sm">
+            <div className="space-y-1">
+              <p className="text-emerald-600 font-semibold text-sm">Alerta enviada</p>
+              <p className="text-zinc-500 text-xs">
                 {result.nearbyCount > 0
-                  ? `${result.nearbyCount} persona${result.nearbyCount > 1 ? 's' : ''} cercana${result.nearbyCount > 1 ? 's' : ''} notificada${result.nearbyCount > 1 ? 's' : ''}`
+                  ? `${result.nearbyCount} persona${result.nearbyCount > 1 ? 's' : ''} notificada${result.nearbyCount > 1 ? 's' : ''}`
                   : 'Administradores notificados'}
               </p>
               {countdown > 0 && (
-                <p className="text-zinc-400 text-xs mt-2">
-                  Puedes enviar otra alerta en {countdown}s
-                </p>
+                <p className="text-zinc-400 text-[11px]">Nueva alerta en {countdown}s</p>
               )}
             </div>
           )}
 
           {status === 'error' && (
-            <div className="space-y-2">
-              <p className="text-red-600 font-semibold">{error}</p>
+            <div className="space-y-1.5">
+              <p className="text-red-600 font-medium text-xs">{error}</p>
               <button
                 onClick={() => { setStatus('idle'); setError(''); }}
-                className="text-zinc-400 hover:text-zinc-600 text-sm underline transition-colors"
+                className="text-zinc-400 hover:text-zinc-600 text-xs underline transition-colors"
               >
                 Intentar de nuevo
               </button>
@@ -395,41 +393,49 @@ export default function SOSPage() {
           )}
 
           {(status === 'locating' || status === 'sending') && (
-            <p className="text-amber-600 text-sm animate-pulse">
-              {status === 'locating' ? 'Obteniendo tu ubicación GPS...' : 'Enviando alerta de emergencia...'}
+            <p className="text-amber-600 text-xs animate-pulse">
+              {status === 'locating' ? 'Obteniendo ubicación GPS…' : 'Enviando alerta…'}
             </p>
           )}
         </div>
+
+        {/* Emergency call */}
+        <a
+          href="tel:911"
+          className="mt-4 flex items-center gap-1.5 text-xs text-zinc-400 hover:text-red-600 transition-colors"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
+          Llamar al 911
+        </a>
       </main>
 
-      {/* Incoming alerts from nearby users */}
+      {/* Incoming alerts */}
       {incomingAlerts.length > 0 && (
-        <div className="px-4 pb-4 space-y-2">
-          <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider text-center">
-            Alertas cercanas recibidas
+        <div className="px-4 pb-3 space-y-1.5">
+          <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider text-center">
+            Alertas cercanas
           </p>
           {incomingAlerts.map((a) => (
             <div
               key={a.incidentId}
-              className="p-3 rounded-xl bg-red-50 border border-red-100 text-center animate-pulse"
-              style={{ animationDuration: '2s' }}
+              className="px-3 py-2 rounded-lg bg-red-50 border border-red-100 flex items-center justify-between"
             >
-              <p className="text-red-600 font-semibold text-sm">
-                Emergencia: {a.plate || 'SOS'}
-              </p>
-              <p className="text-zinc-400 text-xs mt-1">
-                {a.latitude.toFixed(4)}, {a.longitude.toFixed(4)} · {new Date(a.timestamp).toLocaleTimeString('es-MX')}
-              </p>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-red-700 font-medium text-xs">{a.plate || 'SOS'}</span>
+              </div>
+              <span className="text-zinc-400 text-[10px]">
+                {a.latitude.toFixed(4)}, {a.longitude.toFixed(4)} · {new Date(a.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+              </span>
             </div>
           ))}
         </div>
       )}
 
-      {/* Footer info */}
-      <footer className="px-6 py-4 border-t border-zinc-100 text-center">
-        <p className="text-zinc-300 text-xs">
-          Tu ubicación se comparte solo durante emergencias.
-          Administradores y personas cercanas serán notificados.
+      {/* Footer */}
+      <footer className="px-4 py-3 border-t border-zinc-200/60 text-center">
+        <p className="text-zinc-300 text-[10px] leading-relaxed">
+          Ubicación compartida solo en emergencias · Admins y personas cercanas serán notificados
         </p>
       </footer>
     </div>

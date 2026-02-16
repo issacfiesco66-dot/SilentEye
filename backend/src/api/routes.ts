@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
+import { createHmac } from 'crypto';
 import { pool } from '../db/pool.js';
 import { hasPostGis } from '../db/postgis-check.js';
 import {
@@ -12,7 +13,7 @@ import {
 import { getAlerts, deleteAlerts } from '../services/alert-service.js';
 import { broadcastPanic } from '../services/websocket.js';
 import { sendPushToUsers, saveSubscription, removeSubscription, getVapidPublicKey } from '../services/push-service.js';
-import { sendOtpSms, isSmsEnabled } from '../services/sms-service.js';
+import { sendOtpEmail, isEmailEnabled, sendHelperRespondingEmail, sendIncidentResolvedEmail, sendWitnessRequestEmail } from '../services/email-service.js';
 import { logger } from '../utils/logger.js';
 import { runMigrate } from '../db/run-migrate.js';
 import { runSeed } from '../db/run-seed.js';
@@ -95,6 +96,12 @@ function isValidCoords(lat: unknown, lng: unknown): boolean {
     && isFinite(lat) && isFinite(lng);
 }
 
+// HMAC signing for witness response URLs (prevents URL tampering)
+function signWitnessToken(incidentId: string, userId: string, response: string): string {
+  const secret = process.env.JWT_SECRET || 'fallback';
+  return createHmac('sha256', secret).update(`${incidentId}:${userId}:${response}`).digest('hex').slice(0, 32);
+}
+
 // Setup: migrar y seed (requiere ?secret=XXX, MIGRATE_SECRET en Fly Secrets)
 const MIGRATE_SECRET = process.env.MIGRATE_SECRET || '';
 function checkSetupSecret(req: import('express').Request): boolean {
@@ -164,11 +171,12 @@ function requireRole(...roles: string[]) {
   };
 }
 
-// Login: conductor con IMEI, admin/helper con teléfono, ciudadano con teléfono+mode
+// Login: conductor con IMEI, admin/helper con teléfono, ciudadano con email+mode
 api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
   try {
-    const { imei, phone, mode } = req.body;
-    const showCode = process.env.OTP_SHOW_IN_PROD === 'true' || process.env.NODE_ENV !== 'production';
+    const { imei, phone, email, mode } = req.body;
+    // SECURITY: NEVER return OTP codes in production responses
+    const showCode = process.env.NODE_ENV !== 'production';
 
     if (imei && typeof imei === 'string') {
       if (!isValidImeiInput(imei)) {
@@ -194,66 +202,75 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       return;
     }
 
-    if (phone && typeof phone === 'string') {
-      const isCitizen = mode === 'citizen';
-
-      // Citizen mode: stricter phone validation (min 10 digits)
-      if (isCitizen) {
-        if (!isValidCitizenPhone(phone)) {
-          res.status(400).json({ error: 'Teléfono inválido. Ingresa un número real con al menos 10 dígitos, ej: +52 222 123 4567' });
-          return;
-        }
-      } else {
-        if (!isValidPhone(phone)) {
-          res.status(400).json({ error: 'Teléfono inválido. Usa formato: +52 222 123 4567' });
-          return;
-        }
+    // Citizen mode: email-based OTP
+    if (mode === 'citizen' && email && typeof email === 'string') {
+      const cleanEmail = email.trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        res.status(400).json({ error: 'Email inválido. Ingresa un correo real, ej: tu@correo.com' });
+        return;
       }
 
-      const cleanPhone = phone.trim();
-
-      // Per-phone cooldown (60s for citizens, 30s for admin/helper)
-      const cooldownSec = isCitizen ? 60 : 30;
-      const remaining = await checkPhoneCooldown(cleanPhone, cooldownSec);
+      // Per-email cooldown (60s)
+      const remaining = await checkPhoneCooldown(cleanEmail, 60);
       if (remaining > 0) {
         res.status(429).json({ error: `Espera ${remaining} segundos antes de solicitar otro código` });
         return;
       }
 
-      // Per-phone hourly limit (5 for citizens, 10 for admin/helper)
-      const hourlyLimit = isCitizen ? 5 : 10;
-      const withinLimit = await checkPhoneHourlyLimit(cleanPhone, hourlyLimit);
+      // Per-email hourly limit (5)
+      const withinLimit = await checkPhoneHourlyLimit(cleanEmail, 5);
+      if (!withinLimit) {
+        res.status(429).json({ error: 'Demasiados códigos solicitados. Intenta en 1 hora.' });
+        return;
+      }
+
+      const code = await createOtp(cleanEmail);
+
+      // Send OTP via email — NEVER return code in response
+      if (isEmailEnabled()) {
+        const sent = await sendOtpEmail(cleanEmail, code);
+        if (!sent) {
+          res.status(500).json({ error: 'No se pudo enviar el correo. Verifica tu email e intenta de nuevo.' });
+          return;
+        }
+        res.json({ success: true, emailSent: true });
+      } else {
+        logger.warn(`OTP citizen sin email: ${cleanEmail}`);
+        res.status(503).json({ error: 'Servicio de verificación por email no disponible. Intenta más tarde.' });
+      }
+      return;
+    }
+
+    if (phone && typeof phone === 'string') {
+      if (!isValidPhone(phone)) {
+        res.status(400).json({ error: 'Teléfono inválido. Usa formato: +52 222 123 4567' });
+        return;
+      }
+
+      const cleanPhone = phone.trim();
+
+      // Per-phone cooldown (30s for admin/helper)
+      const remaining = await checkPhoneCooldown(cleanPhone, 30);
+      if (remaining > 0) {
+        res.status(429).json({ error: `Espera ${remaining} segundos antes de solicitar otro código` });
+        return;
+      }
+
+      // Per-phone hourly limit (10 for admin/helper)
+      const withinLimit = await checkPhoneHourlyLimit(cleanPhone, 10);
       if (!withinLimit) {
         res.status(429).json({ error: 'Demasiados códigos solicitados. Intenta en 1 hora.' });
         return;
       }
 
       const code = await createOtp(cleanPhone);
-
-      // For admin/helper: find or create user and optionally show code
-      // For citizen: send OTP via SMS and NEVER return code in response
-      if (!isCitizen) {
-        await findOrCreateUser(cleanPhone);
-        res.json(showCode ? { success: true, code } : { success: true });
-      } else {
-        // Citizen: send OTP via Twilio SMS
-        if (isSmsEnabled()) {
-          const sent = await sendOtpSms(cleanPhone, code);
-          if (!sent) {
-            res.status(500).json({ error: 'No se pudo enviar el SMS. Verifica tu número e intenta de nuevo.' });
-            return;
-          }
-          res.json({ success: true, smsSent: true });
-        } else {
-          // Fallback: SMS not configured — block citizen registration
-          logger.warn(`OTP citizen sin SMS: phone=***${cleanPhone.slice(-4)}`);
-          res.status(503).json({ error: 'Servicio de verificación SMS no disponible. Intenta más tarde.' });
-        }
-      }
+      await findOrCreateUser(cleanPhone);
+      res.json(showCode ? { success: true, code } : { success: true });
       return;
     }
 
-    res.status(400).json({ error: 'Ingresa el número de GPS (IMEI) o teléfono' });
+    res.status(400).json({ error: 'Ingresa el número de GPS (IMEI), teléfono o email' });
   } catch (err: unknown) {
     logger.error('OTP request error:', err);
     res.status(500).json({ error: 'Error al generar OTP' });
@@ -262,7 +279,7 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
 
 api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
   try {
-    const { imei, phone, code, name, mode } = req.body;
+    const { imei, phone, email, code, name, mode } = req.body;
     if (!code) {
       res.status(400).json({ error: 'Código requerido' });
       return;
@@ -295,20 +312,41 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
       return;
     }
 
-    if (phone && typeof phone === 'string') {
-      const isCitizen = mode === 'citizen';
+    // Citizen: verify by email
+    if (mode === 'citizen' && email && typeof email === 'string') {
+      const cleanEmail = email.trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        res.status(400).json({ error: 'Email inválido' });
+        return;
+      }
 
-      // Citizen: stricter phone validation
-      if (isCitizen) {
-        if (!isValidCitizenPhone(phone)) {
-          res.status(400).json({ error: 'Teléfono inválido. Mínimo 10 dígitos.' });
+      const { valid, user: existingUser, error: otpError } = await verifyOtp(cleanEmail, code);
+      if (!valid) {
+        res.status(401).json({ error: otpError || 'Código inválido o expirado' });
+        return;
+      }
+
+      // For new citizen accounts: require a real name
+      if (!existingUser) {
+        if (!name || typeof name !== 'string' || name.trim().length < 2) {
+          res.status(400).json({ error: 'Tu nombre es requerido para registrarte (mín. 2 caracteres)' });
           return;
         }
-      } else {
-        if (!isValidPhone(phone)) {
-          res.status(400).json({ error: 'Teléfono inválido' });
-          return;
-        }
+      }
+
+      // Use email as the phone field key (citizens identify by email)
+      const user = existingUser ?? await findOrCreateUser(cleanEmail, name?.trim(), 'citizen', cleanEmail);
+      const token = signToken({ userId: user.id, role: user.role });
+      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
+      return;
+    }
+
+    // Admin/helper: verify by phone
+    if (phone && typeof phone === 'string') {
+      if (!isValidPhone(phone)) {
+        res.status(400).json({ error: 'Teléfono inválido' });
+        return;
       }
 
       const { valid, user: existingUser, error: otpError } = await verifyOtp(phone.trim(), code);
@@ -317,22 +355,13 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
 
-      // For new citizen accounts: require a real name
-      if (isCitizen && !existingUser) {
-        if (!name || typeof name !== 'string' || name.trim().length < 2) {
-          res.status(400).json({ error: 'Tu nombre es requerido para registrarte (mín. 2 caracteres)' });
-          return;
-        }
-      }
-
-      const role = isCitizen ? 'citizen' : undefined;
-      const user = existingUser ?? await findOrCreateUser(phone.trim(), name?.trim(), role);
+      const user = existingUser ?? await findOrCreateUser(phone.trim(), name?.trim());
       const token = signToken({ userId: user.id, role: user.role });
       res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
       return;
     }
 
-    res.status(400).json({ error: 'Ingresa IMEI o teléfono' });
+    res.status(400).json({ error: 'Ingresa IMEI, teléfono o email' });
   } catch (err: unknown) {
     logger.error('OTP verify error:', err);
     res.status(500).json({ error: 'Error al verificar OTP' });
@@ -610,7 +639,24 @@ api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper', 
     res.status(404).json({ error: 'Incidente no encontrado' });
     return;
   }
-  res.json(r.rows[0]);
+
+  // Email citizen on status changes (non-blocking)
+  const incident = r.rows[0];
+  if (incident.driver_id && isEmailEnabled()) {
+    const citizenResult = await pool.query('SELECT email, role FROM users WHERE id = $1', [incident.driver_id]);
+    const citizen = citizenResult.rows[0];
+    if (citizen?.email && citizen.role === 'citizen') {
+      if (status === 'attending') {
+        const helperResult = await pool.query('SELECT name FROM users WHERE id = $1', [userId]);
+        const helperName = helperResult.rows[0]?.name || 'Un helper';
+        sendHelperRespondingEmail(citizen.email, helperName, id).catch(err => logger.error('Email helper responding error:', err));
+      } else if (status === 'resolved') {
+        sendIncidentResolvedEmail(citizen.email, id).catch(err => logger.error('Email incident resolved error:', err));
+      }
+    }
+  }
+
+  res.json(incident);
 }));
 
 // Helper/driver: declinar incidente (remover de incident_followers). Idempotente: si no está asignado, 200 OK igual.
@@ -622,6 +668,267 @@ api.delete('/incidents/:id/followers/me', authMiddleware, requireRole('helper', 
     [id, userId]
   );
   res.json({ success: true });
+}));
+
+// Admin: get incident responders with witness status
+api.get('/incidents/:id/responders', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const r = await pool.query(
+    `SELECT f.user_id, f.status, f.joined_at, f.witness_volunteer, f.witness_requested_at, f.witness_responded_at,
+            u.name, u.phone, u.email, u.role
+     FROM incident_followers f
+     JOIN users u ON f.user_id = u.id
+     WHERE f.incident_id = $1
+     ORDER BY f.joined_at ASC`,
+    [id]
+  );
+  res.json(r.rows);
+}));
+
+// Admin: generate PDF report for an incident
+api.get('/incidents/:id/report.pdf', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  // Fetch incident details
+  const incResult = await pool.query(
+    `SELECT i.*, v.plate, v.imei as vehicle_imei,
+            u.name as reporter_name, u.phone as reporter_phone, u.email as reporter_email, u.role as reporter_role
+     FROM incidents i
+     LEFT JOIN vehicles v ON i.vehicle_id = v.id
+     LEFT JOIN users u ON i.driver_id = u.id
+     WHERE i.id = $1`,
+    [id]
+  );
+  const incident = incResult.rows[0];
+  if (!incident) {
+    res.status(404).json({ error: 'Incidente no encontrado' });
+    return;
+  }
+
+  // Fetch responders
+  const respResult = await pool.query(
+    `SELECT f.status, f.joined_at, f.witness_volunteer, f.witness_responded_at,
+            u.name, u.phone, u.email, u.role
+     FROM incident_followers f
+     JOIN users u ON f.user_id = u.id
+     WHERE f.incident_id = $1
+     ORDER BY f.joined_at ASC`,
+    [id]
+  );
+  const responders = respResult.rows;
+
+  // Generate PDF with pdfkit
+  const PDFDocument = (await import('pdfkit')).default;
+  const doc = new PDFDocument({ size: 'LETTER', margin: 50 });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="reporte-incidente-${id.slice(0, 8)}.pdf"`);
+  doc.pipe(res);
+
+  // Header
+  doc.fontSize(22).font('Helvetica-Bold').text('SilentEye', { align: 'center' });
+  doc.fontSize(11).font('Helvetica').fillColor('#666').text('Reporte de Incidente', { align: 'center' });
+  doc.moveDown(0.5);
+  doc.strokeColor('#e0e0e0').lineWidth(1).moveTo(50, doc.y).lineTo(562, doc.y).stroke();
+  doc.moveDown(1);
+
+  // Incident details
+  doc.fillColor('#000').fontSize(14).font('Helvetica-Bold').text('Datos del Incidente');
+  doc.moveDown(0.3);
+  doc.fontSize(10).font('Helvetica');
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' }) : 'N/A';
+
+  const details = [
+    ['ID', id.slice(0, 8).toUpperCase()],
+    ['Estado', incident.status],
+    ['Fuente', incident.source || 'gps'],
+    ['Ubicación', `${incident.latitude?.toFixed(6)}, ${incident.longitude?.toFixed(6)}`],
+    ['Inicio', fmtDate(incident.started_at)],
+    ['Resolución', fmtDate(incident.resolved_at)],
+    ['Vehículo', incident.plate || 'N/A'],
+    ['IMEI', incident.vehicle_imei || incident.imei || 'N/A'],
+  ];
+  for (const [label, value] of details) {
+    doc.font('Helvetica-Bold').text(`${label}: `, { continued: true }).font('Helvetica').text(String(value));
+  }
+
+  // Reporter info
+  doc.moveDown(1);
+  doc.fontSize(14).font('Helvetica-Bold').text('Persona que Reportó');
+  doc.moveDown(0.3);
+  doc.fontSize(10).font('Helvetica');
+  doc.font('Helvetica-Bold').text('Nombre: ', { continued: true }).font('Helvetica').text(incident.reporter_name || 'N/A');
+  doc.font('Helvetica-Bold').text('Rol: ', { continued: true }).font('Helvetica').text(incident.reporter_role || 'N/A');
+  if (incident.reporter_email) {
+    doc.font('Helvetica-Bold').text('Email: ', { continued: true }).font('Helvetica').text(incident.reporter_email);
+  }
+  if (incident.reporter_phone) {
+    doc.font('Helvetica-Bold').text('Teléfono: ', { continued: true }).font('Helvetica').text(incident.reporter_phone);
+  }
+
+  // Responders table
+  doc.moveDown(1);
+  doc.fontSize(14).font('Helvetica-Bold').text(`Personas que Respondieron (${responders.length})`);
+  doc.moveDown(0.3);
+
+  if (responders.length === 0) {
+    doc.fontSize(10).font('Helvetica').fillColor('#999').text('No hubo responders registrados.');
+  } else {
+    // Table header
+    const tableTop = doc.y;
+    const colWidths = [140, 80, 120, 80, 90];
+    const headers = ['Nombre', 'Rol', 'Se unió', 'Estado', 'Testigo'];
+    doc.fontSize(9).font('Helvetica-Bold').fillColor('#333');
+    let x = 50;
+    for (let i = 0; i < headers.length; i++) {
+      doc.text(headers[i], x, tableTop, { width: colWidths[i] });
+      x += colWidths[i];
+    }
+    doc.moveDown(0.3);
+    doc.strokeColor('#ccc').lineWidth(0.5).moveTo(50, doc.y).lineTo(562, doc.y).stroke();
+    doc.moveDown(0.3);
+
+    doc.font('Helvetica').fillColor('#000');
+    for (const r of responders) {
+      if (doc.y > 700) {
+        doc.addPage();
+      }
+      const y = doc.y;
+      x = 50;
+      doc.text(r.name || 'Sin nombre', x, y, { width: colWidths[0] }); x += colWidths[0];
+      doc.text(r.role || '', x, y, { width: colWidths[1] }); x += colWidths[1];
+      doc.text(fmtDate(r.joined_at), x, y, { width: colWidths[2] }); x += colWidths[2];
+      doc.text(r.status || '', x, y, { width: colWidths[3] }); x += colWidths[3];
+      const witnessText = r.witness_volunteer === true ? 'Sí' : r.witness_volunteer === false ? 'No' : 'Pendiente';
+      doc.text(witnessText, x, y, { width: colWidths[4] });
+      doc.moveDown(0.5);
+    }
+  }
+
+  // Witnesses section
+  const witnesses = responders.filter(r => r.witness_volunteer === true);
+  if (witnesses.length > 0) {
+    doc.moveDown(1);
+    doc.fontSize(14).font('Helvetica-Bold').fillColor('#000').text(`Testigos Voluntarios (${witnesses.length})`);
+    doc.moveDown(0.3);
+    doc.fontSize(10).font('Helvetica');
+    for (const w of witnesses) {
+      doc.font('Helvetica-Bold').text(`• ${w.name}`, { continued: true });
+      doc.font('Helvetica').text(` — ${w.email || w.phone || 'Sin contacto'} — Aceptó: ${fmtDate(w.witness_responded_at)}`);
+    }
+  }
+
+  // Footer
+  doc.moveDown(2);
+  doc.strokeColor('#e0e0e0').lineWidth(1).moveTo(50, doc.y).lineTo(562, doc.y).stroke();
+  doc.moveDown(0.5);
+  doc.fontSize(8).fillColor('#999').text(`Generado por SilentEye el ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}`, { align: 'center' });
+  doc.text('Este documento es para uso interno y puede contener información sensible.', { align: 'center' });
+
+  doc.end();
+}));
+
+// Admin: send witness request to all responders of an incident
+api.post('/incidents/:id/witness-request', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!isEmailEnabled()) {
+    res.status(503).json({ error: 'Servicio de email no configurado' });
+    return;
+  }
+
+  // Get responders who haven't been asked yet
+  const r = await pool.query(
+    `SELECT f.user_id, u.name, u.email, u.phone
+     FROM incident_followers f
+     JOIN users u ON f.user_id = u.id
+     WHERE f.incident_id = $1 AND f.witness_requested_at IS NULL`,
+    [id]
+  );
+
+  if (r.rows.length === 0) {
+    res.json({ success: true, sent: 0, message: 'Todos los responders ya fueron contactados' });
+    return;
+  }
+
+  const API_URL = process.env.PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://silenteye-3rrwnq.fly.dev';
+  let sent = 0;
+
+  for (const responder of r.rows) {
+    const email = responder.email || responder.phone; // phone might be an email for citizens
+    if (!email || !email.includes('@')) continue;
+
+    const acceptSig = signWitnessToken(id, responder.user_id, 'accept');
+    const declineSig = signWitnessToken(id, responder.user_id, 'decline');
+    const acceptUrl = `${API_URL}/api/incidents/${id}/witness-response?user=${responder.user_id}&response=accept&sig=${acceptSig}`;
+    const declineUrl = `${API_URL}/api/incidents/${id}/witness-response?user=${responder.user_id}&response=decline&sig=${declineSig}`;
+
+    const emailSent = await sendWitnessRequestEmail(email, responder.name || 'Responder', id, acceptUrl, declineUrl);
+    if (emailSent) {
+      await pool.query(
+        `UPDATE incident_followers SET witness_requested_at = NOW() WHERE incident_id = $1 AND user_id = $2`,
+        [id, responder.user_id]
+      );
+      sent++;
+    }
+  }
+
+  res.json({ success: true, sent, total: r.rows.length });
+}));
+
+// Public: witness accept/decline (accessed via signed email link — HMAC prevents tampering)
+api.get('/incidents/:id/witness-response', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { user, response, sig } = req.query;
+
+  if (!user || !response || !['accept', 'decline'].includes(String(response))) {
+    res.status(400).send('<html><body><h2>Enlace inv\u00e1lido</h2></body></html>');
+    return;
+  }
+
+  // Verify HMAC signature to prevent URL tampering
+  const expectedSig = signWitnessToken(id, String(user), String(response));
+  if (!sig || sig !== expectedSig) {
+    res.status(403).send('<html><body><h2>Enlace inv\u00e1lido o expirado</h2></body></html>');
+    return;
+  }
+
+  const isAccept = response === 'accept';
+  const r = await pool.query(
+    `UPDATE incident_followers
+     SET witness_volunteer = $3, witness_responded_at = NOW()
+     WHERE incident_id = $1 AND user_id = $2
+     RETURNING id`,
+    [id, user, isAccept]
+  );
+
+  if (!r.rows[0]) {
+    res.status(404).send('<html><body><h2>No se encontró tu registro para este incidente.</h2></body></html>');
+    return;
+  }
+
+  const message = isAccept
+    ? 'Gracias por aceptar ser testigo voluntario. El administrador podr\u00e1 contactarte si es necesario.'
+    : 'Has declinado la solicitud. No se requiere ninguna acci\u00f3n adicional.';
+  const color = isAccept ? '#16a34a' : '#6b7280';
+  const safeId = id.replace(/[^a-f0-9-]/gi, '').slice(0, 36);
+
+  res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+  res.send(`
+    <html>
+    <head><meta name="viewport" content="width=device-width, initial-scale=1"><title>SilentEye</title></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f9fafb;">
+      <div style="max-width: 400px; text-align: center; padding: 40px 24px; background: white; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <h1 style="font-size: 20px; color: #18181b; margin: 0 0 8px;">SilentEye</h1>
+        <div style="width: 48px; height: 48px; border-radius: 50%; background: ${color}; margin: 16px auto; display: flex; align-items: center; justify-content: center;">
+          <span style="color: white; font-size: 24px;">${isAccept ? '\u2713' : '\u2014'}</span>
+        </div>
+        <p style="font-size: 15px; color: #374151; line-height: 1.5;">${message}</p>
+        <p style="font-size: 12px; color: #9ca3af; margin-top: 16px;">Incidente: ${safeId.slice(0, 8).toUpperCase()}</p>
+      </div>
+    </body>
+    </html>
+  `);
 }));
 
 api.get('/alerts', authMiddleware, requireRole('admin', 'helper', 'driver'), asyncHandler(async (req, res) => {
@@ -785,7 +1092,7 @@ api.get('/helpers/nearby', authMiddleware, asyncHandler(async (req, res) => {
   const pg = await hasPostGis();
   const r = pg
     ? await pool.query(
-        `SELECT u.id, u.name, u.phone,
+        `SELECT u.id, u.name,
                 ST_Distance(COALESCE(hl.geom, u.last_location)::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography)::int as distance_m
          FROM users u LEFT JOIN helper_locations hl ON hl.user_id = u.id
          WHERE u.is_active AND COALESCE(hl.geom, u.last_location) IS NOT NULL
@@ -795,7 +1102,7 @@ api.get('/helpers/nearby', authMiddleware, asyncHandler(async (req, res) => {
         [lat, lon, radiusM]
       )
     : await pool.query(
-        `SELECT u.id, u.name, u.phone,
+        `SELECT u.id, u.name,
                 (6371000 * acos(LEAST(1, GREATEST(-1,
                   cos(radians($1)) * cos(radians(u.last_lat)) * cos(radians(u.last_lng) - radians($2)) + sin(radians($1)) * sin(radians(u.last_lat))
                 ))))::int as distance_m

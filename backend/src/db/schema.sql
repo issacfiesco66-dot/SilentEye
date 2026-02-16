@@ -7,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 -- Usuarios (conductores, helpers, admins)
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  phone VARCHAR(20) UNIQUE NOT NULL,
+  phone VARCHAR(255) UNIQUE NOT NULL,
   name VARCHAR(255) NOT NULL,
   role VARCHAR(20) NOT NULL CHECK (role IN ('driver', 'helper', 'admin', 'citizen')),
   last_location GEOMETRY(Point, 4326),
@@ -104,7 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_incident_followers_incident ON incident_followers
 -- OTP para login (temporal)
 CREATE TABLE IF NOT EXISTS otp_codes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  phone VARCHAR(20) NOT NULL,
+  phone VARCHAR(255) NOT NULL,
   code VARCHAR(6) NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   used BOOLEAN DEFAULT false,

@@ -23,16 +23,16 @@ interface HelperHeaderProps {
 
 export default function HelperHeader({ status, onLogout }: HelperHeaderProps) {
   return (
-    <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-lg border-b border-zinc-100 px-6 h-14 flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 bg-zinc-900 rounded-md flex items-center justify-center">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+    <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-lg border-b border-zinc-200/60 px-4 h-12 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <div className="w-5 h-5 bg-zinc-900 rounded flex items-center justify-center">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
           </div>
-          <span className="text-sm font-bold tracking-tight text-zinc-900">SilentEye</span>
+          <span className="text-xs font-bold tracking-tight text-zinc-800">SilentEye</span>
         </div>
         <span
-          className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[status]}`}
+          className={`px-1.5 py-px rounded text-[10px] font-semibold ${STATUS_COLORS[status]}`}
           title={`Estado: ${STATUS_LABELS[status]}`}
         >
           {STATUS_LABELS[status]}
@@ -40,7 +40,7 @@ export default function HelperHeader({ status, onLogout }: HelperHeaderProps) {
       </div>
       <button
         onClick={onLogout}
-        className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium py-1 px-2 transition-colors"
+        className="text-zinc-400 hover:text-zinc-600 text-xs font-medium transition-colors"
         aria-label="Cerrar sesión"
       >
         Salir

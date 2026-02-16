@@ -18,7 +18,7 @@ RUN npm install
 COPY backend/ .
 
 # Asegurar tipos para compilación
-RUN npm install --save-dev @types/pg @types/web-push
+RUN npm install --save-dev @types/pg @types/web-push @types/nodemailer @types/pdfkit
 
 # Compilar: usar TypeScript del proyecto (npx tsc puede instalar paquete equivocado)
 RUN node ./node_modules/typescript/bin/tsc

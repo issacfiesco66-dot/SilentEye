@@ -2,7 +2,7 @@
 -- IF NOT EXISTS para no fallar si las tablas ya existen
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  phone VARCHAR(20) UNIQUE NOT NULL,
+  phone VARCHAR(255) UNIQUE NOT NULL,
   name VARCHAR(255) NOT NULL,
   role VARCHAR(20) NOT NULL CHECK (role IN ('driver', 'helper', 'admin', 'citizen')),
   last_lat DOUBLE PRECISION,
@@ -81,7 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_incident_followers_incident ON incident_followers
 
 CREATE TABLE IF NOT EXISTS otp_codes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  phone VARCHAR(20) NOT NULL,
+  phone VARCHAR(255) NOT NULL,
   code VARCHAR(6) NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   used BOOLEAN DEFAULT false,

@@ -65,20 +65,19 @@ export default function DriverMyVehiclesMap() {
   }
 
   return (
-    <div className="flex-1 flex flex-col gap-4">
-      <div>
-        <h2 className="text-lg font-bold text-zinc-900">Mis vehículos</h2>
-        <p className="text-zinc-400 text-sm mt-1">
-          Ubicación en tiempo real de tus vehículos asignados
-          {liveLocations.length === 0 && ' · Sin posiciones recientes'}
-        </p>
+    <div className="flex-1 flex flex-col gap-2">
+      <div className="flex items-baseline gap-2">
+        <h2 className="text-sm font-bold text-zinc-900">Mis vehículos</h2>
+        <span className="text-[11px] text-zinc-400">
+          Tiempo real{liveLocations.length === 0 && ' · Sin posiciones'}
+        </span>
       </div>
       {error && (
-        <div className="p-3 rounded-lg bg-amber-50 border border-amber-100 text-amber-600 text-sm">
+        <div className="px-3 py-1.5 rounded-md bg-amber-50 border border-amber-100 text-amber-600 text-xs">
           {error}
         </div>
       )}
-      <div className="w-full h-[400px] rounded-xl overflow-hidden border border-zinc-200 bg-zinc-50">
+      <div className="w-full flex-1 min-h-[300px] rounded-lg overflow-hidden border border-zinc-200/80 bg-zinc-50">
         <MapView
           incidents={[]}
           liveLocations={liveLocations}

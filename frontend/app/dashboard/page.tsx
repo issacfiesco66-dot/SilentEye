@@ -6,7 +6,7 @@ import Link from 'next/link';
 import MapView from '@/components/MapView';
 import HelperDashboardLayout from '@/components/helper/HelperDashboardLayout';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { usePushNotifications } from '@/lib/usePushNotifications';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -14,7 +14,7 @@ interface User {
   id: string;
   phone: string;
   name: string;
-  role: 'driver' | 'helper' | 'admin';
+  role: 'driver' | 'helper' | 'admin' | 'citizen';
 }
 
 interface Incident {
@@ -199,7 +199,7 @@ export default function DashboardPage() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('loginAt');
-    router.replace('/login');
+    window.location.href = '/login';
   };
 
   if (!user) return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">Cargando...</div>;

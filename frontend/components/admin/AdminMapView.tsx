@@ -9,10 +9,8 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
-const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
-
-const MapboxMap = dynamic(() => import('../MapboxMap'), {
+const LeafletMap = dynamic(() => import('../LeafletMap'), {
   ssr: false,
   loading: () => (
     <div className="w-full h-full flex items-center justify-center bg-zinc-50 text-zinc-400">
@@ -191,17 +189,6 @@ export default function AdminMapView() {
     }
   };
 
-  if (!TOKEN) {
-    return (
-      <div className="h-[450px] flex flex-col items-center justify-center bg-zinc-50 rounded-xl border border-zinc-200 text-zinc-400">
-        <p>Añade NEXT_PUBLIC_MAPBOX_TOKEN para ver el mapa</p>
-        <p className="text-sm mt-2">
-          Vehículos: {Object.keys(liveVehicles).length} · Incidentes activos: {activeIncidents.length}
-        </p>
-      </div>
-    );
-  }
-
   const liveLocationsList = Object.values(liveVehicles);
 
   return (
@@ -233,8 +220,7 @@ export default function AdminMapView() {
       )}
 
       <div className="h-[450px] rounded-xl overflow-hidden border border-zinc-200">
-        <MapboxMap
-          token={TOKEN}
+        <LeafletMap
           incidents={activeIncidents}
           liveLocations={liveLocationsList}
           selectedId={selectedIncidentId}

@@ -4,11 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 const LOCATION_THROTTLE_MS = 15000; // 15s (evitar rate limit 100/15min)
 const LOCATION_MIN_METERS = 50;
 
-const MapboxMap = dynamic(() => import('../MapboxMap'), {
+const LeafletMap = dynamic(() => import('../LeafletMap'), {
   ssr: false,
   loading: () => (
     <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-400">
@@ -56,6 +55,10 @@ export default function HelperMapSection({
   const lastSentRef = useRef<{ lat: number; lng: number; ts: number } | null>(null);
   const sendingRef = useRef(false);
   const watchIdRef = useRef<number | null>(null);
+  const onLocationSentRef = useRef(onLocationSent);
+  const onHelperLocationChangeRef = useRef(onHelperLocationChange);
+  onLocationSentRef.current = onLocationSent;
+  onHelperLocationChangeRef.current = onHelperLocationChange;
 
   const vehicleCoords = vehicleLocation ?? {
     latitude: incident.latitude,
@@ -136,7 +139,7 @@ export default function HelperMapSection({
             localStorage.removeItem('token');
             window.location.href = '/login';
           } else if (res.ok) {
-            onLocationSent?.();
+            onLocationSentRef.current?.();
           }
         })
         .catch(() => {})
@@ -146,7 +149,7 @@ export default function HelperMapSection({
 
       const loc = { latitude: lat, longitude: lng };
       setLocalHelperLoc(loc);
-      onHelperLocationChange?.(loc);
+      onHelperLocationChangeRef.current?.(loc);
     };
 
     const onPos = (pos: GeolocationPosition) => {
@@ -154,7 +157,7 @@ export default function HelperMapSection({
       const lng = pos.coords.longitude;
       const loc = { latitude: lat, longitude: lng };
       setLocalHelperLoc(loc);
-      onHelperLocationChange?.(loc);
+      onHelperLocationChangeRef.current?.(loc);
       setGeoReady(true);
       sendLocation(lat, lng);
     };
@@ -173,7 +176,8 @@ export default function HelperMapSection({
         navigator.geolocation.clearWatch(watchIdRef.current);
       }
     };
-  }, [onLocationSent]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="w-full h-full min-h-[300px] rounded-xl overflow-hidden bg-slate-800 border border-slate-700 relative">
@@ -182,45 +186,28 @@ export default function HelperMapSection({
           <span className="text-slate-400">Obteniendo ubicación…</span>
         </div>
       )}
-      {MAPBOX_TOKEN ? (
-        <>
-          <MapboxMap
-            key={`helper-map-${centerKey}`}
-            token={MAPBOX_TOKEN}
-            incidents={incidentsForMap}
-            liveLocations={liveLocationsForMap}
-            selectedId={incident.id}
-            onSelectIncident={() => {}}
-            centerOnIncidentId={incident.id}
-            routeLine={
-              localHelperLoc
-                ? [
-                    [localHelperLoc.longitude ?? 0, localHelperLoc.latitude ?? 0],
-                    [vehicleCoords.longitude, vehicleCoords.latitude],
-                  ]
-                : undefined
-            }
-          />
-          <button
-            onClick={centerOnIncident}
-            className="absolute bottom-4 left-4 z-10 px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-sm shadow border border-slate-600"
-          >
-            Centrar
-          </button>
-        </>
-      ) : (
-        <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-4">
-          <p>Mapa no configurado</p>
-          <p className="text-sm mt-2">
-            Vehículo: {vehicleCoords.latitude.toFixed(5)}, {vehicleCoords.longitude.toFixed(5)}
-          </p>
-          {localHelperLoc && (
-            <p className="text-sm">
-              Tú: {localHelperLoc.latitude.toFixed(5)}, {localHelperLoc.longitude.toFixed(5)}
-            </p>
-          )}
-        </div>
-      )}
+      <LeafletMap
+        key={`helper-map-${centerKey}`}
+        incidents={incidentsForMap}
+        liveLocations={liveLocationsForMap}
+        selectedId={incident.id}
+        onSelectIncident={() => {}}
+        centerOnIncidentId={incident.id}
+        routeLine={
+          localHelperLoc
+            ? [
+                [localHelperLoc.longitude ?? 0, localHelperLoc.latitude ?? 0],
+                [vehicleCoords.longitude, vehicleCoords.latitude],
+              ]
+            : undefined
+        }
+      />
+      <button
+        onClick={centerOnIncident}
+        className="absolute bottom-4 left-4 z-[1000] px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-sm shadow border border-slate-600"
+      >
+        Centrar
+      </button>
     </div>
   );
 }

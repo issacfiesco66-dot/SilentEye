@@ -74,10 +74,17 @@ export async function verifyOtp(phone: string, code: string): Promise<{ valid: b
       );
   if (result.rowCount === 0) return { valid: false, user: null };
 
-  const userResult = await pool.query(
+  // Look up user by phone OR by email (for citizen email login)
+  let userResult = await pool.query(
     'SELECT id, phone, name, role, is_active FROM users WHERE phone = $1',
     [phone]
   );
+  if (userResult.rows.length === 0 && phone.includes('@')) {
+    userResult = await pool.query(
+      'SELECT id, phone, name, role, is_active FROM users WHERE email = $1',
+      [phone]
+    );
+  }
   const user = userResult.rows[0] ?? null;
   if (user && user.is_active === false) {
     logger.warn(`Login bloqueado: usuario desactivado ***${phone.slice(-4)}`);
@@ -101,17 +108,24 @@ export function startOtpCleanup(): void {
   }, 30 * 60 * 1000);
 }
 
-export async function findOrCreateUser(phone: string, name?: string, role?: string): Promise<{ id: string; phone: string; name: string; role: string }> {
+export async function findOrCreateUser(phone: string, name?: string, role?: string, email?: string): Promise<{ id: string; phone: string; name: string; role: string }> {
+  // Look up by phone first, then by email if provided
   const existing = await pool.query('SELECT id, phone, name, role FROM users WHERE phone = $1', [phone]);
   if (existing.rows[0]) {
     return existing.rows[0];
   }
+  if (email) {
+    const byEmail = await pool.query('SELECT id, phone, name, role FROM users WHERE email = $1', [email]);
+    if (byEmail.rows[0]) {
+      return byEmail.rows[0];
+    }
+  }
   const validRoles = ['driver', 'helper', 'admin', 'citizen'];
   const finalRole = role && validRoles.includes(role) ? role : 'driver';
   const insert = await pool.query(
-    `INSERT INTO users (phone, name, role) VALUES ($1, $2, $3)
+    `INSERT INTO users (phone, name, role, email) VALUES ($1, $2, $3, $4)
      RETURNING id, phone, name, role`,
-    [phone, name || phone, finalRole]
+    [phone, name || phone, finalRole, email || null]
   );
   return insert.rows[0];
 }
@@ -126,12 +140,12 @@ function getJwtExpiresInSeconds(): number {
 }
 
 export function signToken(payload: { userId: string; role: string }): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: getJwtExpiresInSeconds() });
+  return jwt.sign(payload, JWT_SECRET, { algorithm: 'HS256', expiresIn: getJwtExpiresInSeconds() });
 }
 
 export function verifyToken(token: string): { userId: string; role: string } | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as { userId: string; role: string };
     return decoded;
   } catch {
     return null;

@@ -6,9 +6,8 @@ import dynamic from 'next/dynamic';
 import UserRoleSelect from './UserRoleSelect';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
-const MapboxMap = dynamic(() => import('../MapboxMap'), {
+const LeafletMap = dynamic(() => import('../LeafletMap'), {
   ssr: false,
   loading: () => (
     <div className="w-full h-full flex items-center justify-center bg-zinc-50 text-zinc-400">
@@ -280,22 +279,12 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
           </p>
         </div>
         <div className="h-[350px] bg-zinc-50">
-          {MAPBOX_TOKEN ? (
-            <MapboxMap
-              token={MAPBOX_TOKEN}
-              incidents={[]}
-              liveLocations={liveLocationsForMap}
-              selectedId={null}
-              onSelectIncident={() => {}}
-            />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-zinc-400 p-4">
-              <p>Configura NEXT_PUBLIC_MAPBOX_TOKEN para ver el mapa</p>
-              <p className="text-sm mt-2">
-                Vehículos con conductor: {liveLocationsForMap.length}
-              </p>
-            </div>
-          )}
+          <LeafletMap
+            incidents={[]}
+            liveLocations={liveLocationsForMap}
+            selectedId={null}
+            onSelectIncident={() => {}}
+          />
         </div>
       </div>
 

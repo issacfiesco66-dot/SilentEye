@@ -8,7 +8,7 @@ import HelperMapSection from './HelperMapSection';
 import SinIncidentePlaceholder from './SinIncidentePlaceholder';
 import DriverMyVehiclesMap from './DriverMyVehiclesMap';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { usePushNotifications } from '@/lib/usePushNotifications';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -255,7 +255,7 @@ export default function HelperDashboardLayout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('loginAt');
-    router.replace('/login');
+    window.location.href = '/login';
   };
 
   const onIncidentCleared = () => {
@@ -264,27 +264,27 @@ export default function HelperDashboardLayout() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <span className="text-zinc-400">Cargando...</span>
+      <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
+        <span className="text-zinc-400 text-sm">Cargando...</span>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-white text-zinc-900">
+    <div className="min-h-screen flex flex-col bg-zinc-50 text-zinc-900">
       <HelperHeader status={helperStatus} onLogout={handleLogout} />
 
       {/* Floating SOS button */}
       <a
         href="/sos"
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center justify-center shadow-lg shadow-red-600/25 hover:scale-105 active:scale-95 transition-all"
+        className="fixed bottom-4 right-4 z-50 w-11 h-11 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] flex items-center justify-center shadow-md shadow-red-600/20 hover:scale-105 active:scale-95 transition-all"
       >
         SOS
       </a>
 
-      <main className="flex-1 flex flex-col p-4 gap-4">
+      <main className="flex-1 flex flex-col p-3 gap-3">
         {loading ? (
-          <div className="flex-1 flex items-center justify-center text-zinc-400">
+          <div className="flex-1 flex items-center justify-center text-zinc-400 text-sm">
             Cargando...
           </div>
         ) : !activeIncident ? (
@@ -294,9 +294,9 @@ export default function HelperDashboardLayout() {
             <SinIncidentePlaceholder wsConnected={wsConnected} />
           )
         ) : (
-          <div className="flex-1 flex flex-col gap-3 min-h-0">
-            {/* Map first — takes most of the screen */}
-            <div className="h-[55vh] min-h-[300px]">
+          <div className="flex-1 flex flex-col gap-2 min-h-0">
+            {/* Map — takes most of the screen */}
+            <div className="h-[50vh] min-h-[250px] rounded-lg overflow-hidden border border-zinc-200/80">
               <HelperMapSection
                 incident={activeIncident}
                 vehicleLocation={
