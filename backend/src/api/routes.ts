@@ -264,8 +264,22 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
 
+      // SECURITY: phone login is for pre-registered users only (admin/helper/driver).
+      // Do NOT auto-create users — admin must register them first.
+      const userCheck = await pool.query(
+        'SELECT id, phone, role, is_active FROM users WHERE phone = $1',
+        [cleanPhone]
+      );
+      if (!userCheck.rows[0]) {
+        res.status(403).json({ error: 'Número no registrado. Solo usuarios registrados por el administrador pueden ingresar.' });
+        return;
+      }
+      if (userCheck.rows[0].is_active === false) {
+        res.status(403).json({ error: 'Cuenta desactivada. Contacta al administrador.' });
+        return;
+      }
+
       const code = await createOtp(cleanPhone);
-      await findOrCreateUser(cleanPhone);
       res.json(showCode ? { success: true, code } : { success: true });
       return;
     }
@@ -355,9 +369,12 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
 
-      const user = existingUser ?? await findOrCreateUser(phone.trim(), name?.trim());
-      const token = signToken({ userId: user.id, role: user.role });
-      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
+      if (!existingUser) {
+        res.status(403).json({ error: 'Número no registrado. Contacta al administrador.' });
+        return;
+      }
+      const token = signToken({ userId: existingUser.id, role: existingUser.role });
+      res.json({ token, user: { id: existingUser.id, phone: existingUser.phone, name: existingUser.name, role: existingUser.role } });
       return;
     }
 
