@@ -291,7 +291,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[10000]">
           <div className="bg-white rounded-xl p-6 max-w-md w-full border border-zinc-200 shadow-lg">
             <h3 className="text-lg font-bold text-zinc-900 mb-4">Nuevo conductor</h3>
             <form onSubmit={createDriver} className="space-y-3">
@@ -464,7 +464,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
       )}
 
       {editingUser && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[10000]">
           <div className="bg-white rounded-xl p-6 max-w-md w-full border border-zinc-200 shadow-lg">
             <h3 className="text-lg font-bold text-zinc-900 mb-4">Editar usuario</h3>
             <form onSubmit={updateUser} className="space-y-3">
