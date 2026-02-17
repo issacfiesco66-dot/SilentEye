@@ -186,7 +186,7 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       }
       // Conductor: ingresa con número de GPS (IMEI). El GPS debe estar registrado por admin.
       const vRow = await pool.query(
-        'SELECT v.driver_id, u.phone FROM vehicles v LEFT JOIN users u ON u.id = v.driver_id WHERE v.imei = $1 LIMIT 1',
+        'SELECT v.driver_id, u.phone, u.email FROM vehicles v LEFT JOIN users u ON u.id = v.driver_id WHERE v.imei = $1 LIMIT 1',
         [imei.trim()]
       );
       const row = vRow.rows[0];
@@ -198,9 +198,23 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
         res.status(400).json({ error: 'GPS sin conductor asignado. Contacta al administrador.' });
         return;
       }
-      const code = await createOtp(row.phone);
 
-      // Send OTP via SMS to driver's phone
+      // Use email if available (saves SMS costs), otherwise fall back to phone
+      const otpIdentifier = row.email || row.phone;
+      const code = await createOtp(otpIdentifier);
+
+      // Send OTP via email if driver has email registered
+      if (row.email && isEmailEnabled()) {
+        const sent = await sendOtpEmail(row.email, code);
+        if (!sent) {
+          res.status(500).json({ error: 'No se pudo enviar el correo. Verifica el email del conductor.' });
+          return;
+        }
+        res.json({ success: true, emailSent: true, emailHint: row.email.replace(/(.{2})(.*)(@.*)/, '$1***$3') });
+        return;
+      }
+
+      // Fallback: SMS if Twilio configured
       if (isSmsEnabled()) {
         const sent = await sendOtpSms(row.phone, code);
         if (!sent) {
@@ -333,13 +347,15 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
         res.status(400).json({ error: 'GPS no registrado o sin conductor' });
         return;
       }
-      const uRow = await pool.query('SELECT id, phone, name, role FROM users WHERE id = $1', [row.driver_id]);
+      const uRow = await pool.query('SELECT id, phone, name, role, email FROM users WHERE id = $1', [row.driver_id]);
       const user = uRow.rows[0];
       if (!user) {
         res.status(400).json({ error: 'Usuario no encontrado' });
         return;
       }
-      const { valid, error: otpError } = await verifyOtp(user.phone, code);
+      // OTP was created with email if available, otherwise phone
+      const otpIdentifier = user.email || user.phone;
+      const { valid, error: otpError } = await verifyOtp(otpIdentifier, code);
       if (!valid) {
         res.status(401).json({ error: otpError || 'Código inválido o expirado' });
         return;
@@ -1203,7 +1219,7 @@ api.get('/helpers/nearby', authMiddleware, asyncHandler(async (req, res) => {
 
 api.get('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const r = await pool.query(
-    'SELECT id, phone, name, role, is_active, last_location_at, created_at FROM users ORDER BY name'
+    'SELECT id, phone, name, role, email, is_active, last_location_at, created_at FROM users ORDER BY name'
   );
   res.json(r.rows);
 }));
@@ -1212,7 +1228,7 @@ api.get('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (
   const { id } = req.params;
   try {
     const r = await pool.query(
-      'SELECT id, phone, name, role, is_active, last_location_at, created_at FROM users WHERE id = $1',
+      'SELECT id, phone, name, role, email, is_active, last_location_at, created_at FROM users WHERE id = $1',
       [id]
     );
     if (!r.rows[0]) {
@@ -1227,7 +1243,7 @@ api.get('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (
 }));
 
 api.post('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
-  const { phone, name, role } = req.body;
+  const { phone, name, role, email } = req.body;
   if (!phone || typeof phone !== 'string' || !name || typeof name !== 'string') {
     res.status(400).json({ error: 'Teléfono y nombre requeridos' });
     return;
@@ -1238,9 +1254,10 @@ api.post('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req
     res.status(409).json({ error: 'Ya existe un usuario con ese teléfono' });
     return;
   }
+  const cleanEmail = email && typeof email === 'string' ? email.trim().toLowerCase() : null;
   const r = await pool.query(
-    `INSERT INTO users (phone, name, role) VALUES ($1, $2, $3) RETURNING id, phone, name, role, created_at`,
-    [phone.trim(), name.trim(), finalRole]
+    `INSERT INTO users (phone, name, role, email) VALUES ($1, $2, $3, $4) RETURNING id, phone, name, role, email, created_at`,
+    [phone.trim(), name.trim(), finalRole, cleanEmail]
   );
   res.status(201).json(r.rows[0]);
 }));
@@ -1264,8 +1281,13 @@ api.put('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (
     updates.push(`phone = $${p++}`);
     params.push(phone.trim());
   }
+  if (req.body.email !== undefined) {
+    const cleanEmail = req.body.email && typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : null;
+    updates.push(`email = $${p++}`);
+    params.push(cleanEmail);
+  }
   if (updates.length === 0) {
-    res.status(400).json({ error: 'Indica name o phone para actualizar' });
+    res.status(400).json({ error: 'Indica name, phone o email para actualizar' });
     return;
   }
   params.push(id);

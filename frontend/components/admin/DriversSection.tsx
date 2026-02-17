@@ -25,6 +25,7 @@ interface User {
   phone: string;
   name: string;
   role: string;
+  email?: string;
   is_active?: boolean;
 }
 
@@ -50,9 +51,9 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [driverForm, setDriverForm] = useState({ phone: '', name: '' });
+  const [driverForm, setDriverForm] = useState({ phone: '', name: '', email: '' });
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editForm, setEditForm] = useState({ phone: '', name: '' });
+  const [editForm, setEditForm] = useState({ phone: '', name: '', email: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -141,6 +142,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
       body: JSON.stringify({
         phone: driverForm.phone,
         name: driverForm.name,
+        email: driverForm.email || undefined,
         role: 'driver',
       }),
     });
@@ -151,7 +153,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
     }
     if (res.ok) {
       await load();
-      setDriverForm({ phone: '', name: '' });
+      setDriverForm({ phone: '', name: '', email: '' });
       setShowForm(false);
     } else {
       setError(data.error || 'Error al crear conductor');
@@ -178,7 +180,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ name: editForm.name, phone: editForm.phone }),
+      body: JSON.stringify({ name: editForm.name, phone: editForm.phone, email: editForm.email }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 || res.status === 403) {
@@ -271,7 +273,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
         </div>
       )}
 
-      <div className="rounded-xl overflow-hidden border border-zinc-200">
+      <div className="rounded-xl overflow-hidden border border-zinc-200 relative z-0">
         <div className="px-4 py-2 bg-white border-b border-zinc-200">
           <h3 className="text-sm font-semibold text-zinc-900">Mapa de conductores y vehículos GPS</h3>
           <p className="text-xs text-zinc-400 mt-0.5">
@@ -307,7 +309,14 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
                 onChange={(e) => setDriverForm((f) => ({ ...f, phone: e.target.value }))}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
-              <p className="text-zinc-400 text-xs">El conductor usará este teléfono para iniciar sesión con OTP.</p>
+              <input
+                placeholder="Email del conductor (para recibir OTP)"
+                type="email"
+                value={driverForm.email}
+                onChange={(e) => setDriverForm((f) => ({ ...f, email: e.target.value }))}
+                className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
+              />
+              <p className="text-zinc-400 text-xs">El conductor ingresará su IMEI y recibirá el OTP por email (gratis) o SMS.</p>
               <div className="flex gap-2 pt-2">
                 <button type="submit" disabled={saving} className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 transition-colors">{saving ? 'Creando...' : 'Crear conductor'}</button>
                 <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">Cancelar</button>
@@ -323,6 +332,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
             <tr className="border-b border-zinc-200">
               <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Nombre</th>
               <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Teléfono</th>
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Email</th>
               <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Vehículo</th>
               <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Rol</th>
               <th className="text-right py-3 px-2 text-zinc-400 font-medium text-[13px]">Acción</th>
@@ -331,7 +341,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
           <tbody>
             {drivers.length === 0 && !showForm ? (
               <tr>
-                <td colSpan={5} className="py-8 text-zinc-400 text-center">
+                <td colSpan={6} className="py-8 text-zinc-400 text-center">
                   No hay conductores. Añade uno para asignar a vehículos.
                 </td>
               </tr>
@@ -343,6 +353,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
                   <tr key={d.id} className="border-b border-zinc-100 hover:bg-zinc-50 transition-colors">
                     <td className="py-3 px-2 font-semibold text-zinc-900 text-sm">{d.name}</td>
                     <td className="py-3 px-2 text-zinc-500 text-sm">{d.phone}</td>
+                    <td className="py-3 px-2 text-zinc-400 text-[13px]">{d.email || '—'}</td>
                     <td className="py-3 px-2">
                       {hasNoVehicle ? (
                         <span className="px-2 py-0.5 text-xs rounded bg-amber-50 text-amber-600 border border-amber-100">
@@ -363,7 +374,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
                         <button
                           onClick={() => {
                             setEditingUser(d);
-                            setEditForm({ name: d.name, phone: d.phone });
+                            setEditForm({ name: d.name, phone: d.phone, email: d.email || '' });
                           }}
                           className="px-2 py-1 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded hover:bg-zinc-200 transition-colors"
                         >
@@ -469,6 +480,13 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
                 placeholder="Teléfono"
                 value={editForm.phone}
                 onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
+                className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
+              />
+              <input
+                placeholder="Email (para OTP)"
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
               <div className="flex gap-2 pt-2">

@@ -219,7 +219,7 @@ export default function AdminMapView() {
         </div>
       )}
 
-      <div className="h-[450px] rounded-xl overflow-hidden border border-zinc-200">
+      <div className="h-[450px] rounded-xl overflow-hidden border border-zinc-200 relative z-0">
         <LeafletMap
           incidents={activeIncidents}
           liveLocations={liveLocationsList}
