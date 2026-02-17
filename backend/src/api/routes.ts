@@ -199,6 +199,17 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
       const code = await createOtp(row.phone);
+
+      // Send OTP via SMS to driver's phone
+      if (isSmsEnabled()) {
+        const sent = await sendOtpSms(row.phone, code);
+        if (!sent) {
+          logger.warn(`SMS fallback: no se pudo enviar OTP a conductor ***${row.phone.slice(-4)}`);
+        }
+        res.json({ success: true, smsSent: sent });
+        return;
+      }
+
       res.json(showCode ? { success: true, code } : { success: true });
       return;
     }
