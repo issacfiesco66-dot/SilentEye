@@ -155,6 +155,8 @@ export function broadcastLocation(update: LocationUpdate, incidentFollowerIds?: 
 export function broadcastPanic(event: PanicEvent, nearbyUserIds?: string[]) {
   const filter = (meta: { userId?: string; role?: string; vehicleId?: string }) =>
     meta.role === 'admin' ||
+    meta.role === 'helper' ||
+    meta.role === 'driver' ||
     (nearbyUserIds ?? []).includes(meta.userId ?? '');
   const recipientCount = [...clients.values()].filter(filter).length;
   logger.info(`broadcastPanic incident=${event.incidentId} plate=${event.plate} → ${recipientCount} clientes`);
@@ -175,7 +177,10 @@ export function broadcastAlert(event: AlertEvent, nearbyUserIds?: string[]) {
 
 export function broadcastIncidentUpdate(incident: { id: string; status: string; updatedBy?: string; updatedByName?: string }, followerIds: string[]) {
   const filter = (meta: { userId?: string; role?: string }) =>
-    meta.role === 'admin' || followerIds.includes(meta.userId ?? '');
+    meta.role === 'admin' ||
+    meta.role === 'helper' ||
+    meta.role === 'driver' ||
+    followerIds.includes(meta.userId ?? '');
   const recipientCount = [...clients.values()].filter(filter).length;
   logger.info(`broadcastIncidentUpdate id=${incident.id} status=${incident.status} → ${recipientCount} clientes`);
   broadcast({ type: 'incident_update', payload: incident }, filter);

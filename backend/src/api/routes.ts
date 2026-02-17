@@ -591,10 +591,10 @@ api.get('/incidents', authMiddleware, asyncHandler(async (req, res) => {
   `;
   const params: unknown[] = [];
   if (role === 'helper') {
-    query += ` WHERE EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $1)`;
+    query += ` WHERE i.status IN ('active', 'attending', 'localizado') OR EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $1)`;
     params.push(userId);
   } else if (role === 'driver') {
-    query += ` WHERE i.driver_id = $1 OR EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $1)`;
+    query += ` WHERE i.status IN ('active', 'attending', 'localizado') OR i.driver_id = $1 OR EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $1)`;
     params.push(userId);
   } else if (role === 'citizen') {
     query += ` WHERE i.driver_id = $1`;
