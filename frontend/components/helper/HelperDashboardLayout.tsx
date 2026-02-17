@@ -69,7 +69,7 @@ export default function HelperDashboardLayout() {
     (i) => ['active', 'attending', 'localizado'].includes(i.status)
   ) ?? null;
 
-  const SESSION_MAX_HOURS = 8;
+  const SESSION_MAX_HOURS = 720; // 30 days — session ends on manual logout or JWT expiry
 
   // Protección de ruta: helper y driver (ambos usan este layout)
   useLayoutEffect(() => {

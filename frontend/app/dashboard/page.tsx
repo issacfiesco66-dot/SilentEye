@@ -47,7 +47,7 @@ export default function DashboardPage() {
 
   usePushNotifications(pushToken);
 
-  const SESSION_MAX_HOURS = 8;
+  const SESSION_MAX_HOURS = 720; // 30 days — session ends on manual logout or JWT expiry
 
   // useLayoutEffect: lee sesión antes del paint para evitar "Cargando..." eterno
   useLayoutEffect(() => {

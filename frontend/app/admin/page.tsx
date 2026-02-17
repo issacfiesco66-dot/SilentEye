@@ -24,7 +24,7 @@ export default function AdminPage() {
     window.location.href = '/login';
   };
 
-  const SESSION_MAX_HOURS = 8;
+  const SESSION_MAX_HOURS = 720; // 30 days — session ends on manual logout or JWT expiry
 
   useEffect(() => {
     const loginAt = localStorage.getItem('loginAt');
