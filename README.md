@@ -122,6 +122,9 @@ Ver [`backend/.env.example`](backend/.env.example) para referencia completa.
 | `SMTP_FROM` | Sí | Dirección remitente |
 | `MIGRATE_SECRET` | Sí | Secreto para endpoint de migraciones |
 | `PANIC_ALERT_RADIUS_M` | No | Radio de alerta en metros (default: 2000) |
+| `TWILIO_ACCOUNT_SID` | Sí (admin SMS) | Twilio Account SID |
+| `TWILIO_AUTH_TOKEN` | Sí (admin SMS) | Twilio Auth Token |
+| `TWILIO_PHONE_NUMBER` | Sí (admin SMS) | Número Twilio (ej: `+1234567890`) |
 | `JWT_EXPIRES_IN` | No | Duración del JWT (default: 24h) |
 
 **Frontend** (Vercel):

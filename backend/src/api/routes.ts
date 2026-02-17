@@ -14,6 +14,7 @@ import { getAlerts, deleteAlerts } from '../services/alert-service.js';
 import { broadcastPanic } from '../services/websocket.js';
 import { sendPushToUsers, saveSubscription, removeSubscription, getVapidPublicKey } from '../services/push-service.js';
 import { sendOtpEmail, isEmailEnabled, sendHelperRespondingEmail, sendIncidentResolvedEmail, sendWitnessRequestEmail } from '../services/email-service.js';
+import { sendOtpSms, isSmsEnabled } from '../services/sms-service.js';
 import { logger } from '../utils/logger.js';
 import { runMigrate } from '../db/run-migrate.js';
 import { runSeed } from '../db/run-seed.js';
@@ -280,6 +281,17 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       }
 
       const code = await createOtp(cleanPhone);
+
+      // Admin users: send OTP via Twilio SMS
+      if (userCheck.rows[0].role === 'admin' && isSmsEnabled()) {
+        const sent = await sendOtpSms(cleanPhone, code);
+        if (!sent) {
+          logger.warn(`SMS fallback: no se pudo enviar OTP a admin ***${cleanPhone.slice(-4)}`);
+        }
+        res.json({ success: true, smsSent: sent });
+        return;
+      }
+
       res.json(showCode ? { success: true, code } : { success: true });
       return;
     }
