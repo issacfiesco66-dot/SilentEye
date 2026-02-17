@@ -16,3 +16,17 @@ details summary::marker {
   content: '';
 }
 
+/* Contain Leaflet z-indexes so map tiles don't overlap modals/dialogs */
+.leaflet-container {
+  z-index: 0 !important;
+}
+.leaflet-pane {
+  z-index: 0 !important;
+}
+.leaflet-tile-pane {
+  z-index: 0 !important;
+}
+.leaflet-control-container {
+  z-index: 1 !important;
+}
+

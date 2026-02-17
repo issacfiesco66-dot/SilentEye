@@ -273,7 +273,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
         </div>
       )}
 
-      <div className="rounded-xl overflow-hidden border border-zinc-200 relative z-0">
+      <div className="rounded-xl overflow-hidden border border-zinc-200" style={{ isolation: 'isolate' }}>
         <div className="px-4 py-2 bg-white border-b border-zinc-200">
           <h3 className="text-sm font-semibold text-zinc-900">Mapa de conductores y vehículos GPS</h3>
           <p className="text-xs text-zinc-400 mt-0.5">
@@ -431,7 +431,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
                   </div>
                   <div className="flex gap-2 items-center">
                     <button
-                      onClick={() => { setEditingUser(u); setEditForm({ name: u.name, phone: u.phone }); }}
+                      onClick={() => { setEditingUser(u); setEditForm({ name: u.name, phone: u.phone, email: u.email || '' }); }}
                       className="px-2 py-1 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded hover:bg-zinc-200 transition-colors"
                     >
                       Editar
