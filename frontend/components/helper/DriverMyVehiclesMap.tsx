@@ -77,7 +77,7 @@ export default function DriverMyVehiclesMap() {
           {error}
         </div>
       )}
-      <div className="w-full flex-1 min-h-[300px] rounded-lg overflow-hidden border border-zinc-200/80 bg-zinc-50">
+      <div className="w-full rounded-lg overflow-hidden border border-zinc-200/80 bg-zinc-50" style={{ height: 'calc(100vh - 140px)' }}>
         <MapView
           incidents={[]}
           liveLocations={liveLocations}
