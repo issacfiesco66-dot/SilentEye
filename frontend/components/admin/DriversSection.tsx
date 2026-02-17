@@ -1,20 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import UserRoleSelect from './UserRoleSelect';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
-
-const LeafletMap = dynamic(() => import('../LeafletMap'), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-full flex items-center justify-center bg-zinc-50 text-zinc-400">
-      Cargando mapa…
-    </div>
-  ),
-});
 
 interface DriversSectionProps {
   currentUserId?: string;
@@ -37,14 +27,6 @@ interface Vehicle {
   driver_name?: string;
 }
 
-interface GpsPosition {
-  imei?: string;
-  vehicleId?: string;
-  plate?: string;
-  latitude: number;
-  longitude: number;
-  speed?: number;
-}
 
 export default function DriversSection({ currentUserId }: DriversSectionProps) {
   const router = useRouter();
@@ -57,23 +39,9 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [positions, setPositions] = useState<GpsPosition[]>([]);
 
   const drivers = users.filter((u) => u.role === 'driver');
 
-  const loadPositions = useCallback(async (token: string) => {
-    try {
-      const res = await fetch(`${API}/api/gps/latest-positions?limit=100`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPositions(data);
-      }
-    } catch {
-      // Silently ignore position errors
-    }
-  }, []);
 
   const load = async () => {
     const token = localStorage.getItem('token');
@@ -94,7 +62,6 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
       }
       if (uRes.ok) setUsers(await uRes.json());
       if (vRes.ok) setVehicles(await vRes.json());
-      await loadPositions(token);
     } catch {
       setError('Error al cargar datos');
     } finally {
@@ -106,26 +73,6 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
     load();
   }, []);
 
-  // Actualizar posiciones GPS cada 5 segundos
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    const interval = setInterval(() => loadPositions(token), 5000);
-    return () => clearInterval(interval);
-  }, [loadPositions]);
-
-  // Posiciones de vehículos con conductor asignado, enriquecidas con nombre del conductor
-  const liveLocationsForMap = positions
-    .filter((p) => {
-      const v = vehicles.find((ve) => ve.id === p.vehicleId || (ve.imei && ve.imei === p.imei));
-      return v?.driver_id != null;
-    })
-    .map((p) => {
-      const v = vehicles.find((ve) => ve.id === p.vehicleId || (ve.imei && ve.imei === p.imei));
-      const plate = p.plate || v?.plate || 'Sin placa';
-      const label = v?.driver_name ? `${v.driver_name} · ${plate}` : plate;
-      return { ...p, plate: label };
-    });
 
   const createDriver = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,22 +220,6 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
         </div>
       )}
 
-      <div className="rounded-xl overflow-hidden border border-zinc-200" style={{ isolation: 'isolate' }}>
-        <div className="px-4 py-2 bg-white border-b border-zinc-200">
-          <h3 className="text-sm font-semibold text-zinc-900">Mapa de conductores y vehículos GPS</h3>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Ubicación en tiempo real de los vehículos asignados a conductores ({liveLocationsForMap.length} en mapa)
-          </p>
-        </div>
-        <div className="h-[350px] bg-zinc-50">
-          <LeafletMap
-            incidents={[]}
-            liveLocations={liveLocationsForMap}
-            selectedId={null}
-            onSelectIncident={() => {}}
-          />
-        </div>
-      </div>
 
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[10000]">
