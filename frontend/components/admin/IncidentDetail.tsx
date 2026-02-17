@@ -32,8 +32,11 @@ interface Responder {
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Activo' },
-  { value: 'attending', label: 'Atendiendo' },
+  { value: 'attending', label: 'En camino' },
+  { value: 'localizado', label: 'Localizado' },
+  { value: 'recuperado', label: 'Recuperado' },
   { value: 'resolved', label: 'Resuelto' },
+  { value: 'falsa_alarma', label: 'Falsa alarma' },
   { value: 'cancelled', label: 'Cancelado' },
 ] as const;
 

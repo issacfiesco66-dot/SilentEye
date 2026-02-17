@@ -157,12 +157,18 @@ export default function IncidentesSection() {
                     ? 'bg-red-50 text-red-600 border border-red-100'
                     : inc.status === 'attending'
                     ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                    : inc.status === 'localizado'
+                    ? 'bg-blue-50 text-blue-600 border border-blue-100'
+                    : inc.status === 'recuperado'
+                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
                     : inc.status === 'resolved'
                     ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                    : inc.status === 'falsa_alarma'
+                    ? 'bg-zinc-50 text-zinc-500 border border-zinc-200'
                     : 'bg-zinc-100 text-zinc-500'
                 }`}
               >
-                {inc.status}
+                {inc.status === 'falsa_alarma' ? 'Falsa alarma' : inc.status === 'recuperado' ? 'Recuperado' : inc.status === 'localizado' ? 'Localizado' : inc.status}
               </span>
             </li>
           ))

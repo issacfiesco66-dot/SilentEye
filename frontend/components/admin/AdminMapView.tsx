@@ -101,7 +101,7 @@ export default function AdminMapView() {
         if (incRes.ok) {
           const incidents = await incRes.json();
           const active = incidents.filter(
-            (i: Incident) => i.status === 'active' || i.status === 'attending'
+            (i: Incident) => ['active', 'attending', 'localizado'].includes(i.status)
           );
           setActiveIncidents(active);
         }
@@ -174,7 +174,7 @@ export default function AdminMapView() {
       .then((res) => (res.ok ? res.json() : []))
       .then((incidents: Incident[]) => {
         const active = incidents.filter(
-          (i) => i.status === 'active' || i.status === 'attending'
+          (i) => ['active', 'attending', 'localizado'].includes(i.status)
         );
         setActiveIncidents(active);
       })

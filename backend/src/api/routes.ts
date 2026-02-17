@@ -11,7 +11,7 @@ import {
   verifyToken,
 } from './auth.js';
 import { getAlerts, deleteAlerts } from '../services/alert-service.js';
-import { broadcastPanic } from '../services/websocket.js';
+import { broadcastPanic, broadcastIncidentUpdate } from '../services/websocket.js';
 import { sendPushToUsers, saveSubscription, removeSubscription, getVapidPublicKey } from '../services/push-service.js';
 import { sendOtpEmail, isEmailEnabled, sendHelperRespondingEmail, sendIncidentResolvedEmail, sendWitnessRequestEmail } from '../services/email-service.js';
 import { sendOtpSms, isSmsEnabled } from '../services/sms-service.js';
@@ -624,24 +624,27 @@ api.delete('/incidents/:id', authMiddleware, requireRole('admin'), asyncHandler(
 }));
 
 // IDOR: admin puede cambiar cualquier incidente; helper/driver solo los que tiene en incident_followers
+const VALID_INCIDENT_STATUSES = ['active', 'attending', 'localizado', 'recuperado', 'resolved', 'falsa_alarma', 'cancelled'];
+const TERMINAL_STATUSES = ['resolved', 'recuperado', 'falsa_alarma', 'cancelled'];
+const ADMIN_ONLY_STATUSES = ['resolved'];
+
 api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper', 'driver'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   const { userId, role } = (req as any).user;
 
-  if (!['active', 'attending', 'resolved', 'cancelled'].includes(status)) {
-    res.status(400).json({ error: 'Estado inválido' });
+  if (!VALID_INCIDENT_STATUSES.includes(status)) {
+    res.status(400).json({ error: `Estado inválido. Válidos: ${VALID_INCIDENT_STATUSES.join(', ')}` });
     return;
   }
-  // Helper/driver no pueden marcar resolved (solo admin)
-  if ((role === 'helper' || role === 'driver') && status === 'resolved') {
-    res.status(403).json({ error: 'Solo un administrador puede resolver incidentes' });
+  // Solo admin puede marcar resolved
+  if ((role === 'helper' || role === 'driver') && ADMIN_ONLY_STATUSES.includes(status)) {
+    res.status(403).json({ error: 'Solo un administrador puede marcar ese estado' });
     return;
   }
 
   if ((role === 'helper' || role === 'driver') && status === 'attending') {
-    // Auto-asignar: si el helper recibió el panic por WebSocket pero no estaba cerca, añadirlo a incident_followers (solo incidentes active)
-    const incCheck = await pool.query('SELECT 1 FROM incidents WHERE id = $1 AND status = $2', [id, 'active']);
+    const incCheck = await pool.query('SELECT 1 FROM incidents WHERE id = $1 AND status IN ($2, $3)', [id, 'active', 'attending']);
     if (incCheck.rowCount) {
       await pool.query(
         `INSERT INTO incident_followers (incident_id, user_id, status) VALUES ($1, $2, 'en_route')
@@ -653,7 +656,7 @@ api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper', 
 
   let updateQuery = `UPDATE incidents SET status = $2, updated_at = NOW()`;
   const params: unknown[] = [id, status];
-  if (status === 'resolved' || status === 'cancelled') {
+  if (TERMINAL_STATUSES.includes(status)) {
     updateQuery += `, resolved_at = NOW()`;
   }
   updateQuery += ` WHERE id = $1`;
@@ -669,17 +672,57 @@ api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper', 
     return;
   }
 
-  // Email citizen on status changes (non-blocking)
   const incident = r.rows[0];
+
+  // Get all incident followers to broadcast + notify
+  const followersResult = await pool.query(
+    'SELECT user_id FROM incident_followers WHERE incident_id = $1',
+    [id]
+  );
+  const followerIds = followersResult.rows.map((f: { user_id: string }) => f.user_id);
+
+  // Get name of user who changed status
+  const updaterResult = await pool.query('SELECT name FROM users WHERE id = $1', [userId]);
+  const updaterName = updaterResult.rows[0]?.name || 'Usuario';
+
+  // Broadcast status change via WebSocket to all followers + admins
+  broadcastIncidentUpdate(
+    { id, status, updatedBy: userId, updatedByName: updaterName },
+    followerIds
+  );
+
+  // Push notification to followers on important status changes
+  const statusLabels: Record<string, string> = {
+    attending: `${updaterName} va en camino`,
+    localizado: `Vehículo localizado por ${updaterName}`,
+    recuperado: `Vehículo recuperado por ${updaterName}`,
+    resolved: 'Incidente resuelto por administrador',
+    falsa_alarma: 'Incidente marcado como falsa alarma',
+    cancelled: 'Incidente cancelado',
+  };
+  if (statusLabels[status]) {
+    const plate = incident.plate || incident.imei || id.slice(0, 8).toUpperCase();
+    sendPushToUsers(
+      followerIds.filter((fId: string) => fId !== userId),
+      {
+        title: `Incidente ${plate}`,
+        body: statusLabels[status],
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        tag: `incident-${id}`,
+        data: { url: '/dashboard', incidentId: id },
+      }
+    ).catch(err => logger.error('Push incident status error:', err));
+  }
+
+  // Email citizen on status changes (non-blocking)
   if (incident.driver_id && isEmailEnabled()) {
     const citizenResult = await pool.query('SELECT email, role FROM users WHERE id = $1', [incident.driver_id]);
     const citizen = citizenResult.rows[0];
     if (citizen?.email && citizen.role === 'citizen') {
       if (status === 'attending') {
-        const helperResult = await pool.query('SELECT name FROM users WHERE id = $1', [userId]);
-        const helperName = helperResult.rows[0]?.name || 'Un helper';
-        sendHelperRespondingEmail(citizen.email, helperName, id).catch(err => logger.error('Email helper responding error:', err));
-      } else if (status === 'resolved') {
+        sendHelperRespondingEmail(citizen.email, updaterName, id).catch(err => logger.error('Email helper responding error:', err));
+      } else if (status === 'resolved' || status === 'recuperado') {
         sendIncidentResolvedEmail(citizen.email, id).catch(err => logger.error('Email incident resolved error:', err));
       }
     }

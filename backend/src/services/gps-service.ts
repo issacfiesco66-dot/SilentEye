@@ -79,6 +79,20 @@ export async function processGpsData(imei: string, record: AVLRecord): Promise<v
       }
     }
 
+    // Check if this vehicle has an active incident — if so, share location with all responders
+    let incidentFollowerIds: string[] | undefined;
+    if (vehicle?.id) {
+      const followerResult = await client.query(
+        `SELECT DISTINCT f.user_id FROM incident_followers f
+         JOIN incidents i ON i.id = f.incident_id
+         WHERE i.vehicle_id = $1 AND i.status IN ('active', 'attending')`,
+        [vehicle.id]
+      );
+      if (followerResult.rows.length > 0) {
+        incidentFollowerIds = followerResult.rows.map((r: { user_id: string }) => r.user_id);
+      }
+    }
+
     broadcastLocation({
       imei,
       vehicleId: vehicle?.id,
@@ -87,7 +101,7 @@ export async function processGpsData(imei: string, record: AVLRecord): Promise<v
       speed,
       timestamp,
       plate: vehicle?.plate,
-    });
+    }, incidentFollowerIds);
   } finally {
     client.release();
   }

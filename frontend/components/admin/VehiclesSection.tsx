@@ -58,7 +58,7 @@ export default function VehiclesSection() {
       if (incRes.ok) {
         const incidents = await incRes.json();
         const ids = incidents
-          .filter((i: { status: string }) => i.status === 'active' || i.status === 'attending')
+          .filter((i: { status: string }) => ['active', 'attending', 'localizado'].includes(i.status))
           .map((i: { vehicle_id?: string }) => i.vehicle_id)
           .filter(Boolean) as string[];
         setActiveIncidentVehicleIds(ids);

@@ -48,7 +48,7 @@ function computeHelperStatus(
 ): HelperStatus {
   if (!wsConnected) return 'offline';
   if (!incident) return 'disponible';
-  if (incident.status === 'attending') return 'en_ruta';
+  if (incident.status === 'attending' || incident.status === 'localizado') return 'en_ruta';
   return 'asignado';
 }
 
@@ -66,7 +66,7 @@ export default function HelperDashboardLayout() {
 
   // Incidente activo: el primero que está active o attending
   const activeIncident = incidents.find(
-    (i) => i.status === 'active' || i.status === 'attending'
+    (i) => ['active', 'attending', 'localizado'].includes(i.status)
   ) ?? null;
 
   const SESSION_MAX_HOURS = 8;
@@ -238,13 +238,16 @@ export default function HelperDashboardLayout() {
         }));
       }
 
-      if (msg.type === 'incident_update' && (p as { incidentId?: string }).incidentId) {
-        const upd = p as { incidentId: string; status?: string };
-        setIncidents((prev) =>
-          prev.map((i) =>
-            i.id === upd.incidentId ? { ...i, status: upd.status ?? i.status } : i
-          )
-        );
+      if (msg.type === 'incident_update') {
+        const upd = p as { id?: string; incidentId?: string; status?: string };
+        const updId = upd.id || upd.incidentId;
+        if (updId) {
+          setIncidents((prev) =>
+            prev.map((i) =>
+              i.id === updId ? { ...i, status: upd.status ?? i.status } : i
+            )
+          );
+        }
       }
     },
   });

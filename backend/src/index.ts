@@ -135,4 +135,27 @@ server.listen(HTTP_PORT, '0.0.0.0', () => {
   logger.info(`API HTTP + WebSocket en 0.0.0.0:${HTTP_PORT} (path /ws)`);
   logger.info(`TCP Teltonika: 0.0.0.0:${TCP_PORT} | HTTP: ${HTTP_PORT}`);
   startOtpCleanup();
+  startIncidentAutoTimeout();
 });
+
+// Auto-resolve incidents stuck in 'active' or 'attending' for > 2 hours
+const INCIDENT_TIMEOUT_MS = parseInt(process.env.INCIDENT_TIMEOUT_HOURS || '2', 10) * 3600 * 1000;
+function startIncidentAutoTimeout() {
+  setInterval(async () => {
+    try {
+      const { pool: dbPool } = await import('./db/pool.js');
+      const cutoff = new Date(Date.now() - INCIDENT_TIMEOUT_MS);
+      const r = await dbPool.query(
+        `UPDATE incidents SET status = 'resolved', resolved_at = NOW(), updated_at = NOW()
+         WHERE status IN ('active', 'attending') AND started_at < $1
+         RETURNING id`,
+        [cutoff]
+      );
+      if ((r.rowCount ?? 0) > 0) {
+        logger.info(`Auto-timeout: ${r.rowCount} incidentes resueltos (> ${INCIDENT_TIMEOUT_MS / 3600000}h sin actividad)`);
+      }
+    } catch (err) {
+      logger.warn('Incident auto-timeout error:', err);
+    }
+  }, 30 * 60 * 1000); // every 30 min
+}

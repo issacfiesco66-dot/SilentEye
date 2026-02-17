@@ -142,10 +142,13 @@ function broadcast(msg: WSMessage, filter?: (meta: { userId?: string; role?: str
   }
 }
 
-export function broadcastLocation(update: LocationUpdate) {
+export function broadcastLocation(update: LocationUpdate, incidentFollowerIds?: string[]) {
   broadcast(
     { type: 'location', payload: update },
-    (meta) => meta.role === 'admin' || meta.vehicleId === update.vehicleId
+    (meta) =>
+      meta.role === 'admin' ||
+      meta.vehicleId === update.vehicleId ||
+      (incidentFollowerIds != null && incidentFollowerIds.length > 0 && incidentFollowerIds.includes(meta.userId ?? ''))
   );
 }
 
@@ -168,6 +171,14 @@ export function broadcastAlert(event: AlertEvent, nearbyUserIds?: string[]) {
     { type: 'alert', payload: event },
     filter
   );
+}
+
+export function broadcastIncidentUpdate(incident: { id: string; status: string; updatedBy?: string; updatedByName?: string }, followerIds: string[]) {
+  const filter = (meta: { userId?: string; role?: string }) =>
+    meta.role === 'admin' || followerIds.includes(meta.userId ?? '');
+  const recipientCount = [...clients.values()].filter(filter).length;
+  logger.info(`broadcastIncidentUpdate id=${incident.id} status=${incident.status} → ${recipientCount} clientes`);
+  broadcast({ type: 'incident_update', payload: incident }, filter);
 }
 
 export function broadcastToAdmins(type: MessageType, payload: unknown) {
