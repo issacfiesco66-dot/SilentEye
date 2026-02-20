@@ -9,8 +9,9 @@ import AlertsSection from '@/components/admin/AlertsSection';
 import AdminMapView from '@/components/admin/AdminMapView';
 import VehiclesSection from '@/components/admin/VehiclesSection';
 import DriversSection from '@/components/admin/DriversSection';
+import GpsActivitySection from '@/components/admin/GpsActivitySection';
 
-type Tab = 'incidents' | 'alerts' | 'map' | 'vehicles' | 'drivers';
+type Tab = 'incidents' | 'alerts' | 'gps_activity' | 'map' | 'vehicles' | 'drivers';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -89,6 +90,12 @@ export default function AdminPage() {
           {activeTab === 'alerts' && (
             <div className="bg-zinc-50 rounded-xl p-6 border border-zinc-200">
               <AlertsSection />
+            </div>
+          )}
+
+          {activeTab === 'gps_activity' && (
+            <div className="bg-zinc-50 rounded-xl p-6 border border-zinc-200">
+              <GpsActivitySection />
             </div>
           )}
 

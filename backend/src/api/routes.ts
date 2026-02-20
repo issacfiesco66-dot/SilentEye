@@ -1134,6 +1134,35 @@ api.get('/gps/latest-positions', authMiddleware, requireRole('admin'), asyncHand
   );
 }));
 
+// Últimos N registros GPS (admin) — para ver actividad en tiempo real del dispositivo
+api.get('/gps/activity', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+  const limit = Math.min(parseInt(String(req.query.limit || 20), 10) || 20, 100);
+  const r = await pool.query(
+    `SELECT g.imei, g.vehicle_id, g.latitude, g.longitude, g.speed, g.altitude, g.satellites,
+            g.timestamp_at, g.din1_value, g.priority, v.plate
+     FROM gps_logs g
+     LEFT JOIN vehicles v ON v.id = g.vehicle_id
+     ORDER BY g.timestamp_at DESC
+     LIMIT $1`,
+    [limit]
+  );
+  res.json(
+    r.rows.map((row: { imei: string; vehicle_id: string; plate: string; latitude: string; longitude: string; speed: number; altitude: number; satellites: number; timestamp_at: string; din1_value: number; priority: number }) => ({
+      imei: row.imei,
+      vehicleId: row.vehicle_id,
+      plate: row.plate,
+      latitude: parseFloat(row.latitude),
+      longitude: parseFloat(row.longitude),
+      speed: row.speed ?? 0,
+      altitude: row.altitude ?? 0,
+      satellites: row.satellites ?? 0,
+      timestampAt: row.timestamp_at,
+      din1: row.din1_value,
+      priority: row.priority ?? 0,
+    }))
+  );
+}));
+
 api.get('/gps/logs', authMiddleware, asyncHandler(async (req, res) => {
   const { vehicle_id, limit = 100 } = req.query;
   const { userId, role } = (req as any).user;

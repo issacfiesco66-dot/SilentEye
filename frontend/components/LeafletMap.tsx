@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -240,7 +240,11 @@ export default function LeafletMap({
             key={`loc-${loc.imei || loc.vehicleId || idx}`}
             position={[loc.latitude, loc.longitude]}
             icon={vehicleIcon}
-          />
+          >
+            <Tooltip permanent direction="top" offset={[0, -14]} className="!bg-zinc-800 !text-white !text-xs !border-0 !rounded-md !px-2 !py-1 !shadow-lg">
+              {loc.plate || loc.imei || 'Vehículo'}{loc.speed ? ` · ${loc.speed} km/h` : ''}
+            </Tooltip>
+          </Marker>
         ))}
       </MapContainer>
     </div>
