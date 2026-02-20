@@ -88,7 +88,7 @@ export default function AlertsSection() {
             };
             return [newAlert, ...prev];
           });
-          if (a.priority === 2) playAlarmSound();
+          playAlarmSound();
         }
       }
     }, []),

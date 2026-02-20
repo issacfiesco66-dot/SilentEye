@@ -8,7 +8,7 @@ Plataforma de seguridad vehicular en tiempo real. Monitoreo GPS de flotas, botó
 |------|-----------|
 | **Backend** | Node.js · Express · TypeScript · PostgreSQL + PostGIS |
 | **Frontend** | Next.js 14 · React · Tailwind CSS · Leaflet/OpenStreetMap |
-| **GPS** | Teltonika FMB920/FMC920 · Codec 8/8E · TCP |
+| **GPS** | Teltonika FMC130 · Codec 8/8E · TCP (via ngrok) |
 | **Tiempo real** | WebSocket · Push Notifications (VAPID) |
 | **Email** | Nodemailer · Gmail SMTP (OTP + notificaciones) |
 | **PDF** | PDFKit (reportes de incidentes) |
@@ -145,7 +145,7 @@ Ver [`backend/.env.example`](backend/.env.example) para referencia completa.
 
 ## Funcionalidades principales
 
-- **Rastreo GPS en vivo** — Teltonika FMB920/FMC920 via TCP, ubicación en mapa OpenStreetMap
+- **Rastreo GPS en vivo** — Teltonika FMC130 via TCP (ngrok tunnel), ubicación en mapa OpenStreetMap
 - **Botón de pánico físico** — DIN1 del GPS genera incidente automático (priority=2)
 - **Botón SOS móvil** — Cualquier persona desde el navegador, sin app
 - **Notificaciones** — WebSocket + Push + Email al ciudadano cuando un helper responde
@@ -154,15 +154,41 @@ Ver [`backend/.env.example`](backend/.env.example) para referencia completa.
 - **Sistema de testigos** — Solicitud voluntaria por email con aceptar/declinar
 - **PWA** — Instalable como app, funciona offline para el service worker
 
-## GPS Teltonika (FMB920)
+## GPS Teltonika (FMC130)
 
-Configurar en Teltonika Configurator:
-- **Domain**: `silenteye-3rrwnq.fly.dev`
-- **Port**: `5000`
-- **Protocol**: TCP
-- **DIN1**: High Level (botón de pánico)
+### Conexión del botón de pánico
 
-Comandos SMS (contraseña default `0000`):
+```
+Pin 5 (DIN1) ──── Cable 1 del botón (normalmente abierto)
+Pin 7 (GND)  ──── Cable 2 del botón
+Pin 1 (+V)   ──── +12V batería vehículo
+Pin 7 (GND)  ──── GND batería vehículo
+```
+
+### Configuración en Teltonika Configurator
+
+| Parámetro | Valor |
+|-----------|-------|
+| **Domain** | `7.tcp.ngrok.io` |
+| **Port** | `22704` |
+| **Protocol** | TCP |
+| **Codec** | Codec 8 Extended |
+
+**I/O → DIN1 (AVL ID 1)**:
+- Priority: **Panic**
+- Operand: **On Change**
+
+### Verificar conexión
+
+```bash
+flyctl logs --app silenteye-3rrwnq
+# Debe mostrar:
+# [GPS] IMEI recibido: 865124071489548
+# ACK IMEI enviado: 0x01 (aceptar)
+```
+
+### Comandos SMS (contraseña default `0000`)
+
 - `0000 getinfo` — Estado del dispositivo
 - `0000 flush` — Forzar envío de datos
 - `0000 cpureset` — Reiniciar dispositivo
