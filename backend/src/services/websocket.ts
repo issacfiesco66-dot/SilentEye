@@ -79,9 +79,11 @@ interface WSMessage {
   payload: LocationUpdate | PanicEvent | AlertEvent | unknown;
 }
 
-const clients = new Map<WsSocket, { userId?: string; role?: string; vehicleId?: string }>();
+const clients = new Map<WsSocket, { userId?: string; role?: string; vehicleId?: string; ip?: string }>();
 
 const VALID_ROLES = ['admin', 'helper', 'driver', 'citizen'];
+const MAX_WS_PER_IP = 10;
+const MAX_WS_PER_USER = 5;
 
 export function createWebSocketServer(portOrServer: number | HttpServer): WebSocketServer {
   const wss = typeof portOrServer === 'number'
@@ -89,6 +91,18 @@ export function createWebSocketServer(portOrServer: number | HttpServer): WebSoc
     : new WebSocketServer({ server: portOrServer, path: '/ws' });
 
   wss.on('connection', async (ws, req) => {
+    // Extract client IP for rate limiting
+    const forwarded = req.headers['x-forwarded-for'];
+    const clientIp = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress || 'unknown';
+
+    // Per-IP connection limit (prevent DoS)
+    const ipCount = [...clients.values()].filter(m => m.ip === clientIp).length;
+    if (ipCount >= MAX_WS_PER_IP) {
+      logger.warn(`WebSocket: IP ${clientIp} excede límite (${MAX_WS_PER_IP} conexiones)`);
+      ws.close(4429, 'Too many connections');
+      return;
+    }
+
     const token = parseTokenFromRequest(req);
     if (!token) {
       logger.warn('WebSocket: conexión rechazada (sin token)');
@@ -100,6 +114,14 @@ export function createWebSocketServer(portOrServer: number | HttpServer): WebSoc
     if (!payload) {
       logger.warn('WebSocket: conexión rechazada (JWT inválido o expirado)');
       ws.close(4002, 'Token inválido');
+      return;
+    }
+
+    // Per-user connection limit (prevent session abuse)
+    const userCount = [...clients.values()].filter(m => m.userId === payload.userId).length;
+    if (userCount >= MAX_WS_PER_USER) {
+      logger.warn(`WebSocket: usuario ${payload.userId} excede límite (${MAX_WS_PER_USER} conexiones)`);
+      ws.close(4429, 'Too many connections for user');
       return;
     }
 
@@ -115,6 +137,7 @@ export function createWebSocketServer(portOrServer: number | HttpServer): WebSoc
       userId: payload.userId,
       role: meta.role,
       vehicleId: meta.vehicleId,
+      ip: clientIp,
     });
 
     ws.on('message', () => {

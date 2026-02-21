@@ -7,7 +7,7 @@
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { pool } from '../db/pool.js';
 import { hasPostGis } from '../db/postgis-check.js';
 import {
@@ -106,15 +106,16 @@ function isValidCoords(lat: unknown, lng: unknown): boolean {
 
 // HMAC signing for witness response URLs (prevents URL tampering)
 function signWitnessToken(incidentId: string, userId: string, response: string): string {
-  const secret = process.env.JWT_SECRET || 'fallback';
-  return createHmac('sha256', secret).update(`${incidentId}:${userId}:${response}`).digest('hex').slice(0, 32);
+  const secret = process.env.JWT_SECRET!; // Enforced at startup in auth.ts (min 32 chars)
+  return createHmac('sha256', secret).update(`${incidentId}:${userId}:${response}`).digest('hex');
 }
 
 // Setup: migrar y seed (requiere ?secret=XXX, MIGRATE_SECRET en Fly Secrets)
 const MIGRATE_SECRET = process.env.MIGRATE_SECRET || '';
 function checkSetupSecret(req: import('express').Request): boolean {
-  const secret = req.query.secret || req.body?.secret;
-  return !!MIGRATE_SECRET && MIGRATE_SECRET.length >= 16 && MIGRATE_SECRET === secret;
+  const secret = String(req.query.secret || req.body?.secret || '');
+  if (!MIGRATE_SECRET || MIGRATE_SECRET.length < 16 || secret.length !== MIGRATE_SECRET.length) return false;
+  return timingSafeEqual(Buffer.from(secret), Buffer.from(MIGRATE_SECRET));
 }
 
 api.post('/setup/migrate', asyncHandler(async (req, res) => {
@@ -528,6 +529,18 @@ api.post('/vehicles', authMiddleware, requireRole('admin'), asyncHandler(async (
   const { plate, name, imei, driver_id } = req.body;
   if (!plate || !imei) {
     res.status(400).json({ error: 'Placa e IMEI requeridos' });
+    return;
+  }
+  if (typeof plate !== 'string' || plate.trim().length > 20) {
+    res.status(400).json({ error: 'Placa máximo 20 caracteres' });
+    return;
+  }
+  if (typeof imei !== 'string' || !IMEI_REGEX.test(imei.trim())) {
+    res.status(400).json({ error: 'IMEI inválido (15 dígitos)' });
+    return;
+  }
+  if (name && (typeof name !== 'string' || name.trim().length > 100)) {
+    res.status(400).json({ error: 'Nombre máximo 100 caracteres' });
     return;
   }
   try {
@@ -992,9 +1005,12 @@ api.get('/incidents/:id/witness-response', asyncHandler(async (req, res) => {
     return;
   }
 
-  // Verify HMAC signature to prevent URL tampering
+  // Verify HMAC signature (timing-safe to prevent side-channel attacks)
   const expectedSig = signWitnessToken(id, String(user), String(response));
-  if (!sig || sig !== expectedSig) {
+  const sigStr = String(sig || '');
+  const sigMatch = sigStr.length === expectedSig.length &&
+    timingSafeEqual(Buffer.from(sigStr), Buffer.from(expectedSig));
+  if (!sigMatch) {
     res.status(403).send('<html><body><h2>Enlace inv\u00e1lido o expirado</h2></body></html>');
     return;
   }
@@ -1282,6 +1298,18 @@ api.post('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req
   const { phone, name, role, email } = req.body;
   if (!phone || typeof phone !== 'string' || !name || typeof name !== 'string') {
     res.status(400).json({ error: 'Teléfono y nombre requeridos' });
+    return;
+  }
+  if (name.trim().length > 100) {
+    res.status(400).json({ error: 'Nombre máximo 100 caracteres' });
+    return;
+  }
+  if (!isValidPhone(phone)) {
+    res.status(400).json({ error: 'Teléfono inválido (máx 20 caracteres)' });
+    return;
+  }
+  if (email && (typeof email !== 'string' || email.trim().length > 255)) {
+    res.status(400).json({ error: 'Email máximo 255 caracteres' });
     return;
   }
   const finalRole = ['driver', 'helper', 'admin', 'citizen'].includes(role) ? role : 'driver';

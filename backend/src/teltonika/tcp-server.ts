@@ -88,11 +88,30 @@ function logAvlRecord(imei: string, record: AVLRecord, index: number): void {
   );
 }
 
+const MAX_TCP_CONNECTIONS = 200;
+const MAX_TCP_PER_IP = 5;
+
 export function createTeltonikaTcpServer(port: number, onData?: (imei: string, records: AVLRecord[]) => void): net.Server {
   const connections = new Map<net.Socket, TeltonikaConnection>();
   let imeiTimeoutCheck: ReturnType<typeof setInterval> | null = null;
 
   const server = net.createServer((socket) => {
+    // Global connection limit
+    if (connections.size >= MAX_TCP_CONNECTIONS) {
+      logger.warn(`[TCP] Límite global alcanzado (${MAX_TCP_CONNECTIONS}), rechazando conexión`);
+      socket.destroy();
+      return;
+    }
+
+    // Per-IP connection limit
+    const remoteIp = socket.remoteAddress || 'unknown';
+    const ipConns = [...connections.values()].filter(c => c.socket.remoteAddress === remoteIp).length;
+    if (ipConns >= MAX_TCP_PER_IP) {
+      logger.warn(`[TCP] IP ${remoteIp} excede límite (${MAX_TCP_PER_IP} conexiones), rechazando`);
+      socket.destroy();
+      return;
+    }
+
     const conn: TeltonikaConnection = {
       socket,
       imei: null,
