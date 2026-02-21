@@ -9,6 +9,7 @@ import SinIncidentePlaceholder from './SinIncidentePlaceholder';
 import DriverMyVehiclesMap from './DriverMyVehiclesMap';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -106,6 +107,9 @@ export default function HelperDashboardLayout() {
     }
   }, []);
 
+  // Unlock audio on first interaction
+  useEffect(() => { initAudioOnInteraction(); }, []);
+
   // Respaldo: si tras 1s sigue en loading pero hay datos válidos, forzar setUser
   useEffect(() => {
     const id = setTimeout(() => {
@@ -197,8 +201,10 @@ export default function HelperDashboardLayout() {
       if (msg.type === 'panic' && (p as { incidentId?: string }).incidentId) {
         const panic = p as { incidentId: string; vehicleId?: string; imei?: string; latitude: number; longitude: number; plate?: string };
         handlePanicLike(panic.incidentId, panic.latitude, panic.longitude, panic.plate, panic.imei, panic.vehicleId);
+        playAlarmSound();
       }
       if (msg.type === 'alert' && (p as { alertType?: string }).alertType) {
+        playAlarmSound();
         const a = p as { id?: string; alertType?: string; latitude?: number; longitude?: number; plate?: string; deviceImei?: string; vehicleId?: string; speed?: number };
         if (a.alertType === 'panic' && a.id && typeof a.latitude === 'number' && typeof a.longitude === 'number') {
           handlePanicLike(a.id, a.latitude, a.longitude, a.plate, a.deviceImei, a.vehicleId);

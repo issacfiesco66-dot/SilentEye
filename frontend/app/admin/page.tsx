@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AdminTabs from '@/components/admin/AdminTabs';
@@ -10,6 +10,8 @@ import AdminMapView from '@/components/admin/AdminMapView';
 import VehiclesSection from '@/components/admin/VehiclesSection';
 import DriversSection from '@/components/admin/DriversSection';
 import GpsActivitySection from '@/components/admin/GpsActivitySection';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
 
 type Tab = 'incidents' | 'alerts' | 'gps_activity' | 'map' | 'vehicles' | 'drivers';
 
@@ -25,7 +27,24 @@ export default function AdminPage() {
     window.location.href = '/login';
   };
 
+  const [token, setToken] = useState<string | null>(null);
   const SESSION_MAX_HOURS = 720; // 30 days — session ends on manual logout or JWT expiry
+
+  // Global alarm: plays sound for panic/alert events on ANY tab
+  useEffect(() => {
+    initAudioOnInteraction();
+    setToken(typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+  }, []);
+
+  useWebSocket({
+    token,
+    enabled: !!token,
+    onMessage: useCallback((msg: { type: string; payload: unknown }) => {
+      if (msg.type === 'panic' || msg.type === 'alert') {
+        playAlarmSound();
+      }
+    }, []),
+  });
 
   useEffect(() => {
     const loginAt = localStorage.getItem('loginAt');
