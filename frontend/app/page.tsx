@@ -21,8 +21,10 @@ export default function Home() {
           </Link>
 
           <div className="hidden md:flex items-center gap-8 text-[13px] font-medium text-zinc-500">
+            <a href="#problema" className="hover:text-zinc-900 transition-colors">Problema</a>
             <a href="#producto" className="hover:text-zinc-900 transition-colors">Producto</a>
-            <a href="#como-funciona" className="hover:text-zinc-900 transition-colors">Proceso</a>
+            <a href="#comparativa" className="hover:text-zinc-900 transition-colors">Comparativa</a>
+            <a href="#casos" className="hover:text-zinc-900 transition-colors">Casos</a>
             <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
           </div>
 
@@ -132,8 +134,64 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── El Problema Real ── */}
+      <section id="problema" className="px-6 py-24 md:py-32">
+        <div className="max-w-7xl mx-auto">
+          <div className="max-w-xl mb-16">
+            <p className="text-[13px] font-semibold text-red-600 tracking-wide uppercase mb-3">El problema real</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">Un GPS que solo rastrea no te protege</h2>
+            <p className="text-zinc-500 leading-relaxed">La mayoría de los sistemas de seguridad vehicular fueron diseñados para localizar, no para reaccionar. Y en una emergencia, la diferencia es todo.</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Card 1 */}
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6">
+              <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center mb-4">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <h3 className="font-bold text-zinc-900 mb-2">El tiempo corre en tu contra</h3>
+              <p className="text-[14px] text-zinc-500 leading-relaxed">
+                En México, un asalto vehicular dura entre 30 y 90 segundos. Los sistemas que dependen de que alguien llame a una central, espere confirmación y despache ayuda tardan entre 8 y 25 minutos en generar una respuesta. Para entonces, el evento ya terminó.
+              </p>
+            </div>
+
+            {/* Card 2 */}
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6">
+              <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center mb-4">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+              </div>
+              <h3 className="font-bold text-zinc-900 mb-2">El botón de pánico tradicional es pasivo</h3>
+              <p className="text-[14px] text-zinc-500 leading-relaxed">
+                La mayoría de los botones de pánico generan un &quot;evento&quot; en un servidor. Alguien lo revisa después, quizás minutos u horas más tarde. No hay distribución automática, no hay alerta a personas cercanas, no hay reacción coordinada en tiempo real.
+              </p>
+            </div>
+
+            {/* Card 3 */}
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6">
+              <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center mb-4">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
+              </div>
+              <h3 className="font-bold text-zinc-900 mb-2">Depender de una llamada es una vulnerabilidad</h3>
+              <p className="text-[14px] text-zinc-500 leading-relaxed">
+                Si estás siendo asaltado, no puedes llamar. Si tu GPS depende de una central que recibe llamadas para actuar, tu sistema de seguridad tiene un punto de falla humano. La reacción debe ser automática, no depender de que alguien conteste un teléfono.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-10 bg-zinc-900 text-white rounded-xl px-6 py-5 md:px-8 md:py-6 flex flex-col md:flex-row items-start md:items-center gap-4">
+            <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/></svg>
+            </div>
+            <div>
+              <p className="font-bold text-[15px] mb-1">SilentEye resuelve esto con un cambio fundamental</p>
+              <p className="text-zinc-400 text-[14px] leading-relaxed">En lugar de registrar un evento para revisión posterior, distribuye la alerta en menos de 3 segundos a todas las personas cercanas con ubicación GPS en tiempo real. No hay central, no hay llamada, no hay espera. La reacción ocurre mientras el evento sigue sucediendo.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Product: Bento grid ── */}
-      <section id="producto" className="px-6 py-24 md:py-32">
+      <section id="producto" className="px-6 py-24 md:py-32 border-t border-zinc-100">
         <div className="max-w-7xl mx-auto">
           <div className="max-w-xl mb-16">
             <p className="text-[13px] font-semibold text-blue-600 tracking-wide uppercase mb-3">Producto</p>
@@ -265,6 +323,104 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── Comparativa ── */}
+      <section id="comparativa" className="px-6 py-24 md:py-32">
+        <div className="max-w-5xl mx-auto">
+          <div className="max-w-xl mb-16">
+            <p className="text-[13px] font-semibold text-blue-600 tracking-wide uppercase mb-3">Comparativa</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">GPS tradicional vs SilentEye</h2>
+            <p className="text-zinc-500 leading-relaxed">La diferencia no es el dispositivo. Es lo que pasa después de oprimir el botón.</p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[14px]">
+              <thead>
+                <tr className="border-b-2 border-zinc-200">
+                  <th className="py-4 pr-6 text-zinc-400 font-semibold text-[13px] uppercase tracking-wider w-1/3" />
+                  <th className="py-4 px-4 text-zinc-400 font-semibold text-[13px] uppercase tracking-wider w-1/3">GPS Tradicional</th>
+                  <th className="py-4 px-4 text-zinc-900 font-semibold text-[13px] uppercase tracking-wider w-1/3 bg-blue-50/50 rounded-t-lg">SilentEye</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {[
+                  { label: 'Al oprimir el botón de pánico', trad: 'Se genera un evento en el servidor. Alguien lo revisa después.', se: 'Alerta instantánea a todas las personas cercanas con ubicación en vivo.' },
+                  { label: 'Tiempo de reacción', trad: '8–25 min (depende de la central)', se: '<3 segundos (automático)' },
+                  { label: 'Depende de una llamada', trad: 'Sí. Alguien debe llamar o contestar.', se: 'No. La distribución es automática.' },
+                  { label: 'Quién recibe la alerta', trad: 'Solo la central de monitoreo.', se: 'Admins + conductores + helpers + ciudadanos cercanos.' },
+                  { label: 'Ubicación en tiempo real', trad: 'Solo para quien accede al portal.', se: 'Todos los notificados ven la ubicación en vivo.' },
+                  { label: 'Enfoque', trad: 'Pasivo: registrar y revisar.', se: 'Activo: distribuir y reaccionar.' },
+                  { label: 'Funciona sin app', trad: 'No. Requiere app o portal.', se: 'Sí. SOS desde el navegador, sin instalar nada.' },
+                ].map((row, i) => (
+                  <tr key={i}>
+                    <td className="py-4 pr-6 font-semibold text-zinc-900">{row.label}</td>
+                    <td className="py-4 px-4 text-zinc-400">{row.trad}</td>
+                    <td className="py-4 px-4 text-zinc-700 bg-blue-50/30 font-medium">{row.se}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Casos de uso ── */}
+      <section id="casos" className="px-6 py-24 md:py-32 bg-zinc-50 border-y border-zinc-100">
+        <div className="max-w-7xl mx-auto">
+          <div className="max-w-xl mb-16">
+            <p className="text-[13px] font-semibold text-blue-600 tracking-wide uppercase mb-3">Casos de uso</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">Quién lo necesita y por qué</h2>
+            <p className="text-zinc-500 leading-relaxed">SilentEye no es solo para flotillas. Es para cualquiera que necesite reacción inmediata ante una emergencia vehicular.</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Case 1: Conductores de apps */}
+            <div className="bg-white border border-zinc-200 rounded-xl p-6 hover:border-blue-200 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center mb-5">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="m16 8 4 2v4l-4 2"/><circle cx="12" cy="21" r="1"/><circle cx="5" cy="21" r="1"/><path d="M5 20h7"/></svg>
+              </div>
+              <h3 className="font-bold text-zinc-900 text-lg mb-2">Conductores de apps</h3>
+              <p className="text-[14px] text-zinc-500 leading-relaxed mb-4">
+                Uber, Didi, InDriver. Cada día suben pasajeros desconocidos. Si algo sale mal, no pueden sacar el celular ni hacer una llamada. Con SilentEye, un botón físico en el vehículo alerta a toda la red sin que nadie lo note.
+              </p>
+              <div className="flex items-center gap-2 text-[12px] font-medium text-amber-600">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
+                Botón discreto · Alerta silenciosa
+              </div>
+            </div>
+
+            {/* Case 2: Flotillas y trailers */}
+            <div className="bg-white border border-zinc-200 rounded-xl p-6 hover:border-blue-200 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-5">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18h2a1 1 0 0 0 1-1v-3.28a1 1 0 0 0-.684-.948l-1.923-.641a1 1 0 0 1-.684-.948V6h2a2 2 0 0 1 2 2v4.5"/><circle cx="7" cy="18" r="2"/><path d="M15 18H9"/><circle cx="17" cy="18" r="2"/></svg>
+              </div>
+              <h3 className="font-bold text-zinc-900 text-lg mb-2">Flotillas y trailers</h3>
+              <p className="text-[14px] text-zinc-500 leading-relaxed mb-4">
+                Robo de carga en carretera: el conductor está solo, sin cobertura y a merced de los asaltantes. Con GPS Teltonika, la alerta llega a la base y a todos los vehículos cercanos de la flotilla. Coordinación antes de que el trailer desaparezca.
+              </p>
+              <div className="flex items-center gap-2 text-[12px] font-medium text-blue-600">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
+                GPS industrial · Alertas a toda la flota
+              </div>
+            </div>
+
+            {/* Case 3: Vehículos particulares */}
+            <div className="bg-white border border-zinc-200 rounded-xl p-6 hover:border-blue-200 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center mb-5">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18 10l-2.7-3.6A1.5 1.5 0 0 0 14.1 6H9.9a1.5 1.5 0 0 0-1.2.6L6 10l-2.5 1.1C2.7 11.3 2 12.1 2 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+              </div>
+              <h3 className="font-bold text-zinc-900 text-lg mb-2">Vehículos particulares</h3>
+              <p className="text-[14px] text-zinc-500 leading-relaxed mb-4">
+                Tu familiar sale de noche y no contesta el teléfono. Con SilentEye puedes ver su ubicación en tiempo real, y si oprime el botón de pánico, tú y todos los cercanos reciben la alerta al instante. No necesitas esperar para actuar.
+              </p>
+              <div className="flex items-center gap-2 text-[12px] font-medium text-emerald-600">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
+                Tranquilidad familiar · Ubicación en vivo
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── FAQ ── */}
       <section id="faq" className="px-6 py-24 md:py-32">
         <div className="max-w-3xl mx-auto">
@@ -336,8 +492,10 @@ export default function Home() {
             <span className="text-sm font-bold tracking-tight">SilentEye</span>
           </div>
           <div className="flex items-center gap-6 text-[13px] text-zinc-400">
+            <a href="#problema" className="hover:text-zinc-900 transition-colors">Problema</a>
             <a href="#producto" className="hover:text-zinc-900 transition-colors">Producto</a>
-            <a href="#como-funciona" className="hover:text-zinc-900 transition-colors">Proceso</a>
+            <a href="#comparativa" className="hover:text-zinc-900 transition-colors">Comparativa</a>
+            <a href="#casos" className="hover:text-zinc-900 transition-colors">Casos</a>
             <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
             <Link href="/login" className="hover:text-zinc-900 transition-colors">Acceder</Link>
           </div>
