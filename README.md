@@ -1,5 +1,8 @@
 # SilentEye
 
+> **Copyright (c) 2026 Christian Fiesco. All rights reserved.**
+> **PROPRIETARY SOFTWARE — See [LICENSE](./LICENSE) for details.**
+
 Plataforma de seguridad vehicular en tiempo real. Monitoreo GPS de flotas, botón de pánico ciudadano y red de apoyo con notificaciones instantáneas.
 
 ## Stack
@@ -195,4 +198,8 @@ flyctl logs --app silenteye-3rrwnq
 
 ## Licencia
 
-Privado — Todos los derechos reservados.
+**Copyright (c) 2026 Christian Fiesco. Todos los derechos reservados.**
+
+Este software es **propietario y confidencial**. El repositorio es público únicamente con fines de demostración y portafolio. No se otorga ninguna licencia ni permiso para usar, copiar, modificar o distribuir este software sin autorización escrita del autor.
+
+Ver [LICENSE](./LICENSE) para términos completos.

@@ -1,4 +1,9 @@
 'use client';
+/**
+ * SilentEye — Plataforma de Seguridad Vehicular
+ * Copyright (c) 2026 Christian Fiesco. All rights reserved.
+ * PROPRIETARY AND CONFIDENTIAL — See LICENSE file for details.
+ */
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';

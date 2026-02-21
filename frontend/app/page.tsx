@@ -1,3 +1,9 @@
+/**
+ * SilentEye — Plataforma de Seguridad Vehicular
+ * Copyright (c) 2026 Christian Fiesco. All rights reserved.
+ * PROPRIETARY AND CONFIDENTIAL — See LICENSE file for details.
+ */
+
 import Link from 'next/link';
 
 export default function Home() {

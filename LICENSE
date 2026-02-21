@@ -1,0 +1,50 @@
+SILENTEYE — PROPRIETARY SOFTWARE LICENSE
+
+Copyright (c) 2026 Christian Fiesco. All rights reserved.
+
+NOTICE: This software and all associated documentation, source code, and
+intellectual property (collectively, the "Software") is the exclusive
+property of Christian Fiesco ("Author").
+
+RESTRICTIONS:
+
+1. NO COPY — You may not copy, reproduce, or duplicate the Software or any
+   portion thereof, in whole or in part, in any form or medium.
+
+2. NO MODIFICATION — You may not modify, adapt, translate, reverse engineer,
+   decompile, disassemble, or create derivative works based on the Software.
+
+3. NO DISTRIBUTION — You may not distribute, sublicense, lease, rent, sell,
+   or otherwise transfer the Software or any rights therein to any third
+   party without the prior written consent of the Author.
+
+4. NO COMMERCIAL USE — You may not use the Software for any commercial
+   purpose without the prior written consent of the Author.
+
+5. NO CLAIM OF OWNERSHIP — You may not claim authorship or ownership of the
+   Software or any portion thereof.
+
+INTELLECTUAL PROPERTY:
+
+The Software, including but not limited to its architecture, design patterns,
+algorithms, GPS integration logic, Teltonika protocol implementation, panic
+alert system, real-time WebSocket communication system, and all associated
+user interfaces, constitutes original work authored by Christian Fiesco.
+
+This repository is made publicly visible for demonstration and portfolio
+purposes only. Public visibility does NOT constitute a grant of any license
+or permission to use, copy, modify, or distribute the Software.
+
+ENFORCEMENT:
+
+Any unauthorized use, reproduction, modification, or distribution of the
+Software may result in civil and criminal penalties under applicable
+intellectual property laws.
+
+CONTACT:
+
+For licensing inquiries, please contact the Author via the repository.
+
+---
+SilentEye — Plataforma de Seguridad Vehicular
+Designed and developed by Christian Fiesco

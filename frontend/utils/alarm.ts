@@ -1,4 +1,8 @@
 /**
+ * SilentEye — Plataforma de Seguridad Vehicular
+ * Copyright (c) 2026 Christian Fiesco. All rights reserved.
+ * PROPRIETARY AND CONFIDENTIAL — See LICENSE file for details.
+ *
  * Alarm sound system that works on mobile browsers.
  *
  * Mobile browsers block AudioContext until a user gesture (tap/click).

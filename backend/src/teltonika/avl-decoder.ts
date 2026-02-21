@@ -1,4 +1,9 @@
 /**
+ * SilentEye — Plataforma de Seguridad Vehicular
+ * Copyright (c) 2026 Christian Fiesco. All rights reserved.
+ * PROPRIETARY AND CONFIDENTIAL — See LICENSE file for details.
+ * Unauthorized copying, modification, or distribution is strictly prohibited.
+ *
  * Decodificador AVL Teltonika - Codec 8 y Codec 8 Extended
  * Especificación: https://wiki.teltonika-gps.com/view/Teltonika_AVL_Protocols
  */

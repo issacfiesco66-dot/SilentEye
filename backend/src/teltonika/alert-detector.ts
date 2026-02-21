@@ -1,4 +1,9 @@
 /**
+ * SilentEye — Plataforma de Seguridad Vehicular
+ * Copyright (c) 2026 Christian Fiesco. All rights reserved.
+ * PROPRIETARY AND CONFIDENTIAL — See LICENSE file for details.
+ * Unauthorized copying, modification, or distribution is strictly prohibited.
+ *
  * Detector de alertas Teltonika AVL
  * Basado en Priority, Event IO ID e I/O Elements.
  * Extensible: mapeo configurable para distintos firmwares (FMB920, FMU920, etc.)
