@@ -37,6 +37,17 @@ interface IncomingAlert {
   latitude: number;
   longitude: number;
   timestamp: number;
+  vehicleId?: string;
+  imei?: string;
+}
+
+interface LiveVehicle {
+  vehicleId?: string;
+  imei?: string;
+  plate?: string;
+  latitude: number;
+  longitude: number;
+  speed?: number;
 }
 
 export default function SOSPage() {
@@ -53,6 +64,8 @@ export default function SOSPage() {
   const [countdown, setCountdown] = useState<number>(0);
   const [incomingAlerts, setIncomingAlerts] = useState<IncomingAlert[]>([]);
   const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
+  const [trackingIncident, setTrackingIncident] = useState<string | null>(null);
+  const [liveVehicles, setLiveVehicles] = useState<LiveVehicle[]>([]);
   const watchRef = useRef<number | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const locationReportRef = useRef<NodeJS.Timeout | null>(null);
@@ -75,7 +88,7 @@ export default function SOSPage() {
     // Fetch the incident details so we can show it on the map
     fetch(`${API}/api/incidents`, { headers: { Authorization: `Bearer ${t}` } })
       .then(res => res.ok ? res.json() : [])
-      .then((incidents: { id: string; latitude: number; longitude: number; plate?: string; started_at?: string }[]) => {
+      .then((incidents: { id: string; latitude: number; longitude: number; plate?: string; started_at?: string; vehicle_id?: string; imei?: string }[]) => {
         const inc = incidents.find((i: { id: string }) => i.id === incidentId);
         if (inc && typeof inc.latitude === 'number') {
           const alert: IncomingAlert = {
@@ -84,12 +97,15 @@ export default function SOSPage() {
             latitude: inc.latitude,
             longitude: inc.longitude,
             timestamp: inc.started_at ? new Date(inc.started_at).getTime() : Date.now(),
+            vehicleId: inc.vehicle_id,
+            imei: inc.imei,
           };
           setIncomingAlerts(prev => {
             if (prev.some(a => a.incidentId === incidentId)) return prev;
             return [alert, ...prev];
           });
           setSelectedAlert(incidentId);
+          setTrackingIncident(incidentId);
         }
       })
       .catch(() => {});
@@ -180,13 +196,13 @@ export default function SOSPage() {
     };
   }, [token]);
 
-  // WebSocket: receive panic alerts from other users
+  // WebSocket: receive panic alerts + live location updates
   useWebSocket({
     token,
     enabled: !!token,
     onMessage: useCallback((msg: { type: string; payload: unknown }) => {
       if (msg.type === 'panic' && msg.payload) {
-        const p = msg.payload as { incidentId?: string; plate?: string; latitude?: number; longitude?: number; timestamp?: number };
+        const p = msg.payload as { incidentId?: string; plate?: string; latitude?: number; longitude?: number; timestamp?: number; vehicleId?: string; imei?: string };
         if (p.incidentId && typeof p.latitude === 'number') {
           const alert: IncomingAlert = {
             incidentId: p.incidentId,
@@ -194,14 +210,64 @@ export default function SOSPage() {
             latitude: p.latitude,
             longitude: p.longitude ?? 0,
             timestamp: p.timestamp ?? Date.now(),
+            vehicleId: p.vehicleId,
+            imei: p.imei,
           };
           setIncomingAlerts((prev) => {
             if (prev.some((a) => a.incidentId === alert.incidentId)) return prev;
             return [alert, ...prev].slice(0, 10);
           });
+          // Auto-open tracking map for the first alert
+          setTrackingIncident((curr) => curr ?? p.incidentId!);
           // Sound + vibrate to notify
           playAlarmSound();
           if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
+        }
+      }
+
+      // Real-time vehicle location updates (for tracked incidents)
+      if (msg.type === 'location' && msg.payload) {
+        const loc = msg.payload as { vehicleId?: string; imei?: string; plate?: string; latitude?: number; longitude?: number; speed?: number };
+        if (typeof loc.latitude === 'number' && typeof loc.longitude === 'number') {
+          setLiveVehicles((prev) => {
+            const key = loc.vehicleId || loc.imei || '';
+            const idx = prev.findIndex((v) => (v.vehicleId || v.imei || '') === key);
+            const updated: LiveVehicle = {
+              vehicleId: loc.vehicleId,
+              imei: loc.imei,
+              plate: loc.plate,
+              latitude: loc.latitude!,
+              longitude: loc.longitude!,
+              speed: loc.speed,
+            };
+            if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = updated;
+              return next;
+            }
+            return [...prev, updated];
+          });
+          // Also update the alert's position so the incident marker moves
+          setIncomingAlerts((prev) =>
+            prev.map((a) => {
+              if (a.vehicleId && a.vehicleId === loc.vehicleId) {
+                return { ...a, latitude: loc.latitude!, longitude: loc.longitude! };
+              }
+              if (a.imei && a.imei === loc.imei) {
+                return { ...a, latitude: loc.latitude!, longitude: loc.longitude! };
+              }
+              return a;
+            })
+          );
+        }
+      }
+
+      // Incident resolved — remove from tracking
+      if (msg.type === 'incident_update' && msg.payload) {
+        const u = msg.payload as { id?: string; status?: string };
+        if (u.id && (u.status === 'resolved' || u.status === 'closed')) {
+          setIncomingAlerts((prev) => prev.filter((a) => a.incidentId !== u.id));
+          setTrackingIncident((curr) => (curr === u.id ? null : curr));
         }
       }
     }, []),
@@ -458,15 +524,78 @@ export default function SOSPage() {
         </a>
       </main>
 
-      {/* Incoming alerts with map */}
-      {incomingAlerts.length > 0 && (
+      {/* Incoming alerts banner — tap to open tracking map */}
+      {incomingAlerts.length > 0 && !trackingIncident && (
         <div className="px-4 pb-3 space-y-2">
           <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider text-center">
             Alertas cercanas
           </p>
+          {incomingAlerts.map((a) => (
+            <div
+              key={a.incidentId}
+              onClick={() => { setTrackingIncident(a.incidentId); setSelectedAlert(a.incidentId); }}
+              className="px-3 py-3 rounded-lg bg-red-50 border border-red-200 flex items-center justify-between cursor-pointer hover:bg-red-100 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                <div>
+                  <span className="text-red-700 font-semibold text-sm">{a.plate || 'SOS'}</span>
+                  <span className="text-zinc-400 text-[10px] ml-2">
+                    {new Date(a.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              </div>
+              <span className="text-red-600 text-xs font-medium flex items-center gap-1">
+                Ver mapa
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
-          {/* Map showing alert locations + user position */}
-          <div className="h-[200px] rounded-xl overflow-hidden border border-zinc-200">
+      {/* Full-screen tracking map overlay */}
+      {trackingIncident && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-zinc-900">
+          {/* Tracking header */}
+          <div className="bg-red-600 text-white px-4 py-3 flex items-center justify-between safe-area-top">
+            <button
+              onClick={() => setTrackingIncident(null)}
+              className="flex items-center gap-1.5 text-sm font-medium text-white/90 hover:text-white"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+              Volver
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+              <span className="text-sm font-bold">
+                {incomingAlerts.find((a) => a.incidentId === trackingIncident)?.plate || 'Emergencia'} — En vivo
+              </span>
+            </div>
+            <a href="tel:911" className="text-xs font-medium text-white/80 hover:text-white">911</a>
+          </div>
+
+          {/* Alert info bar */}
+          {incomingAlerts.length > 1 && (
+            <div className="bg-zinc-800 px-4 py-2 flex gap-2 overflow-x-auto">
+              {incomingAlerts.map((a) => (
+                <button
+                  key={a.incidentId}
+                  onClick={() => { setTrackingIncident(a.incidentId); setSelectedAlert(a.incidentId); }}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    trackingIncident === a.incidentId
+                      ? 'bg-red-600 text-white'
+                      : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+                  }`}
+                >
+                  {a.plate || 'SOS'} · {a.latitude.toFixed(3)}, {a.longitude.toFixed(3)}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Full map */}
+          <div className="flex-1">
             <LeafletMap
               incidents={incomingAlerts.map((a) => ({
                 id: a.incidentId,
@@ -475,31 +604,29 @@ export default function SOSPage() {
                 plate: a.plate || 'SOS',
                 status: 'active',
               }))}
-              liveLocations={coords ? [{ latitude: coords.lat, longitude: coords.lng, speed: 0, plate: 'Tú' }] : []}
+              liveLocations={[
+                ...(coords ? [{ latitude: coords.lat, longitude: coords.lng, speed: 0, plate: 'Tú' }] : []),
+                ...liveVehicles.map((v) => ({
+                  vehicleId: v.vehicleId,
+                  imei: v.imei,
+                  latitude: v.latitude,
+                  longitude: v.longitude,
+                  speed: v.speed,
+                  plate: v.plate || 'Vehículo',
+                })),
+              ]}
               selectedId={selectedAlert}
-              onSelectIncident={setSelectedAlert}
+              onSelectIncident={(id) => { setSelectedAlert(id); if (id) setTrackingIncident(id); }}
+              centerOnIncidentId={trackingIncident}
             />
           </div>
 
-          {incomingAlerts.map((a) => (
-            <div
-              key={a.incidentId}
-              onClick={() => setSelectedAlert(a.incidentId === selectedAlert ? null : a.incidentId)}
-              className={`px-3 py-2 rounded-lg flex items-center justify-between cursor-pointer transition-colors ${
-                selectedAlert === a.incidentId
-                  ? 'bg-red-100 border border-red-300'
-                  : 'bg-red-50 border border-red-100 hover:bg-red-100/60'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-red-700 font-medium text-xs">{a.plate || 'SOS'}</span>
-              </div>
-              <span className="text-zinc-400 text-[10px]">
-                {a.latitude.toFixed(4)}, {a.longitude.toFixed(4)} · {new Date(a.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-          ))}
+          {/* Bottom info */}
+          <div className="bg-zinc-800 px-4 py-3 text-center safe-area-bottom">
+            <p className="text-zinc-400 text-xs">
+              Ubicación del incidente en tiempo real · Sigue moviéndote con precaución
+            </p>
+          </div>
         </div>
       )}
 
