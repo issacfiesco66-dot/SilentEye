@@ -211,7 +211,10 @@ export default function DashboardPage() {
 
   const role = String(user.role || '').toLowerCase();
   if (role === 'citizen') {
-    router.replace('/sos');
+    // Preserve ?incident=XXX param through the redirect
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const incidentParam = params?.get('incident');
+    router.replace(incidentParam ? `/sos?incident=${incidentParam}` : '/sos');
     return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">Redirigiendo a SOS...</div>;
   }
   if (role === 'helper' || role === 'driver') {

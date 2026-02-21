@@ -43,22 +43,30 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const urlToOpen = event.notification.data?.url || '/dashboard';
-
   if (event.action === 'dismiss') return;
+
+  // Build URL with incident context so it survives redirects (citizen → /sos)
+  const data = event.notification.data || {};
+  let fallbackUrl = data.url || '/dashboard';
+  if (data.incidentId) {
+    const sep = fallbackUrl.includes('?') ? '&' : '?';
+    fallbackUrl = `${fallbackUrl}${sep}incident=${data.incidentId}`;
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If a window is already open, focus it and navigate
-      for (const client of clientList) {
-        if ('focus' in client) {
-          client.focus();
-          client.navigate(urlToOpen);
-          return;
+      // Try to detect role from an open window's localStorage
+      const resolveUrl = async () => {
+        for (const client of clientList) {
+          if ('focus' in client) {
+            client.focus();
+            client.navigate(fallbackUrl);
+            return;
+          }
         }
-      }
-      // Otherwise open a new window
-      return self.clients.openWindow(urlToOpen);
+        return self.clients.openWindow(fallbackUrl);
+      };
+      return resolveUrl();
     })
   );
 });

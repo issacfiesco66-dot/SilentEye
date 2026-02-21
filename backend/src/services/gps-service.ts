@@ -137,7 +137,6 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
       const nearbyResult = await client.query(
         `SELECT DISTINCT u.id, u.phone, u.name
          FROM users u
-         JOIN vehicles v ON v.driver_id = u.id
          LEFT JOIN helper_locations hl ON hl.user_id = u.id
          WHERE u.is_active
            AND ($4::uuid IS NULL OR u.id != $4)
@@ -191,7 +190,6 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
       const nearbyResult = await client.query(
         `SELECT DISTINCT u.id, u.phone, u.name
          FROM users u
-         JOIN vehicles v ON v.driver_id = u.id
          WHERE u.is_active
            AND ($4::uuid IS NULL OR u.id != $4)
            AND u.last_lat IS NOT NULL AND u.last_lng IS NOT NULL

@@ -617,7 +617,7 @@ api.get('/incidents', authMiddleware, asyncHandler(async (req, res) => {
     query += ` WHERE i.status IN ('active', 'attending', 'localizado') OR i.driver_id = $1 OR EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $1)`;
     params.push(userId);
   } else if (role === 'citizen') {
-    query += ` WHERE i.driver_id = $1`;
+    query += ` WHERE i.driver_id = $1 OR EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $1)`;
     params.push(userId);
   }
   query += ` ORDER BY i.started_at DESC LIMIT 50`;
@@ -641,7 +641,7 @@ api.get('/incidents/:id', authMiddleware, asyncHandler(async (req, res) => {
   if (role === 'helper') {
     query += ` AND EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $2)`;
     params.push(userId);
-  } else if (role === 'driver') {
+  } else if (role === 'driver' || role === 'citizen') {
     query += ` AND (i.driver_id = $2 OR EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $2))`;
     params.push(userId);
   }

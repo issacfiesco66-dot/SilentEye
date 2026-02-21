@@ -8,9 +8,19 @@
 import { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+
+const LeafletMap = dynamic(() => import('@/components/LeafletMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-400 text-xs">
+      Cargando mapa…
+    </div>
+  ),
+});
 
 const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -42,6 +52,7 @@ export default function SOSPage() {
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<number>(0);
   const [incomingAlerts, setIncomingAlerts] = useState<IncomingAlert[]>([]);
+  const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
   const watchRef = useRef<number | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const locationReportRef = useRef<NodeJS.Timeout | null>(null);
@@ -50,6 +61,39 @@ export default function SOSPage() {
   // Unlock audio on first user interaction (required by mobile browsers)
   useEffect(() => {
     initAudioOnInteraction();
+  }, []);
+
+  // Read ?incident=XXX from URL (push notification click) and auto-select it
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const incidentId = params.get('incident');
+    if (!incidentId) return;
+    const t = localStorage.getItem('token');
+    if (!t) return;
+
+    // Fetch the incident details so we can show it on the map
+    fetch(`${API}/api/incidents`, { headers: { Authorization: `Bearer ${t}` } })
+      .then(res => res.ok ? res.json() : [])
+      .then((incidents: { id: string; latitude: number; longitude: number; plate?: string; started_at?: string }[]) => {
+        const inc = incidents.find((i: { id: string }) => i.id === incidentId);
+        if (inc && typeof inc.latitude === 'number') {
+          const alert: IncomingAlert = {
+            incidentId: inc.id,
+            plate: inc.plate,
+            latitude: inc.latitude,
+            longitude: inc.longitude,
+            timestamp: inc.started_at ? new Date(inc.started_at).getTime() : Date.now(),
+          };
+          setIncomingAlerts(prev => {
+            if (prev.some(a => a.incidentId === incidentId)) return prev;
+            return [alert, ...prev];
+          });
+          setSelectedAlert(incidentId);
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [userRole, setUserRole] = useState<string>('');
@@ -414,16 +458,38 @@ export default function SOSPage() {
         </a>
       </main>
 
-      {/* Incoming alerts */}
+      {/* Incoming alerts with map */}
       {incomingAlerts.length > 0 && (
-        <div className="px-4 pb-3 space-y-1.5">
+        <div className="px-4 pb-3 space-y-2">
           <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider text-center">
             Alertas cercanas
           </p>
+
+          {/* Map showing alert locations + user position */}
+          <div className="h-[200px] rounded-xl overflow-hidden border border-zinc-200">
+            <LeafletMap
+              incidents={incomingAlerts.map((a) => ({
+                id: a.incidentId,
+                latitude: a.latitude,
+                longitude: a.longitude,
+                plate: a.plate || 'SOS',
+                status: 'active',
+              }))}
+              liveLocations={coords ? [{ latitude: coords.lat, longitude: coords.lng, speed: 0, plate: 'Tú' }] : []}
+              selectedId={selectedAlert}
+              onSelectIncident={setSelectedAlert}
+            />
+          </div>
+
           {incomingAlerts.map((a) => (
             <div
               key={a.incidentId}
-              className="px-3 py-2 rounded-lg bg-red-50 border border-red-100 flex items-center justify-between"
+              onClick={() => setSelectedAlert(a.incidentId === selectedAlert ? null : a.incidentId)}
+              className={`px-3 py-2 rounded-lg flex items-center justify-between cursor-pointer transition-colors ${
+                selectedAlert === a.incidentId
+                  ? 'bg-red-100 border border-red-300'
+                  : 'bg-red-50 border border-red-100 hover:bg-red-100/60'
+              }`}
             >
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
