@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 
-const API = process.env.NEXT_PUBLIC_API_URL || '';
+const API = '';
 const LOCATION_THROTTLE_MS = 15000; // 15s (evitar rate limit 100/15min)
 const LOCATION_MIN_METERS = 50;
 

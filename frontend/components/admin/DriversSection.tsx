@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import UserRoleSelect from './UserRoleSelect';
 
-const API = process.env.NEXT_PUBLIC_API_URL || '';
+const API = '';
 
 interface DriversSectionProps {
   currentUserId?: string;

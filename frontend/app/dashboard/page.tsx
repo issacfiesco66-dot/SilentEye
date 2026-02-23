@@ -13,7 +13,7 @@ import HelperDashboardLayout from '@/components/helper/HelperDashboardLayout';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 
-const API = process.env.NEXT_PUBLIC_API_URL || '';
+const API = '';
 
 interface User {
   id: string;

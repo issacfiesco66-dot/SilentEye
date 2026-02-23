@@ -6,7 +6,7 @@ import IncidentDetail from './IncidentDetail';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
 
-const API = process.env.NEXT_PUBLIC_API_URL || '';
+const API = '';
 
 export interface Incident {
   id: string;

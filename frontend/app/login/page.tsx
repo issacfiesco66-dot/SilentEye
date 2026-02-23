@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API = process.env.NEXT_PUBLIC_API_URL || '';
+// Use relative URLs so requests go through Next.js rewrites (server-side proxy → no CORS)
+const API = '';
 
 type LoginMode = 'driver' | 'admin' | 'citizen';
 
@@ -240,12 +241,12 @@ export default function LoginPage() {
                 <p className="text-zinc-500 text-[13px] mb-4">
                   {mode === 'citizen'
                     ? <>Ingresa el código de verificación enviado a <span className="font-semibold text-zinc-700">{email}</span></>
-                    : mode === 'driver' && emailHint
+                    : emailHint
                     ? <>Código enviado al correo <span className="font-semibold text-zinc-700">{emailHint}</span></>
                     : <>Código enviado a <span className="font-semibold text-zinc-700">{mode === 'driver' ? 'tu teléfono registrado' : phone}</span></>
                   }
                 </p>
-                {emailSent && (mode === 'citizen' || mode === 'driver') && (
+                {emailSent && (
                   <div className="flex items-center gap-2 px-3 py-2.5 mb-4 bg-blue-50 border border-blue-100 rounded-lg">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
                     <span className="text-[13px] text-blue-700 font-medium">Código enviado a tu correo &mdash; revisa tu bandeja de entrada</span>

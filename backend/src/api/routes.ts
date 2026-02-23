@@ -301,7 +301,7 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       // SECURITY: phone login is for pre-registered users only (admin/helper/driver).
       // Do NOT auto-create users — admin must register them first.
       const userCheck = await pool.query(
-        'SELECT id, phone, role, is_active FROM users WHERE phone = $1',
+        'SELECT id, phone, role, email, is_active FROM users WHERE phone = $1',
         [cleanPhone]
       );
       if (!userCheck.rows[0]) {
@@ -315,7 +315,17 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
 
       const code = await createOtp(cleanPhone);
 
-      // Admin users: send OTP via Twilio SMS
+      // Try email delivery first (for users with email registered)
+      const userEmail = userCheck.rows[0].email;
+      if (userEmail && isEmailEnabled()) {
+        const sent = await sendOtpEmail(userEmail, code);
+        if (sent) {
+          res.json({ success: true, emailSent: true, emailHint: userEmail.replace(/(.{2})(.*)(@.*)/, '$1***$3') });
+          return;
+        }
+      }
+
+      // Fallback: SMS if Twilio configured
       if (userCheck.rows[0].role === 'admin' && isSmsEnabled()) {
         const sent = await sendOtpSms(cleanPhone, code);
         if (!sent) {

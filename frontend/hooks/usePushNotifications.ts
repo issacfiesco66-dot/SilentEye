@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const API_URL = '';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);

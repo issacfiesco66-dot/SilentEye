@@ -11,7 +11,7 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
 
-const API = process.env.NEXT_PUBLIC_API_URL || '';
+const API = '';
 
 interface User {
   id: string;

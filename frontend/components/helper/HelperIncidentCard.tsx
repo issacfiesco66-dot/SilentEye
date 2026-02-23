@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-const API = process.env.NEXT_PUBLIC_API_URL || '';
+const API = '';
 const EMERGENCY_NUMBER = '911';
 const GOOGLE_MAPS_URL = 'https://www.google.com/maps?q=';
 

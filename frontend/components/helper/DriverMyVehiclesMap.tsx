@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import MapView from '../MapView';
 
-const API = process.env.NEXT_PUBLIC_API_URL || '';
+const API = '';
 
 interface Location {
   imei?: string;

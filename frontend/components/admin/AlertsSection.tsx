@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
 
-const API = process.env.NEXT_PUBLIC_API_URL || '';
+const API = '';
 
 export interface Alert {
   id: string;

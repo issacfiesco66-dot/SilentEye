@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
-const API = process.env.NEXT_PUBLIC_API_URL || '';
+const API = '';
 
 interface GpsRecord {
   imei: string;

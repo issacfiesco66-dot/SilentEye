@@ -22,7 +22,7 @@ const LeafletMap = dynamic(() => import('@/components/LeafletMap'), {
   ),
 });
 
-const API = process.env.NEXT_PUBLIC_API_URL || '';
+const API = '';
 
 type Status = 'idle' | 'locating' | 'sending' | 'sent' | 'error';
 
