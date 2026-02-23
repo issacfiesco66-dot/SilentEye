@@ -23,6 +23,7 @@ export default function Home() {
           <div className="hidden md:flex items-center gap-8 text-[13px] font-medium text-zinc-500">
             <a href="#problema" className="hover:text-zinc-900 transition-colors">Problema</a>
             <a href="#producto" className="hover:text-zinc-900 transition-colors">Producto</a>
+            <a href="#equipo" className="hover:text-zinc-900 transition-colors">Equipo GPS</a>
             <a href="#comparativa" className="hover:text-zinc-900 transition-colors">Comparativa</a>
             <a href="#casos" className="hover:text-zinc-900 transition-colors">Casos</a>
             <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
@@ -421,8 +422,116 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── Equipo GPS ── */}
+      <section id="equipo" className="px-6 py-24 md:py-32">
+        <div className="max-w-7xl mx-auto">
+          <div className="max-w-xl mb-16">
+            <p className="text-[13px] font-semibold text-blue-600 tracking-wide uppercase mb-3">Equipo</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">Todo lo que necesitas, listo para instalar</h2>
+            <p className="text-zinc-500 leading-relaxed">Un solo equipo GPS profesional, ya configurado con SilentEye. Lo recibes, lo instalas y empiezas a monitorear.</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8 items-start">
+            {/* Product card */}
+            <div className="relative bg-zinc-50 border border-zinc-200 rounded-2xl p-8 md:p-10 overflow-hidden">
+              <div className="absolute top-4 right-4">
+                <span className="text-[11px] font-bold text-white bg-blue-600 px-3 py-1.5 rounded-full uppercase tracking-wider">Listo para usar</span>
+              </div>
+
+              {/* CSS art device */}
+              <div className="relative w-full max-w-[280px] mx-auto mb-8" aria-hidden="true">
+                <div className="relative bg-zinc-900 rounded-xl p-5 shadow-lg">
+                  {/* Device body */}
+                  <div className="bg-zinc-800 rounded-lg p-4 border border-zinc-700">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-[9px] text-zinc-400 font-mono">GPS ACTIVO</span>
+                      </div>
+                      <span className="text-[9px] text-zinc-500 font-mono">FMC130</span>
+                    </div>
+                    <div className="bg-zinc-700/50 rounded h-20 flex items-center justify-center relative overflow-hidden">
+                      <div className="absolute inset-0 opacity-10 bg-[linear-gradient(to_right,#374151_1px,transparent_1px),linear-gradient(to_bottom,#374151_1px,transparent_1px)] bg-[size:12px_12px]" />
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m10-10h-4M6 12H2"/></svg>
+                    </div>
+                    <div className="flex items-center justify-between mt-3">
+                      <div className="flex gap-1">
+                        {[1,2,3,4,5].map(i => <div key={i} className="w-1 h-3 bg-emerald-500/60 rounded-full" />)}
+                      </div>
+                      <span className="text-[8px] text-zinc-500 font-mono">TELTONIKA</span>
+                    </div>
+                  </div>
+                  {/* Connector dots */}
+                  <div className="flex justify-center gap-3 mt-3">
+                    <div className="w-3 h-3 rounded-full bg-zinc-700 border border-zinc-600" />
+                    <div className="w-3 h-3 rounded-full bg-zinc-700 border border-zinc-600" />
+                    <div className="w-3 h-3 rounded-full bg-red-500/40 border border-red-500/60" />
+                    <div className="w-3 h-3 rounded-full bg-zinc-700 border border-zinc-600" />
+                  </div>
+                </div>
+              </div>
+
+              <h3 className="text-2xl font-extrabold text-zinc-900 mb-1">GPS Teltonika FMC130</h3>
+              <p className="text-zinc-400 text-sm mb-6">Rastreador vehicular profesional de grado industrial</p>
+
+              {/* Price */}
+              <div className="flex items-baseline gap-2 mb-6">
+                <span className="text-4xl md:text-5xl font-extrabold text-zinc-900 tracking-tight">$1,900</span>
+                <span className="text-lg text-zinc-400 font-semibold">MXN</span>
+              </div>
+              <p className="text-[13px] text-blue-600 font-semibold mb-8 flex items-center gap-1.5">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5L20 7"/></svg>
+                Envío gratis a toda la República Mexicana
+              </p>
+
+              <Link
+                href="/login"
+                className="inline-flex items-center justify-center gap-2 w-full px-6 py-3.5 text-sm font-semibold text-white bg-zinc-900 rounded-xl hover:bg-zinc-800 transition-colors"
+              >
+                Solicitar equipo
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </Link>
+            </div>
+
+            {/* What's included */}
+            <div className="space-y-5">
+              <h3 className="text-lg font-bold text-zinc-900 mb-6">El equipo incluye</h3>
+
+              {[
+                { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m10-10h-4M6 12H2"/></svg>, color: 'bg-blue-50 text-blue-600', title: 'GPS Teltonika FMC130', desc: 'Rastreador de grado industrial con antena GPS y GSM integrada. Resistente a vibraciones y temperaturas extremas.' },
+                { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>, color: 'bg-emerald-50 text-emerald-600', title: 'Preconfigurado con SilentEye', desc: 'El equipo llega listo para conectar. Ya configurado con el servidor, botón de pánico activado y envío de datos cada 4 segundos en emergencia.' },
+                { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>, color: 'bg-red-50 text-red-600', title: 'Botón de pánico físico', desc: 'Botón discreto para instalar en el vehículo. Al presionarlo, la alerta llega a toda la red de ayuda en menos de 3 segundos.' },
+                { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>, color: 'bg-amber-50 text-amber-600', title: 'Arnés de cableado', desc: 'Cables y conectores para la instalación. Compatible con vehículos 12V y 24V (autos, camionetas, tráilers).' },
+                { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></svg>, color: 'bg-purple-50 text-purple-600', title: 'SIM con datos incluida', desc: 'Chip de datos celular activo para la transmisión GPS. Sin contratos adicionales por el primer periodo.' },
+                { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18h2a1 1 0 0 0 1-1v-3.28a1 1 0 0 0-.684-.948l-1.923-.641a1 1 0 0 1-.684-.948V6h2a2 2 0 0 1 2 2v4.5"/><circle cx="7" cy="18" r="2"/><path d="M15 18H9"/><circle cx="17" cy="18" r="2"/></svg>, color: 'bg-zinc-100 text-zinc-600', title: 'Envío a todo México', desc: 'Entrega a domicilio por paquetería en 3–5 días hábiles. Sin costo adicional de envío.' },
+              ].map((item, i) => (
+                <div key={i} className="flex gap-4 items-start">
+                  <div className={`w-10 h-10 rounded-lg ${item.color} flex items-center justify-center flex-shrink-0`}>
+                    {item.icon}
+                  </div>
+                  <div>
+                    <h4 className="text-[14px] font-bold text-zinc-900 mb-0.5">{item.title}</h4>
+                    <p className="text-[13px] text-zinc-500 leading-relaxed">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+
+              <div className="mt-8 bg-zinc-900 text-white rounded-xl px-5 py-4 flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
+                </div>
+                <div>
+                  <p className="font-bold text-sm">$1,900 MXN — precio final</p>
+                  <p className="text-zinc-400 text-[13px] mt-0.5">Incluye equipo + configuración + botón de pánico + SIM + envío. Sin letras chicas.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── FAQ ── */}
-      <section id="faq" className="px-6 py-24 md:py-32">
+      <section id="faq" className="px-6 py-24 md:py-32 border-t border-zinc-100">
         <div className="max-w-3xl mx-auto">
           <div className="mb-14">
             <p className="text-[13px] font-semibold text-blue-600 tracking-wide uppercase mb-3">Preguntas frecuentes</p>
@@ -494,6 +603,7 @@ export default function Home() {
           <div className="flex items-center gap-6 text-[13px] text-zinc-400">
             <a href="#problema" className="hover:text-zinc-900 transition-colors">Problema</a>
             <a href="#producto" className="hover:text-zinc-900 transition-colors">Producto</a>
+            <a href="#equipo" className="hover:text-zinc-900 transition-colors">Equipo GPS</a>
             <a href="#comparativa" className="hover:text-zinc-900 transition-colors">Comparativa</a>
             <a href="#casos" className="hover:text-zinc-900 transition-colors">Casos</a>
             <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
