@@ -177,7 +177,7 @@ export function broadcastLocation(update: LocationUpdate, incidentFollowerIds?: 
     { type: 'location', payload: update },
     (meta) =>
       meta.role === 'admin' ||
-      meta.vehicleId === update.vehicleId ||
+      (update.vehicleId != null && meta.vehicleId === update.vehicleId) ||
       (incidentFollowerIds != null && incidentFollowerIds.length > 0 && incidentFollowerIds.includes(meta.userId ?? ''))
   );
 }

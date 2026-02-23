@@ -18,7 +18,7 @@ import {
   verifyToken,
 } from './auth.js';
 import { getAlerts, deleteAlerts } from '../services/alert-service.js';
-import { broadcastPanic, broadcastIncidentUpdate } from '../services/websocket.js';
+import { broadcastLocation, broadcastPanic, broadcastIncidentUpdate } from '../services/websocket.js';
 import { sendPushToUsers, saveSubscription, removeSubscription, getVapidPublicKey } from '../services/push-service.js';
 import { sendOtpEmail, isEmailEnabled, sendHelperRespondingEmail, sendIncidentResolvedEmail, sendWitnessRequestEmail } from '../services/email-service.js';
 import { sendOtpSms, isSmsEnabled } from '../services/sms-service.js';
@@ -1544,7 +1544,7 @@ api.post('/panic', authMiddleware, panicRateLimit, asyncHandler(async (req, res)
         icon: '/icon-192.png',
         badge: '/icon-192.png',
         tag: `panic-${incident.id}`,
-        data: { url: '/dashboard', incidentId: incident.id, latitude, longitude },
+        data: { url: '/sos', incidentId: incident.id, latitude, longitude },
       }
     ).catch((err) => logger.error('Push send error (mobile panic):', err));
 
@@ -1593,6 +1593,42 @@ api.post('/location', authMiddleware, locationRateLimit, asyncHandler(async (req
       `UPDATE users SET last_lat = $1, last_lng = $2, last_location_at = NOW(), updated_at = NOW() WHERE id = $3`,
       [latitude, longitude, userId]
     );
+  }
+
+  // Broadcast location update via WebSocket for real-time tracking
+  try {
+    const userRow = await pool.query(
+      `SELECT u.name, u.role, v.id as vehicle_id, v.imei, v.plate
+       FROM users u LEFT JOIN vehicles v ON v.driver_id = u.id
+       WHERE u.id = $1 LIMIT 1`,
+      [userId]
+    );
+    const u = userRow.rows[0];
+    if (u) {
+      // Find followers of active incidents involving this user (as driver/creator)
+      const fRes = await pool.query(
+        `SELECT DISTINCT f.user_id FROM incident_followers f
+         JOIN incidents i ON i.id = f.incident_id
+         WHERE i.driver_id = $1 AND i.status = 'active'`,
+        [userId]
+      );
+      const followerIds = fRes.rows.map((r: { user_id: string }) => r.user_id);
+
+      broadcastLocation(
+        {
+          imei: u.imei || `mobile-${userId}`,
+          vehicleId: u.vehicle_id || undefined,
+          latitude,
+          longitude,
+          speed: 0,
+          timestamp: Date.now(),
+          plate: u.plate || u.name || 'SOS Móvil',
+        },
+        followerIds
+      );
+    }
+  } catch (err) {
+    logger.warn('Location broadcast error (non-fatal):', err);
   }
 
   res.json({ success: true });

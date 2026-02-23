@@ -175,7 +175,7 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
           icon: '/icon-192.png',
           badge: '/icon-192.png',
           tag: `panic-${incident.id}`,
-          data: { url: '/dashboard', incidentId: incident.id, latitude, longitude },
+          data: { url: '/sos', incidentId: incident.id, latitude, longitude },
         }
       ).catch((err) => logger.error('Push send error (GPS panic):', err));
       logger.info(`PANIC IMEI=${imei} conductores_cercanos=${nearbyDrivers.length}`);
@@ -227,7 +227,7 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
           icon: '/icon-192.png',
           badge: '/icon-192.png',
           tag: `panic-${incident.id}`,
-          data: { url: '/dashboard', incidentId: incident.id, latitude, longitude },
+          data: { url: '/sos', incidentId: incident.id, latitude, longitude },
         }
       ).catch((err) => logger.error('Push send error (GPS panic simple):', err));
       logger.info(`PANIC IMEI=${imei} conductores_cercanos=${nearbyDrivers.length}`);
