@@ -54,9 +54,6 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
 }
 
 /**
- * Send OTP code via email.
- */
-/**
  * Notify citizen that a helper is responding to their incident.
  */
 export async function sendHelperRespondingEmail(

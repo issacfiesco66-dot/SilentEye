@@ -738,6 +738,11 @@ api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper', 
   );
   const followerIds = followersResult.rows.map((f: { user_id: string }) => f.user_id);
 
+  // Include incident creator (driver_id) so citizen who sent the panic also receives updates
+  if (incident.driver_id && !followerIds.includes(incident.driver_id)) {
+    followerIds.push(incident.driver_id);
+  }
+
   // Get name of user who changed status
   const updaterResult = await pool.query('SELECT name FROM users WHERE id = $1', [userId]);
   const updaterName = updaterResult.rows[0]?.name || 'Usuario';
@@ -1522,7 +1527,7 @@ api.post('/panic', authMiddleware, panicRateLimit, asyncHandler(async (req, res)
     broadcastPanic(
       {
         incidentId: incident.id,
-        imei: vehicle?.imei ?? 'mobile',
+        imei: vehicle?.imei ?? `mobile-${userId}`,
         vehicleId: vehicle?.id,
         plate: vehicle?.plate ?? user.name ?? 'SOS Móvil',
         latitude,
