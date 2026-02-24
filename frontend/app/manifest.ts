@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'SilentEye - Seguridad Vehicular',
     short_name: 'SilentEye',
     description: 'Plataforma de seguridad vehicular con GPS y botón de pánico',
-    start_url: '/',
+    start_url: '/dashboard',
     display: 'standalone',
     background_color: '#0f172a',
     theme_color: '#1e40af',

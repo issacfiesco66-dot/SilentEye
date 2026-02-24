@@ -5,10 +5,12 @@
  */
 
 import Link from 'next/link';
+import AuthRedirect from '@/components/AuthRedirect';
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-white text-zinc-900 overflow-x-hidden selection:bg-blue-600/10">
+      <AuthRedirect />
 
       {/* ── Nav ── */}
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-zinc-100">
