@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import HelperHeader, { type HelperStatus } from './HelperHeader';
 import HelperIncidentCard from './HelperIncidentCard';
 import HelperMapSection from './HelperMapSection';
 import SinIncidentePlaceholder from './SinIncidentePlaceholder';
 import DriverMyVehiclesMap from './DriverMyVehiclesMap';
+import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
@@ -55,100 +56,38 @@ function computeHelperStatus(
 
 export default function HelperDashboardLayout() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
+  const { token, user: sessionUser, ready: authReady, logout } = useSession({
+    requiredRole: ['helper', 'driver'],
+    roleFallbackPath: '/dashboard',
+  });
+  const user = sessionUser as User | null;
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [liveLocations, setLiveLocations] = useState<Record<string, Location>>({});
   const [loading, setLoading] = useState(true);
   const [lastLocationSentAt, setLastLocationSentAt] = useState<number | null>(null);
   const [helperLocation, setHelperLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [pushToken, setPushToken] = useState<string | null>(null);
 
-  usePushNotifications(pushToken);
+  usePushNotifications(token);
 
   // Incidente activo: el primero que está active o attending
   const activeIncident = incidents.find(
     (i) => ['active', 'attending', 'localizado'].includes(i.status)
   ) ?? null;
 
-  const SESSION_MAX_HOURS = 720; // 30 days — session ends on manual logout or JWT expiry
-
-  // Protección de ruta: helper y driver (ambos usan este layout)
-  useLayoutEffect(() => {
-    try {
-      const loginAt = localStorage.getItem('loginAt');
-      if (loginAt) {
-        const elapsed = Date.now() - parseInt(loginAt, 10);
-        if (elapsed > SESSION_MAX_HOURS * 60 * 60 * 1000) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          localStorage.removeItem('loginAt');
-          window.location.href = '/login';
-          return;
-        }
-      }
-      const raw = localStorage.getItem('user');
-      const token = localStorage.getItem('token');
-      if (!raw || !token) {
-        window.location.href = '/login';
-        return;
-      }
-      const u = JSON.parse(raw) as User;
-      const role = String(u?.role || '').toLowerCase();
-      if (role !== 'helper' && role !== 'driver') {
-        window.location.href = '/dashboard';
-        return;
-      }
-      setUser({ ...u, role });
-      setPushToken(token);
-    } catch {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-  }, []);
-
   // Unlock audio on first interaction
   useEffect(() => { initAudioOnInteraction(); }, []);
 
-  // Respaldo: si tras 1s sigue en loading pero hay datos válidos, forzar setUser
-  useEffect(() => {
-    const id = setTimeout(() => {
-      setUser((current) => {
-        if (current) return current;
-        try {
-          const raw = localStorage.getItem('user');
-          const t = localStorage.getItem('token');
-          if (!raw || !t) return null;
-          const u = JSON.parse(raw) as User;
-          const role = String(u?.role || '').toLowerCase();
-          if (u?.id && (role === 'helper' || role === 'driver')) {
-            return { ...u, role };
-          }
-        } catch {}
-        return null;
-      });
-    }, 1000);
-    return () => clearTimeout(id);
-  }, []);
-
   // Carga inicial: GET /api/incidents
   const fetchIncidents = useCallback(async () => {
-    const token = localStorage.getItem('token');
     if (!token) return;
     const res = await fetch(`${API}/api/incidents`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (res.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      router.replace('/login');
-      return;
-    }
     if (res.ok) {
       const data = await res.json();
       setIncidents(data);
     }
-  }, [router]);
+  }, [token]);
 
   useEffect(() => {
     if (!user) return;
@@ -169,7 +108,6 @@ export default function HelperDashboardLayout() {
   activeVehicleIdRef.current = activeIncident?.vehicle_id ?? null;
   activeIncidentImeiRef.current = activeIncident?.imei ?? null;
 
-  const token = user && typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   const { connected: wsConnected, send: wsSend } = useWebSocket({
     token,
     enabled: !!user && !!token,
@@ -260,18 +198,13 @@ export default function HelperDashboardLayout() {
 
   const helperStatus = computeHelperStatus(wsConnected, activeIncident, lastLocationSentAt);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('loginAt');
-    window.location.href = '/login';
-  };
+  const handleLogout = logout;
 
   const onIncidentCleared = () => {
     setIncidents((prev) => prev.filter((i) => i.id !== activeIncident?.id));
   };
 
-  if (!user) {
+  if (!authReady || !user) {
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
         <span className="text-zinc-400 text-sm">Cargando...</span>

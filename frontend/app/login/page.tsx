@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { saveSession } from '@/lib/session';
 
 // Use relative URLs so requests go through Next.js rewrites (server-side proxy → no CORS)
 const API = '';
@@ -106,9 +107,7 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Código inválido');
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      localStorage.setItem('loginAt', String(Date.now()));
+      saveSession(data.token, data.user);
       router.replace(data.user?.role === 'citizen' ? '/sos' : '/dashboard');
     } catch (e: unknown) {
       setError((e as Error).message);

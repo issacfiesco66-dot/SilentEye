@@ -5,13 +5,15 @@
  * PROPRIETARY AND CONFIDENTIAL — See LICENSE file for details.
  */
 
-import { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { clearSession } from '@/lib/session';
 
 const LeafletMap = dynamic(() => import('@/components/LeafletMap'), {
   ssr: false,
@@ -53,10 +55,9 @@ interface LiveVehicle {
 
 export default function SOSPage() {
   const router = useRouter();
-  const [token, setToken] = useState<string | null>(null);
+  const { token, user: sessionUser, ready: authReady, logout } = useSession();
 
   usePushNotifications(token);
-  const [userName, setUserName] = useState<string>('');
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string>('');
   const [result, setResult] = useState<PanicResult | null>(null);
@@ -84,7 +85,7 @@ export default function SOSPage() {
     const params = new URLSearchParams(window.location.search);
     const incidentId = params.get('incident');
     if (!incidentId) return;
-    const t = localStorage.getItem('token');
+    const t = token;
     if (!t) return;
 
     // Fetch the incident details so we can show it on the map
@@ -114,29 +115,8 @@ export default function SOSPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [userRole, setUserRole] = useState<string>('');
-
-  // Auth check
-  useLayoutEffect(() => {
-    try {
-      const t = localStorage.getItem('token');
-      const raw = localStorage.getItem('user');
-      if (!t || !raw) {
-        window.location.href = '/login';
-        return;
-      }
-      const parsed = JSON.parse(raw);
-      if (!parsed?.id) {
-        window.location.href = '/login';
-        return;
-      }
-      setToken(t);
-      setUserName(parsed.name || parsed.phone || '');
-      setUserRole(String(parsed.role || '').toLowerCase());
-    } catch {
-      window.location.href = '/login';
-    }
-  }, []);
+  const userName = sessionUser?.name || sessionUser?.phone || '';
+  const userRole = sessionUser?.role?.toLowerCase() || '';
 
   // Continuous geolocation — try high accuracy first, fallback to low
   useEffect(() => {
@@ -387,12 +367,7 @@ export default function SOSPage() {
     tryGetPosition(true);
   }, [status, coords, countdown, sendPanic]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('loginAt');
-    window.location.href = '/login';
-  };
+  const handleLogout = logout;
 
   if (!token) {
     return <div className="min-h-screen bg-zinc-50 flex items-center justify-center text-zinc-400 text-sm">Cargando...</div>;

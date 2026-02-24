@@ -5,11 +5,12 @@
  * PROPRIETARY AND CONFIDENTIAL — See LICENSE file for details.
  */
 
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import MapView from '@/components/MapView';
 import HelperDashboardLayout from '@/components/helper/HelperDashboardLayout';
+import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 
@@ -43,85 +44,21 @@ interface Location {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
+  const { token, user: sessionUser, ready: authReady, logout } = useSession();
+  const user = sessionUser as User | null;
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [liveLocations, setLiveLocations] = useState<Record<string, Location>>({});
   const [selectedIncident, setSelectedIncident] = useState<string | null>(null);
-  const [pushToken, setPushToken] = useState<string | null>(null);
 
-  usePushNotifications(pushToken);
-
-  const SESSION_MAX_HOURS = 720; // 30 days — session ends on manual logout or JWT expiry
-
-  // useLayoutEffect: lee sesión antes del paint para evitar "Cargando..." eterno
-  useLayoutEffect(() => {
-    try {
-      const loginAt = localStorage.getItem('loginAt');
-      if (loginAt) {
-        const elapsed = Date.now() - parseInt(loginAt, 10);
-        if (elapsed > SESSION_MAX_HOURS * 60 * 60 * 1000) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          localStorage.removeItem('loginAt');
-          window.location.href = '/login';
-          return;
-        }
-      }
-      const raw = localStorage.getItem('user');
-      const t = localStorage.getItem('token');
-      if (!raw || !t) {
-        window.location.href = '/login';
-        return;
-      }
-      const parsed = JSON.parse(raw) as User;
-      const role = String(parsed?.role || '').toLowerCase();
-      if (!parsed?.id || !role) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-        return;
-      }
-      // Normalizar role por si viene con mayúsculas
-      setUser({ ...parsed, role: role as User['role'] });
-      setPushToken(t);
-    } catch {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-  }, []);
-
-  // Respaldo: si tras 1s sigue en loading pero hay datos en localStorage, forzar setUser
-  useEffect(() => {
-    const id = setTimeout(() => {
-      setUser((current) => {
-        if (current) return current;
-        try {
-          const raw = localStorage.getItem('user');
-          const t = localStorage.getItem('token');
-          if (!raw || !t) return null;
-          const parsed = JSON.parse(raw) as User;
-          const role = String(parsed?.role || '').toLowerCase();
-          if (parsed?.id && role && ['admin', 'helper', 'driver'].includes(role)) {
-            return { ...parsed, role: role as User['role'] };
-          }
-        } catch {}
-        return null;
-      });
-    }, 1000);
-    return () => clearTimeout(id);
-  }, []);
+  usePushNotifications(token);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
+    if (!token || !user) return;
 
     const fetchData = async () => {
       try {
-        const rawUser = localStorage.getItem('user');
-        const u = rawUser ? JSON.parse(rawUser) : null;
-        const canFetchVehicles = u?.role === 'admin' || u?.role === 'helper' || u?.role === 'driver';
+        const canFetchVehicles = user.role === 'admin' || user.role === 'helper' || user.role === 'driver';
 
         const [incRes, vehiclesRes] = await Promise.all([
           fetch(`${API}/api/incidents`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -142,10 +79,8 @@ export default function DashboardPage() {
       }
     };
     fetchData();
-  }, [user?.role]);
+  }, [token, user]);
 
-  // WebSocket con reintentos (cold start Fly.io) - solo para admin
-  const token = user && typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   useWebSocket({
     token,
     enabled: !!user && !!token && user.role === 'admin',
@@ -200,14 +135,9 @@ export default function DashboardPage() {
     },
   });
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('loginAt');
-    window.location.href = '/login';
-  };
+  const handleLogout = logout;
 
-  if (!user) return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">Cargando...</div>;
+  if (!authReady || !user) return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">Cargando...</div>;
 
   const role = String(user.role || '').toLowerCase();
   if (role === 'citizen') {

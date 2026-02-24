@@ -93,7 +93,21 @@ export function useWebSocket({ token, onMessage, onConnect, onDisconnect, enable
 
     connect();
 
+    // Reconnect when app resumes from background (mobile app switch)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const ws = wsRef.current;
+        if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+          retryCountRef.current = 0; // reset retries
+          if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+          connect();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }

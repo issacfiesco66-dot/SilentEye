@@ -15,6 +15,7 @@ import AdminMapView from '@/components/admin/AdminMapView';
 import VehiclesSection from '@/components/admin/VehiclesSection';
 import DriversSection from '@/components/admin/DriversSection';
 import GpsActivitySection from '@/components/admin/GpsActivitySection';
+import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
 
@@ -22,23 +23,18 @@ type Tab = 'incidents' | 'alerts' | 'gps_activity' | 'map' | 'vehicles' | 'drive
 
 export default function AdminPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ id: string; role: string } | null>(null);
+  const { token, user: sessionUser, ready: authReady, logout } = useSession({
+    requiredRole: 'admin',
+    roleFallbackPath: '/dashboard',
+  });
+  const user = sessionUser;
   const [activeTab, setActiveTab] = useState<Tab>('incidents');
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('loginAt');
-    window.location.href = '/login';
-  };
-
-  const [token, setToken] = useState<string | null>(null);
-  const SESSION_MAX_HOURS = 720; // 30 days — session ends on manual logout or JWT expiry
+  const handleLogout = logout;
 
   // Global alarm: plays sound for panic/alert events on ANY tab
   useEffect(() => {
     initAudioOnInteraction();
-    setToken(typeof window !== 'undefined' ? localStorage.getItem('token') : null);
   }, []);
 
   useWebSocket({
@@ -51,33 +47,7 @@ export default function AdminPage() {
     }, []),
   });
 
-  useEffect(() => {
-    const loginAt = localStorage.getItem('loginAt');
-    if (loginAt) {
-      const elapsed = Date.now() - parseInt(loginAt, 10);
-      if (elapsed > SESSION_MAX_HOURS * 60 * 60 * 1000) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        localStorage.removeItem('loginAt');
-        router.replace('/login');
-        return;
-      }
-    }
-    const raw = localStorage.getItem('user');
-    const t = localStorage.getItem('token');
-    if (!raw || !t) {
-      router.replace('/login');
-      return;
-    }
-    const u = JSON.parse(raw);
-    if (u.role !== 'admin') {
-      router.replace('/dashboard');
-      return;
-    }
-    setUser(u);
-  }, [router]);
-
-  if (!user) {
+  if (!authReady || !user) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <span className="text-zinc-400">Cargando...</span>
