@@ -15,6 +15,22 @@ import { sendPushToUsers } from './push-service.js';
 const PANIC_TRACKING_INTERVAL_SEC = 4;
 const NEARBY_DRIVERS_RADIUS_M = parseInt(process.env.PANIC_ALERT_RADIUS_M || '2000', 10) || 2000; // 1–3 km
 
+// Minimum distance (meters) from parked position to trigger theft alert
+const THEFT_DISTANCE_THRESHOLD_M = 50;
+
+// Cooldown: don't create duplicate theft incidents for the same vehicle within this window
+const theftCooldowns = new Map<string, number>();
+const THEFT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const toRad = (deg: number) => deg * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export async function processGpsData(imei: string, record: AVLRecord): Promise<void> {
   const { latitude, longitude, speed, altitude, angle, satellites, timestamp, io, priority } = record;
   const timestampSec = timestamp / 1000; // PostgreSQL to_timestamp espera segundos (double), no ms
@@ -29,10 +45,23 @@ export async function processGpsData(imei: string, record: AVLRecord): Promise<v
   const client = await pool.connect();
   try {
     const vehicleResult = await client.query(
-      'SELECT id, driver_id, plate FROM vehicles WHERE imei = $1',
+      'SELECT id, driver_id, plate, parked_at, parked_lat, parked_lng FROM vehicles WHERE imei = $1',
       [imei]
     );
     const vehicle = vehicleResult.rows[0];
+
+    // ── Theft detection: parked vehicle moved ──
+    if (vehicle?.parked_at && vehicle.parked_lat != null && vehicle.parked_lng != null && latitude !== 0 && longitude !== 0) {
+      const dist = haversineDistance(
+        parseFloat(vehicle.parked_lat), parseFloat(vehicle.parked_lng),
+        latitude, longitude
+      );
+      const lastTheft = theftCooldowns.get(vehicle.id);
+      if (dist > THEFT_DISTANCE_THRESHOLD_M && (!lastTheft || Date.now() - lastTheft > THEFT_COOLDOWN_MS)) {
+        theftCooldowns.set(vehicle.id, Date.now());
+        await handleTheftDetection(client, vehicle, imei, latitude, longitude, timestamp, postgis);
+      }
+    }
 
     if (postgis) {
       await client.query(
@@ -239,4 +268,112 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
 
 export function getPanicTrackingInterval(): number {
   return PANIC_TRACKING_INTERVAL_SEC;
+}
+
+// ── Theft detection handler ──
+async function handleTheftDetection(
+  client: import('pg').PoolClient,
+  vehicle: { id: string; driver_id: string | null; plate: string },
+  imei: string,
+  latitude: number,
+  longitude: number,
+  timestamp: number,
+  postgis: boolean
+): Promise<void> {
+  try {
+    // Create theft incident
+    let incidentResult;
+    if (postgis) {
+      incidentResult = await client.query(
+        `INSERT INTO incidents (vehicle_id, driver_id, imei, status, geom, latitude, longitude, started_at, source)
+         VALUES ($1, $2, $3, 'active', ST_SetSRID(ST_MakePoint($5, $4), 4326), $4, $5, NOW(), 'theft')
+         RETURNING id`,
+        [vehicle.id, vehicle.driver_id, imei, latitude, longitude]
+      );
+    } else {
+      incidentResult = await client.query(
+        `INSERT INTO incidents (vehicle_id, driver_id, imei, status, latitude, longitude, started_at, source)
+         VALUES ($1, $2, $3, 'active', $4, $5, NOW(), 'theft')
+         RETURNING id`,
+        [vehicle.id, vehicle.driver_id, imei, latitude, longitude]
+      );
+    }
+    const incident = incidentResult.rows[0];
+    if (!incident) return;
+
+    // Find nearby helpers/drivers to assist
+    let nearbyUserIds: string[] = [];
+    if (postgis) {
+      const nearby = await client.query(
+        `SELECT DISTINCT u.id FROM users u
+         LEFT JOIN helper_locations hl ON hl.user_id = u.id
+         WHERE u.is_active AND ($4::uuid IS NULL OR u.id != $4)
+           AND (
+             (hl.user_id IS NOT NULL AND ST_DWithin(hl.geom::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))
+             OR (hl.user_id IS NULL AND u.last_location IS NOT NULL AND ST_DWithin(u.last_location::geography, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))
+           )`,
+        [latitude, longitude, NEARBY_DRIVERS_RADIUS_M, vehicle.driver_id]
+      );
+      nearbyUserIds = nearby.rows.map((r: { id: string }) => r.id);
+    } else {
+      const nearby = await client.query(
+        `SELECT DISTINCT u.id FROM users u
+         WHERE u.is_active AND ($4::uuid IS NULL OR u.id != $4)
+           AND u.last_lat IS NOT NULL AND u.last_lng IS NOT NULL
+           AND (6371000 * acos(LEAST(1, GREATEST(-1,
+             cos(radians($1)) * cos(radians(u.last_lat)) * cos(radians(u.last_lng) - radians($2)) + sin(radians($1)) * sin(radians(u.last_lat))
+           )))) <= $3`,
+        [latitude, longitude, NEARBY_DRIVERS_RADIUS_M, vehicle.driver_id]
+      );
+      nearbyUserIds = nearby.rows.map((r: { id: string }) => r.id);
+    }
+
+    // Add nearby users as followers
+    for (const uid of nearbyUserIds) {
+      await client.query(
+        'INSERT INTO incident_followers (incident_id, user_id, status) VALUES ($1, $2, $3) ON CONFLICT (incident_id, user_id) DO NOTHING',
+        [incident.id, uid, 'notified']
+      );
+    }
+
+    // Broadcast panic via WebSocket
+    broadcastPanic(
+      {
+        incidentId: incident.id,
+        imei,
+        vehicleId: vehicle.id,
+        plate: vehicle.plate,
+        latitude,
+        longitude,
+        timestamp,
+        nearbyCount: nearbyUserIds.length,
+        source: 'theft',
+      },
+      nearbyUserIds
+    );
+
+    // Push to vehicle owner (always) + nearby users
+    const pushTargets = [...nearbyUserIds];
+    if (vehicle.driver_id && !pushTargets.includes(vehicle.driver_id)) {
+      pushTargets.push(vehicle.driver_id);
+    }
+    sendPushToUsers(pushTargets, {
+      title: '🚨 ALERTA DE ROBO',
+      body: `${vehicle.plate} se está moviendo estacionado. Posible robo en curso.`,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: `theft-${incident.id}`,
+      data: { url: '/sos', incidentId: incident.id, latitude, longitude },
+    }).catch((err) => logger.error('Push send error (theft):', err));
+
+    // Auto-unpark to prevent duplicate theft incidents (the incident is now tracking)
+    await client.query(
+      'UPDATE vehicles SET parked_at = NULL, parked_lat = NULL, parked_lng = NULL, updated_at = NOW() WHERE id = $1',
+      [vehicle.id]
+    );
+
+    logger.info(`THEFT DETECTED IMEI=${imei} plate=${vehicle.plate} incident=${incident.id} lat=${latitude} lng=${longitude} nearby=${nearbyUserIds.length}`);
+  } catch (err) {
+    logger.error('handleTheftDetection error:', err);
+  }
 }

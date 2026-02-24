@@ -54,6 +54,7 @@ export interface PanicEvent {
   longitude: number;
   timestamp: number;
   nearbyCount: number;
+  source?: string;
 }
 
 export interface AlertEvent {

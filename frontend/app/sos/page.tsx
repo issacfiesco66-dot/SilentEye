@@ -39,6 +39,7 @@ interface IncomingAlert {
   timestamp: number;
   vehicleId?: string;
   imei?: string;
+  source?: string;
 }
 
 interface LiveVehicle {
@@ -202,7 +203,7 @@ export default function SOSPage() {
     enabled: !!token,
     onMessage: useCallback((msg: { type: string; payload: unknown }) => {
       if (msg.type === 'panic' && msg.payload) {
-        const p = msg.payload as { incidentId?: string; plate?: string; latitude?: number; longitude?: number; timestamp?: number; vehicleId?: string; imei?: string };
+        const p = msg.payload as { incidentId?: string; plate?: string; latitude?: number; longitude?: number; timestamp?: number; vehicleId?: string; imei?: string; source?: string };
         if (p.incidentId && typeof p.latitude === 'number') {
           const alert: IncomingAlert = {
             incidentId: p.incidentId,
@@ -212,6 +213,7 @@ export default function SOSPage() {
             timestamp: p.timestamp ?? Date.now(),
             vehicleId: p.vehicleId,
             imei: p.imei,
+            source: p.source,
           };
           setIncomingAlerts((prev) => {
             if (prev.some((a) => a.incidentId === alert.incidentId)) return prev;
@@ -539,6 +541,9 @@ export default function SOSPage() {
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
                 <div>
+                  {a.source === 'theft' && (
+                    <span className="text-orange-600 font-bold text-[10px] uppercase mr-1.5">ROBO</span>
+                  )}
                   <span className="text-red-700 font-semibold text-sm">{a.plate || 'SOS'}</span>
                   <span className="text-zinc-400 text-[10px] ml-2">
                     {new Date(a.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
@@ -569,7 +574,11 @@ export default function SOSPage() {
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
               <span className="text-sm font-bold">
-                {incomingAlerts.find((a) => a.incidentId === trackingIncident)?.plate || 'Emergencia'} — En vivo
+                {(() => {
+                  const tracked = incomingAlerts.find((a) => a.incidentId === trackingIncident);
+                  const label = tracked?.source === 'theft' ? 'ROBO' : (tracked?.plate || 'Emergencia');
+                  return `${label} — En vivo`;
+                })()}
               </span>
             </div>
             <a href="tel:911" className="text-xs font-medium text-white/80 hover:text-white">911</a>

@@ -507,7 +507,7 @@ api.post('/helpers/location', authMiddleware, requireRole('helper', 'driver'), a
 
 api.get('/vehicles', authMiddleware, requireRole('admin', 'helper', 'driver'), asyncHandler(async (req, res) => {
   const r = await pool.query(
-    `SELECT v.id, v.plate, v.name, v.imei, v.driver_id, u.name as driver_name
+    `SELECT v.id, v.plate, v.name, v.imei, v.driver_id, v.parked_at, v.parked_lat, v.parked_lng, u.name as driver_name
      FROM vehicles v
      LEFT JOIN users u ON v.driver_id = u.id
      ORDER BY v.plate`
@@ -607,6 +607,71 @@ api.delete('/vehicles/:id', authMiddleware, requireRole('admin'), asyncHandler(a
     res.status(404).json({ error: 'Vehículo no encontrado' });
     return;
   }
+  res.json({ success: true });
+}));
+
+// Park vehicle: activate theft detection mode
+api.post('/vehicles/:id/park', authMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { userId, role } = (req as any).user;
+
+  // Verify ownership or admin
+  const v = await pool.query('SELECT id, driver_id, plate, parked_at FROM vehicles WHERE id = $1', [id]);
+  if (!v.rows[0]) {
+    res.status(404).json({ error: 'Vehículo no encontrado' });
+    return;
+  }
+  if (role !== 'admin' && v.rows[0].driver_id !== userId) {
+    res.status(403).json({ error: 'Solo el conductor asignado o un admin puede estacionar este vehículo' });
+    return;
+  }
+  if (v.rows[0].parked_at) {
+    res.json({ success: true, message: 'Vehículo ya estacionado', parked_at: v.rows[0].parked_at });
+    return;
+  }
+
+  // Get last known position from gps_logs
+  const lastPos = await pool.query(
+    `SELECT latitude, longitude FROM gps_logs WHERE vehicle_id = $1 AND latitude != 0 ORDER BY timestamp_at DESC LIMIT 1`,
+    [id]
+  );
+  const lat = lastPos.rows[0]?.latitude ?? null;
+  const lng = lastPos.rows[0]?.longitude ?? null;
+
+  await pool.query(
+    `UPDATE vehicles SET parked_at = NOW(), parked_lat = $2, parked_lng = $3, updated_at = NOW() WHERE id = $1`,
+    [id, lat, lng]
+  );
+
+  logger.info(`VEHICLE PARKED id=${id} plate=${v.rows[0].plate} by userId=${userId} at=${lat},${lng}`);
+  res.json({ success: true, parked_at: new Date().toISOString(), parked_lat: lat, parked_lng: lng });
+}));
+
+// Unpark vehicle: deactivate theft detection mode
+api.post('/vehicles/:id/unpark', authMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { userId, role } = (req as any).user;
+
+  const v = await pool.query('SELECT id, driver_id, plate, parked_at FROM vehicles WHERE id = $1', [id]);
+  if (!v.rows[0]) {
+    res.status(404).json({ error: 'Vehículo no encontrado' });
+    return;
+  }
+  if (role !== 'admin' && v.rows[0].driver_id !== userId) {
+    res.status(403).json({ error: 'Solo el conductor asignado o un admin puede desestacionar este vehículo' });
+    return;
+  }
+  if (!v.rows[0].parked_at) {
+    res.json({ success: true, message: 'Vehículo no estaba estacionado' });
+    return;
+  }
+
+  await pool.query(
+    `UPDATE vehicles SET parked_at = NULL, parked_lat = NULL, parked_lng = NULL, updated_at = NOW() WHERE id = $1`,
+    [id]
+  );
+
+  logger.info(`VEHICLE UNPARKED id=${id} plate=${v.rows[0].plate} by userId=${userId}`);
   res.json({ success: true });
 }));
 
@@ -1114,11 +1179,11 @@ api.get('/gps/my-positions', authMiddleware, requireRole('driver'), asyncHandler
   const pg = await hasPostGis();
 
   const subq = pg
-    ? `SELECT DISTINCT ON (g.imei) g.imei, g.vehicle_id, g.latitude, g.longitude, g.speed, g.timestamp_at, v.plate
+    ? `SELECT DISTINCT ON (g.imei) g.imei, g.vehicle_id, g.latitude, g.longitude, g.speed, g.timestamp_at, v.plate, v.parked_at
        FROM gps_logs g
        JOIN vehicles v ON v.id = g.vehicle_id AND v.driver_id = $1
        ORDER BY g.imei, g.timestamp_at DESC`
-    : `SELECT DISTINCT ON (g.imei) g.imei, g.vehicle_id, g.latitude, g.longitude, g.speed, g.timestamp_at, v.plate
+    : `SELECT DISTINCT ON (g.imei) g.imei, g.vehicle_id, g.latitude, g.longitude, g.speed, g.timestamp_at, v.plate, v.parked_at
        FROM gps_logs g
        JOIN vehicles v ON v.id = g.vehicle_id AND v.driver_id = $1
        ORDER BY g.imei, g.timestamp_at DESC`;
@@ -1128,7 +1193,7 @@ api.get('/gps/my-positions', authMiddleware, requireRole('driver'), asyncHandler
     [userId, limit]
   );
   res.json(
-    r.rows.map((row: { imei: string; vehicle_id: string; plate: string; latitude: string; longitude: string; speed: number; timestamp_at: string }) => ({
+    r.rows.map((row: { imei: string; vehicle_id: string; plate: string; latitude: string; longitude: string; speed: number; timestamp_at: string; parked_at: string | null }) => ({
       imei: row.imei,
       vehicleId: row.vehicle_id,
       plate: row.plate,
@@ -1136,6 +1201,7 @@ api.get('/gps/my-positions', authMiddleware, requireRole('driver'), asyncHandler
       longitude: parseFloat(row.longitude),
       speed: row.speed ?? 0,
       timestampAt: row.timestamp_at,
+      parkedAt: row.parked_at,
     }))
   );
 }));
