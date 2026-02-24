@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 
 const API = '';
-const LOCATION_THROTTLE_MS = 15000; // 15s (evitar rate limit 100/15min)
+const LOCATION_THROTTLE_MS = 30000; // 30s REST fallback (primary is WS every 3s)
 const LOCATION_MIN_METERS = 50;
+const WS_LOCATION_INTERVAL_MS = 3000; // 3s real-time via WebSocket
 
 const LeafletMap = dynamic(() => import('../LeafletMap'), {
   ssr: false,
@@ -38,6 +39,8 @@ interface HelperMapSectionProps {
   helperLocation?: { latitude: number; longitude: number } | null;
   onLocationSent?: () => void;
   onHelperLocationChange?: (loc: { latitude: number; longitude: number }) => void;
+  wsSend?: (data: Record<string, unknown>) => void;
+  wsConnected?: boolean;
 }
 
 export default function HelperMapSection({
@@ -45,6 +48,8 @@ export default function HelperMapSection({
   vehicleLocation,
   onLocationSent,
   onHelperLocationChange,
+  wsSend,
+  wsConnected,
 }: HelperMapSectionProps) {
   const [localHelperLoc, setLocalHelperLoc] = useState<{
     latitude: number;
@@ -55,6 +60,8 @@ export default function HelperMapSection({
   const lastSentRef = useRef<{ lat: number; lng: number; ts: number } | null>(null);
   const sendingRef = useRef(false);
   const watchIdRef = useRef<number | null>(null);
+  const wsIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const latestCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const onLocationSentRef = useRef(onLocationSent);
   const onHelperLocationChangeRef = useRef(onHelperLocationChange);
   onLocationSentRef.current = onLocationSent;
@@ -156,6 +163,7 @@ export default function HelperMapSection({
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
       const loc = { latitude: lat, longitude: lng };
+      latestCoordsRef.current = { lat, lng };
       setLocalHelperLoc(loc);
       onHelperLocationChangeRef.current?.(loc);
       setGeoReady(true);
@@ -178,6 +186,23 @@ export default function HelperMapSection({
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Primary: send location via WebSocket every 3s (real-time)
+  useEffect(() => {
+    if (!wsConnected || !wsSend) {
+      if (wsIntervalRef.current) clearInterval(wsIntervalRef.current);
+      return;
+    }
+    wsIntervalRef.current = setInterval(() => {
+      const c = latestCoordsRef.current;
+      if (!c) return;
+      wsSend({ type: 'location_update', latitude: c.lat, longitude: c.lng, speed: 0 });
+    }, WS_LOCATION_INTERVAL_MS);
+
+    return () => {
+      if (wsIntervalRef.current) clearInterval(wsIntervalRef.current);
+    };
+  }, [wsConnected, wsSend]);
 
   return (
     <div className="w-full h-full min-h-[300px] rounded-xl overflow-hidden bg-slate-800 border border-slate-700 relative">

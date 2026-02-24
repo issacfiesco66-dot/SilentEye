@@ -8,8 +8,13 @@
 import type { Server as HttpServer } from 'http';
 import { WebSocketServer, type WebSocket as WsSocket } from 'ws';
 import { pool } from '../db/pool.js';
+import { hasPostGis } from '../db/postgis-check.js';
 import { verifyToken } from '../api/auth.js';
 import { logger } from '../utils/logger.js';
+
+// Throttle DB writes per user (relay every WS msg, but save to DB less often)
+const lastDbWrite = new Map<string, number>();
+const DB_WRITE_THROTTLE_MS = 10_000; // save to DB every 10s max per user
 
 // Seguridad: JWT obligatorio en handshake. Rol y vehicleId provienen SIEMPRE del servidor.
 function parseTokenFromRequest(req: { url?: string }): string | null {
@@ -141,8 +146,8 @@ export function createWebSocketServer(portOrServer: number | HttpServer): WebSoc
       ip: clientIp,
     });
 
-    ws.on('message', () => {
-      // Ignorar mensajes del cliente (userId/role/vehicleId no se confían)
+    ws.on('message', (raw) => {
+      handleClientMessage(ws as WsSocket, raw);
     });
 
     ws.on('close', () => {
@@ -220,6 +225,105 @@ export function broadcastIncidentUpdate(incident: { id: string; status: string; 
 
 export function broadcastToAdmins(type: MessageType, payload: unknown) {
   broadcast({ type, payload }, (meta) => meta.role === 'admin');
+}
+
+// ── Handle inbound location_update from clients ──
+async function handleClientMessage(ws: WsSocket, raw: unknown): Promise<void> {
+  const meta = clients.get(ws);
+  if (!meta?.userId) return;
+
+  let msg: { type?: string; latitude?: number; longitude?: number; speed?: number };
+  try {
+    msg = JSON.parse(typeof raw === 'string' ? raw : String(raw));
+  } catch {
+    return; // malformed
+  }
+
+  if (msg.type !== 'location_update') return;
+  const { latitude, longitude, speed } = msg;
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') return;
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return;
+
+  const userId = meta.userId;
+  const vehicleId = meta.vehicleId;
+  const imei = vehicleId ? undefined : `mobile-${userId}`;
+
+  // Resolve plate/name for broadcast
+  let plate: string | undefined;
+  let resolvedImei: string | undefined = imei;
+  try {
+    if (vehicleId) {
+      const vr = await pool.query('SELECT imei, plate FROM vehicles WHERE id = $1', [vehicleId]);
+      if (vr.rows[0]) {
+        resolvedImei = vr.rows[0].imei;
+        plate = vr.rows[0].plate;
+      }
+    } else {
+      const ur = await pool.query('SELECT name FROM users WHERE id = $1', [userId]);
+      plate = ur.rows[0]?.name || 'SOS Móvil';
+    }
+  } catch { /* non-fatal */ }
+
+  // Find followers of active incidents involving this user
+  let followerIds: string[] = [];
+  try {
+    const fRes = await pool.query(
+      `SELECT DISTINCT f.user_id FROM incident_followers f
+       JOIN incidents i ON i.id = f.incident_id
+       WHERE (i.driver_id = $1 OR f.user_id = $1) AND i.status IN ('active', 'attending', 'localizado')`,
+      [userId]
+    );
+    followerIds = fRes.rows.map((r: { user_id: string }) => r.user_id);
+
+    // Also include incident creators so helpers' movement is visible to them
+    const cRes = await pool.query(
+      `SELECT DISTINCT i.driver_id FROM incidents i
+       JOIN incident_followers f ON f.incident_id = i.id
+       WHERE f.user_id = $1 AND i.status IN ('active', 'attending', 'localizado') AND i.driver_id IS NOT NULL`,
+      [userId]
+    );
+    for (const row of cRes.rows) {
+      if (row.driver_id && !followerIds.includes(row.driver_id)) {
+        followerIds.push(row.driver_id);
+      }
+    }
+  } catch { /* non-fatal */ }
+
+  // Broadcast via WS immediately (real-time)
+  broadcastLocation(
+    {
+      imei: resolvedImei || `mobile-${userId}`,
+      vehicleId,
+      latitude,
+      longitude,
+      speed: speed ?? 0,
+      timestamp: Date.now(),
+      plate,
+    },
+    followerIds
+  );
+
+  // Throttled DB write (don't hammer DB every 3s)
+  const lastWrite = lastDbWrite.get(userId) ?? 0;
+  if (Date.now() - lastWrite > DB_WRITE_THROTTLE_MS) {
+    lastDbWrite.set(userId, Date.now());
+    try {
+      const pg = await hasPostGis();
+      if (pg) {
+        await pool.query(
+          `UPDATE users SET last_location = ST_SetSRID(ST_MakePoint($2, $1), 4326), last_location_at = NOW(), updated_at = NOW() WHERE id = $3`,
+          [latitude, longitude, userId]
+        );
+      } else {
+        await pool.query(
+          `UPDATE users SET last_lat = $1, last_lng = $2, last_location_at = NOW(), updated_at = NOW() WHERE id = $3`,
+          [latitude, longitude, userId]
+        );
+      }
+    } catch (err) {
+      logger.warn('WS location DB write error:', err);
+    }
+  }
 }
 
 export function getWebSocketClientCount(): { total: number; byRole: Record<string, number> } {

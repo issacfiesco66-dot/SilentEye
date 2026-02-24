@@ -70,6 +70,7 @@ export default function SOSPage() {
   const watchRef = useRef<number | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const locationReportRef = useRef<NodeJS.Timeout | null>(null);
+  const wsLocationRef = useRef<NodeJS.Timeout | null>(null);
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
 
   // Unlock audio on first user interaction (required by mobile browsers)
@@ -166,7 +167,7 @@ export default function SOSPage() {
     };
   }, []);
 
-  // Report location to backend every 15 seconds so nearby detection works
+  // REST fallback: report location every 30s (in case WS is down)
   useEffect(() => {
     if (!token) return;
 
@@ -187,9 +188,8 @@ export default function SOSPage() {
       }
     };
 
-    // Report immediately once coords are available
     const initialDelay = setTimeout(reportLocation, 2000);
-    locationReportRef.current = setInterval(reportLocation, 15000);
+    locationReportRef.current = setInterval(reportLocation, 30000);
 
     return () => {
       clearTimeout(initialDelay);
@@ -197,8 +197,8 @@ export default function SOSPage() {
     };
   }, [token]);
 
-  // WebSocket: receive panic alerts + live location updates
-  useWebSocket({
+  // WebSocket: receive panic alerts + live location updates + send location every 3s
+  const { connected: wsConnected, send: wsSend } = useWebSocket({
     token,
     enabled: !!token,
     onMessage: useCallback((msg: { type: string; payload: unknown }) => {
@@ -274,6 +274,24 @@ export default function SOSPage() {
       }
     }, []),
   });
+
+  // Primary: send location via WebSocket every 3s (real-time, no HTTP overhead)
+  useEffect(() => {
+    if (!wsConnected) {
+      if (wsLocationRef.current) clearInterval(wsLocationRef.current);
+      return;
+    }
+
+    wsLocationRef.current = setInterval(() => {
+      const c = coordsRef.current;
+      if (!c) return;
+      wsSend({ type: 'location_update', latitude: c.lat, longitude: c.lng, speed: 0 });
+    }, 3000);
+
+    return () => {
+      if (wsLocationRef.current) clearInterval(wsLocationRef.current);
+    };
+  }, [wsConnected, wsSend]);
 
   const sendPanic = useCallback(async (lat: number, lng: number) => {
     if (!token) return;

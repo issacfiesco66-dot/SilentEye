@@ -502,6 +502,39 @@ api.post('/helpers/location', authMiddleware, requireRole('helper', 'driver'), a
       [latitude, longitude, userId]
     );
   }
+
+  // Broadcast helper location via WS so the SOS user sees the helper approaching
+  try {
+    const uRow = await pool.query('SELECT name FROM users WHERE id = $1', [userId]);
+    // Find incidents where this helper is a follower → broadcast to other followers + incident creator
+    const iRes = await pool.query(
+      `SELECT DISTINCT i.driver_id, f2.user_id AS follower_id
+       FROM incidents i
+       JOIN incident_followers f ON f.incident_id = i.id AND f.user_id = $1
+       LEFT JOIN incident_followers f2 ON f2.incident_id = i.id
+       WHERE i.status IN ('active', 'attending', 'localizado')`,
+      [userId]
+    );
+    const targetIds: string[] = [];
+    for (const row of iRes.rows) {
+      if (row.driver_id && !targetIds.includes(row.driver_id)) targetIds.push(row.driver_id);
+      if (row.follower_id && row.follower_id !== userId && !targetIds.includes(row.follower_id)) targetIds.push(row.follower_id);
+    }
+    broadcastLocation(
+      {
+        imei: `helper-${userId}`,
+        latitude,
+        longitude,
+        speed: 0,
+        timestamp: Date.now(),
+        plate: uRow.rows[0]?.name || 'Helper',
+      },
+      targetIds
+    );
+  } catch (err) {
+    logger.warn('Helper location broadcast error (non-fatal):', err);
+  }
+
   res.json({ success: true });
 }));
 
@@ -1680,7 +1713,7 @@ api.post('/location', authMiddleware, locationRateLimit, asyncHandler(async (req
       const fRes = await pool.query(
         `SELECT DISTINCT f.user_id FROM incident_followers f
          JOIN incidents i ON i.id = f.incident_id
-         WHERE i.driver_id = $1 AND i.status = 'active'`,
+         WHERE i.driver_id = $1 AND i.status IN ('active', 'attending', 'localizado')`,
         [userId]
       );
       const followerIds = fRes.rows.map((r: { user_id: string }) => r.user_id);

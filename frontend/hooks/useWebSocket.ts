@@ -46,6 +46,12 @@ export function useWebSocket({ token, onMessage, onConnect, onDisconnect, enable
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
 
+  const send = useRef((data: Record<string, unknown>) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(data));
+    }
+  }).current;
+
   useEffect(() => {
     if (!enabled || !token) return;
 
@@ -98,5 +104,5 @@ export function useWebSocket({ token, onMessage, onConnect, onDisconnect, enable
     };
   }, [token, enabled]);
 
-  return { connected };
+  return { connected, send };
 }

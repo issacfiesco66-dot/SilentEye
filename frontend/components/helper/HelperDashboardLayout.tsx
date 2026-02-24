@@ -170,7 +170,7 @@ export default function HelperDashboardLayout() {
   activeIncidentImeiRef.current = activeIncident?.imei ?? null;
 
   const token = user && typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const { connected: wsConnected } = useWebSocket({
+  const { connected: wsConnected, send: wsSend } = useWebSocket({
     token,
     enabled: !!user && !!token,
     onMessage: (msg) => {
@@ -317,6 +317,8 @@ export default function HelperDashboardLayout() {
                 }
                 onLocationSent={() => setLastLocationSentAt(Date.now())}
                 onHelperLocationChange={setHelperLocation}
+                wsSend={wsSend}
+                wsConnected={wsConnected}
               />
             </div>
             {/* Incident card below map */}
