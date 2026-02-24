@@ -16,6 +16,10 @@ import { logger } from '../utils/logger.js';
 const lastDbWrite = new Map<string, number>();
 const DB_WRITE_THROTTLE_MS = 10_000; // save to DB every 10s max per user
 
+// Rate-limit inbound WS messages per user (prevent spam)
+const lastWsMsg = new Map<string, number>();
+const WS_MSG_THROTTLE_MS = 2_000; // min 2s between location_update messages per user
+
 // Seguridad: JWT obligatorio en handshake. Rol y vehicleId provienen SIEMPRE del servidor.
 function parseTokenFromRequest(req: { url?: string }): string | null {
   const url = req.url || '';
@@ -245,6 +249,11 @@ async function handleClientMessage(ws: WsSocket, raw: unknown): Promise<void> {
   if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return;
 
   const userId = meta.userId;
+
+  // Rate-limit: ignore if too frequent
+  const lastMsg = lastWsMsg.get(userId) ?? 0;
+  if (Date.now() - lastMsg < WS_MSG_THROTTLE_MS) return;
+  lastWsMsg.set(userId, Date.now());
   const vehicleId = meta.vehicleId;
   const imei = vehicleId ? undefined : `mobile-${userId}`;
 

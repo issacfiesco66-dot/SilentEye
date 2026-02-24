@@ -121,7 +121,7 @@ export async function processGpsData(imei: string, record: AVLRecord): Promise<v
       const followerResult = await client.query(
         `SELECT DISTINCT f.user_id FROM incident_followers f
          JOIN incidents i ON i.id = f.incident_id
-         WHERE i.vehicle_id = $1 AND i.status IN ('active', 'attending')`,
+         WHERE i.vehicle_id = $1 AND i.status IN ('active', 'attending', 'localizado')`,
         [vehicle.id]
       );
       if (followerResult.rows.length > 0) {

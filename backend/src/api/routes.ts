@@ -136,6 +136,25 @@ api.post('/setup/seed', asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
+api.post('/setup/cleanup', asyncHandler(async (req, res) => {
+  if (!checkSetupSecret(req)) {
+    res.status(403).json({ error: 'Secret inválido.' });
+    return;
+  }
+  const tables = [
+    'gps_logs', 'alerts', 'incident_followers', 'incidents',
+    'helper_locations', 'push_subscriptions', 'otp_codes', 'vehicles',
+  ];
+  for (const t of tables) {
+    await pool.query(`TRUNCATE TABLE ${t} CASCADE`);
+  }
+  const del = await pool.query(`DELETE FROM users WHERE role != 'admin'`);
+  res.json({
+    ok: true,
+    message: `Limpieza completada. Tablas truncadas: ${tables.join(', ')}. Usuarios eliminados (no-admin): ${del.rowCount}`,
+  });
+}));
+
 // Crear OTP y devolverlo (para primer login en prod cuando no hay SMS)
 api.post('/setup/otp', asyncHandler(async (req, res) => {
   if (!checkSetupSecret(req)) {

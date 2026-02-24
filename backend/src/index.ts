@@ -154,7 +154,7 @@ function startIncidentAutoTimeout() {
       const cutoff = new Date(Date.now() - INCIDENT_TIMEOUT_MS);
       const r = await dbPool.query(
         `UPDATE incidents SET status = 'resolved', resolved_at = NOW(), updated_at = NOW()
-         WHERE status IN ('active', 'attending') AND started_at < $1
+         WHERE status IN ('active', 'attending', 'localizado') AND started_at < $1
          RETURNING id`,
         [cutoff]
       );

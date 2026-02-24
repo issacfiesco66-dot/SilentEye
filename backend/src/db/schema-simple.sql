@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS vehicles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_vehicles_imei ON vehicles(imei);
-CREATE INDEX idx_vehicles_driver ON vehicles(driver_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_imei ON vehicles(imei);
+CREATE INDEX IF NOT EXISTS idx_vehicles_driver ON vehicles(driver_id);
 
 CREATE TABLE IF NOT EXISTS gps_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS incidents (
   vehicle_id UUID REFERENCES vehicles(id) ON DELETE SET NULL,
   driver_id UUID REFERENCES users(id) ON DELETE SET NULL,
   imei VARCHAR(20),
-  status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'attending', 'resolved', 'cancelled')),
+  status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'attending', 'localizado', 'recuperado', 'resolved', 'falsa_alarma', 'cancelled')),
   source VARCHAR(20) DEFAULT 'gps',
   latitude DOUBLE PRECISION NOT NULL,
   longitude DOUBLE PRECISION NOT NULL,
