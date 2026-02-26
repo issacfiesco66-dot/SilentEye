@@ -4,9 +4,10 @@
  * PROPRIETARY AND CONFIDENTIAL — See LICENSE file for details.
  * Unauthorized copying, modification, or distribution is strictly prohibited.
  *
- * Detector de alertas Teltonika AVL
+ * Detector de alertas GPS (Teltonika + Queclink)
  * Basado en Priority, Event IO ID e I/O Elements.
- * Extensible: mapeo configurable para distintos firmwares (FMB920, FMU920, etc.)
+ * Queclink: SOS llega con priority=2 (detectado automáticamente por regla 1).
+ * Extensible: mapeo configurable para distintos firmwares y protocolos.
  */
 
 import type { AVLRecord } from './avl-decoder.js';
