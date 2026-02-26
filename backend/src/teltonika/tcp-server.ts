@@ -5,7 +5,7 @@
  * Unauthorized copying, modification, or distribution is strictly prohibited.
  *
  * Servidor TCP Multi-Protocolo GPS
- * Soporta: Teltonika (Codec 8/8E), Queclink (+RESP/+BUFF)
+ * Soporta: Teltonika (Codec 8/8E), Queclink (+RESP/+BUFF), Concox/GT06 (0x7878)
  * Auto-detecta protocolo por primeros bytes de cada conexión.
  */
 
@@ -14,6 +14,7 @@ import { parseAvlPacket } from './teltonika-parser.js';
 import type { AVLRecord } from './teltonika-parser.js';
 import { detectAlert } from './alert-detector.js';
 import { isQueclinkData, parseQueclinkBuffer } from './queclink-parser.js';
+import { isConcoxData, extractConcoxPackets, parseConcoxPacket } from './concox-parser.js';
 import { pool } from '../db/pool.js';
 import { logger } from '../utils/logger.js';
 import { processGpsData, processPanicEvent } from '../services/gps-service.js';
@@ -33,7 +34,7 @@ const _skip = (process.env.TELTONIKA_SKIP_WHITELIST || '').toLowerCase();
 const SKIP_WHITELIST = _skip !== 'false' && _skip !== '0' && _skip !== 'no';
 
 type ConnectionState = 'imei' | 'validating' | 'avl';
-type ProtocolType = 'unknown' | 'teltonika' | 'queclink';
+type ProtocolType = 'unknown' | 'teltonika' | 'queclink' | 'concox';
 
 interface TeltonikaConnection {
   socket: net.Socket;
@@ -166,6 +167,77 @@ function handleQueclinkData(
   }
 }
 
+/* ── Concox/GT06 message handler ── */
+function handleConcoxData(
+  conn: TeltonikaConnection,
+  socket: net.Socket,
+  addr: string,
+  onData?: (imei: string, records: AVLRecord[]) => void,
+): void {
+  const { packets, remainder } = extractConcoxPackets(conn.buffer);
+  conn.buffer = remainder;
+
+  for (const raw of packets) {
+    const pkt = parseConcoxPacket(raw);
+    if (!pkt) continue;
+
+    // Login packet: extract IMEI
+    if (pkt.imei && !conn.imei) {
+      conn.imei = pkt.imei;
+      conn.state = 'avl';
+      conn.imeiReceivedAt = Date.now();
+      logger.info(`[GT06][${addr}] Login IMEI=${pkt.imei} | proto=0x${pkt.protocolNumber.toString(16)}`);
+    }
+
+    // Send ACK when required (login, heartbeat, alarm)
+    if (pkt.needsAck && pkt.ackData) {
+      try {
+        socket.write(pkt.ackData);
+        logger.debug(`[GT06][${conn.imei}] ACK enviado proto=0x${pkt.protocolNumber.toString(16)} serial=${pkt.serial}`);
+      } catch (err) {
+        logger.error(`[GT06] Error enviando ACK:`, err);
+      }
+    }
+
+    if (pkt.records.length === 0) continue;
+    if (!conn.imei) continue;
+
+    const alarmTag = pkt.alarmName ? ` alarm=${pkt.alarmName}` : '';
+    logger.info(`[GT06][${conn.imei}] proto=0x${pkt.protocolNumber.toString(16)}: ${pkt.records.length} registro(s) | isPanic=${pkt.records[0]?.isPanic}${alarmTag}`);
+
+    // Process through same pipeline
+    const imei = conn.imei;
+    (async () => {
+      try {
+        for (let i = 0; i < pkt.records.length; i++) {
+          const record = pkt.records[i];
+          const ts = new Date(record.timestamp).toISOString();
+          logger.info(
+            `[GT06][${imei}][rec=${i + 1}] ts=${ts} lat=${record.latitude.toFixed(5)} lng=${record.longitude.toFixed(5)} ` +
+            `speed=${record.speed} angle=${record.angle} sat=${record.satellites} priority=${record.priority} isPanic=${record.isPanic}`
+          );
+          try {
+            await processGpsData(imei, record);
+            if (record.isPanic) {
+              await processPanicEvent(imei, record);
+            }
+          } catch (err) {
+            logger.warn('[GT06] Error processGpsData:', err);
+          }
+          const alert = detectAlert(imei, record);
+          if (alert) {
+            logger.info(`[GT06][ALERT] type=${alert.alertType} priority=${alert.priority}`);
+            processAlert(alert).catch((err) => logger.error('Error procesando alerta GT06:', err));
+          }
+        }
+        onData?.(imei, pkt.records);
+      } catch (err) {
+        logger.error('[GT06] Error procesando datos GPS:', err);
+      }
+    })();
+  }
+}
+
 export function createTeltonikaTcpServer(port: number, onData?: (imei: string, records: AVLRecord[]) => void): net.Server {
   const connections = new Map<net.Socket, TeltonikaConnection>();
   let imeiTimeoutCheck: ReturnType<typeof setInterval> | null = null;
@@ -228,10 +300,19 @@ export function createTeltonikaTcpServer(port: number, onData?: (imei: string, r
             if (isQueclinkData(conn.buffer)) {
               conn.protocol = 'queclink';
               logger.info(`[GPS][${addr}] Protocolo detectado: Queclink`);
+            } else if (isConcoxData(conn.buffer)) {
+              conn.protocol = 'concox';
+              logger.info(`[GPS][${addr}] Protocolo detectado: Concox/GT06`);
             } else {
               conn.protocol = 'teltonika';
               logger.info(`[GPS][${addr}] Protocolo detectado: Teltonika`);
             }
+          }
+
+          // ── Concox/GT06: binary with login packet ──
+          if (conn.protocol === 'concox') {
+            handleConcoxData(conn, socket, addr, onData);
+            return;
           }
 
           // ── Queclink: no handshake, IMEI comes inside each message ──
@@ -290,6 +371,10 @@ export function createTeltonikaTcpServer(port: number, onData?: (imei: string, r
               });
             }
           }
+        } else if (conn.state === 'avl' && conn.imei && conn.protocol === 'concox') {
+          // ── Concox AVL: binary packets ──
+          handleConcoxData(conn, socket, addr, onData);
+
         } else if (conn.state === 'avl' && conn.imei && conn.protocol === 'queclink') {
           // ── Queclink AVL: accumulate text and process ──
           conn.textBuffer += conn.buffer.toString('ascii');
@@ -406,7 +491,7 @@ export function createTeltonikaTcpServer(port: number, onData?: (imei: string, r
   });
 
   server.listen(port, '0.0.0.0', () => {
-    logger.info(`[TCP] Servidor GPS multi-protocolo en 0.0.0.0:${port} | Teltonika+Queclink | accept_all_imei=${SKIP_WHITELIST}`);
+    logger.info(`[TCP] Servidor GPS multi-protocolo en 0.0.0.0:${port} | Teltonika+Queclink+Concox | accept_all_imei=${SKIP_WHITELIST}`);
   });
 
   return server;
