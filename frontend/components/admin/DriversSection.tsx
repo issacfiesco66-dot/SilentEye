@@ -257,140 +257,84 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="border-b border-zinc-200">
-              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Nombre</th>
-              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Teléfono</th>
-              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Email</th>
-              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Vehículo</th>
-              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Rol</th>
-              <th className="text-right py-3 px-2 text-zinc-400 font-medium text-[13px]">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {drivers.length === 0 && !showForm ? (
-              <tr>
-                <td colSpan={6} className="py-8 text-zinc-400 text-center">
-                  No hay conductores. Añade uno para asignar a vehículos.
-                </td>
-              </tr>
-            ) : (
-              drivers.map((d) => {
-                const vehiclePlate = getVehicleForDriver(d.id);
-                const hasNoVehicle = !vehiclePlate;
-                return (
-                  <tr key={d.id} className="border-b border-zinc-100 hover:bg-zinc-50 transition-colors">
-                    <td className="py-3 px-2 font-semibold text-zinc-900 text-sm">{d.name}</td>
-                    <td className="py-3 px-2 text-zinc-500 text-sm">{d.phone}</td>
-                    <td className="py-3 px-2 text-zinc-400 text-[13px]">{d.email || '—'}</td>
-                    <td className="py-3 px-2">
-                      {hasNoVehicle ? (
-                        <span className="px-2 py-0.5 text-xs rounded bg-amber-50 text-amber-600 border border-amber-100">
-                          Sin vehículo
-                        </span>
-                      ) : (
-                        <span className="text-zinc-500 text-sm">{vehiclePlate}</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-2">
-                      <span className="text-zinc-500 text-sm capitalize">{d.role}</span>
-                      {d.is_active === false && (
-                        <span className="ml-2 px-2 py-0.5 text-xs rounded bg-red-50 text-red-600 border border-red-100">Bloqueado</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-2 text-right">
-                      <div className="flex gap-2 justify-end items-center">
-                        <button
-                          onClick={() => {
-                            setEditingUser(d);
-                            setEditForm({ name: d.name, phone: d.phone, email: d.email || '' });
-                          }}
-                          className="px-2 py-1 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded hover:bg-zinc-200 transition-colors"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => blockUser(d)}
-                          className={`px-2 py-1 text-[13px] font-medium rounded transition-colors ${d.is_active === false ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100 hover:bg-amber-100'}`}
-                        >
-                          {d.is_active === false ? 'Desbloquear' : 'Bloquear'}
-                        </button>
-                        <button
-                          onClick={() => deleteUser(d)}
-                          disabled={d.id === currentUserId}
-                          className="px-2 py-1 text-[13px] font-medium text-red-600 bg-red-50 border border-red-100 rounded hover:bg-red-100 disabled:opacity-50 transition-colors"
-                          title={d.id === currentUserId ? 'No puedes eliminarte a ti mismo' : 'Eliminar'}
-                        >
-                          Eliminar
-                        </button>
-                        <UserRoleSelect
-                          userId={d.id}
-                          currentRole={d.role}
-                          onRoleChange={(role) => handleRoleChange(d.id, role)}
-                          onDeleted={() => { load(); setError('El usuario ya no existe. Lista actualizada.'); }}
-                          currentUserId={currentUserId ?? undefined}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      {drivers.length === 0 && !showForm ? (
+        <p className="py-8 text-zinc-400 text-center text-sm">No hay conductores. Añade uno para asignar a vehículos.</p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {drivers.map((d) => {
+            const vehiclePlate = getVehicleForDriver(d.id);
+            return (
+              <div key={d.id} className="p-4 rounded-xl bg-white border border-zinc-200 hover:border-zinc-300 transition-colors">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-zinc-900 text-sm truncate">{d.name}</span>
+                      {d.is_active === false && <span className="flex-shrink-0 px-1.5 py-px text-[10px] font-semibold rounded bg-red-50 text-red-500 border border-red-100">Bloqueado</span>}
+                    </div>
+                    <p className="text-zinc-400 text-xs mt-0.5 truncate">{d.phone}{d.email ? ` · ${d.email}` : ''}</p>
+                  </div>
+                  <UserRoleSelect userId={d.id} currentRole={d.role} onRoleChange={(role) => handleRoleChange(d.id, role)} onDeleted={() => { load(); setError('El usuario ya no existe.'); }} currentUserId={currentUserId ?? undefined} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    {vehiclePlate
+                      ? <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md bg-zinc-100 text-zinc-600 font-medium">{vehiclePlate}</span>
+                      : <span className="px-2 py-0.5 text-[11px] rounded-md bg-amber-50 text-amber-500 border border-amber-100">Sin vehículo</span>
+                    }
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => { setEditingUser(d); setEditForm({ name: d.name, phone: d.phone, email: d.email || '' }); }} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors" title="Editar">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                    </button>
+                    <button onClick={() => blockUser(d)} className={`p-1.5 rounded-lg transition-colors ${d.is_active === false ? 'text-emerald-500 hover:bg-emerald-50' : 'text-amber-500 hover:bg-amber-50'}`} title={d.is_active === false ? 'Desbloquear' : 'Bloquear'}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d.is_active === false ? <><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></> : <><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>}</svg>
+                    </button>
+                    <button onClick={() => deleteUser(d)} disabled={d.id === currentUserId} className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 transition-colors" title="Eliminar">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {users.filter((u) => u.role !== 'driver').length > 0 && (
         <div className="mt-6">
           <h3 className="text-[13px] font-semibold text-zinc-400 mb-2">Otros usuarios</h3>
-          <ul className="space-y-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             {users
               .filter((u) => u.role !== 'driver')
               .map((u) => (
-                <li
-                  key={u.id}
-                  className="flex justify-between items-center p-3 rounded-lg bg-white border border-zinc-200 hover:border-zinc-300 transition-colors"
-                >
-                  <div>
-                    <span className="font-semibold text-zinc-900 text-sm">{u.name}</span>
-                    <p className="text-zinc-500 text-[13px]">{u.phone}</p>
-                    {u.is_active === false && (
-                      <span className="text-xs text-red-600">Bloqueado</span>
-                    )}
+                <div key={u.id} className="p-4 rounded-xl bg-white border border-zinc-200 hover:border-zinc-300 transition-colors">
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-zinc-900 text-sm truncate">{u.name}</span>
+                        {u.is_active === false && <span className="flex-shrink-0 px-1.5 py-px text-[10px] font-semibold rounded bg-red-50 text-red-500 border border-red-100">Bloqueado</span>}
+                      </div>
+                      <p className="text-zinc-400 text-xs mt-0.5 truncate">{u.phone}{u.email ? ` · ${u.email}` : ''}</p>
+                    </div>
+                    <UserRoleSelect userId={u.id} currentRole={u.role} onRoleChange={(role) => handleRoleChange(u.id, role)} onDeleted={() => { load(); setError('El usuario ya no existe.'); }} currentUserId={currentUserId ?? undefined} />
                   </div>
-                  <div className="flex gap-2 items-center">
-                    <button
-                      onClick={() => { setEditingUser(u); setEditForm({ name: u.name, phone: u.phone, email: u.email || '' }); }}
-                      className="px-2 py-1 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded hover:bg-zinc-200 transition-colors"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => blockUser(u)}
-                      className={`px-2 py-1 text-[13px] font-medium rounded transition-colors ${u.is_active === false ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100 hover:bg-amber-100'}`}
-                    >
-                      {u.is_active === false ? 'Desbloquear' : 'Bloquear'}
-                    </button>
-                    <button
-                      onClick={() => deleteUser(u)}
-                      disabled={u.id === currentUserId || u.role === 'admin'}
-                      className="px-2 py-1 text-[13px] font-medium text-red-600 bg-red-50 border border-red-100 rounded hover:bg-red-100 disabled:opacity-50 transition-colors"
-                    >
-                      Eliminar
-                    </button>
-                    <UserRoleSelect
-                      userId={u.id}
-                      currentRole={u.role}
-                      onRoleChange={(role) => handleRoleChange(u.id, role)}
-                      onDeleted={() => { load(); setError('El usuario ya no existe. Lista actualizada.'); }}
-                      currentUserId={currentUserId ?? undefined}
-                    />
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 text-[11px] rounded-md bg-zinc-100 text-zinc-500 font-medium capitalize">{u.role}</span>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => { setEditingUser(u); setEditForm({ name: u.name, phone: u.phone, email: u.email || '' }); }} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors" title="Editar">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                      </button>
+                      <button onClick={() => blockUser(u)} className={`p-1.5 rounded-lg transition-colors ${u.is_active === false ? 'text-emerald-500 hover:bg-emerald-50' : 'text-amber-500 hover:bg-amber-50'}`} title={u.is_active === false ? 'Desbloquear' : 'Bloquear'}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{u.is_active === false ? <><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></> : <><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>}</svg>
+                      </button>
+                      <button onClick={() => deleteUser(u)} disabled={u.id === currentUserId || u.role === 'admin'} className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 transition-colors" title="Eliminar">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                      </button>
+                    </div>
                   </div>
-                </li>
+                </div>
               ))}
-          </ul>
+          </div>
         </div>
       )}
 

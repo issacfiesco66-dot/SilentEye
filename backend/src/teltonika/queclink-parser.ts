@@ -118,11 +118,13 @@ function parseSingleMessage(raw: string): QueclinkParsed | null {
   const protocolVersion = fields[1] || '';
   const imei = fields[2] || '';
 
-  // Validate IMEI (should be 15 digits, but some report 16)
+  // Validate IMEI (should be 15 digits, but some models report 16 with leading 0)
   if (!/^\d{14,16}$/.test(imei)) {
     logger.debug(`[Queclink] IMEI inválido: "${imei}" en mensaje ${messageType}`);
     return null;
   }
+  // Normalize to 15 digits for DB compatibility
+  const normalizedImei = (imei.length === 16 && imei.startsWith('0')) ? imei.substring(1) : imei;
 
   // Count number is always last field
   const countNumber = fields[fields.length - 1] || '';
@@ -130,7 +132,7 @@ function parseSingleMessage(raw: string): QueclinkParsed | null {
   // ── Heartbeat: needs ACK, no GPS data ──
   if (messageType === 'GTHBD') {
     return {
-      imei,
+      imei: normalizedImei,
       messageType,
       protocolVersion,
       records: [],
@@ -150,7 +152,7 @@ function parseSingleMessage(raw: string): QueclinkParsed | null {
   if (!gps) {
     // Non-position message (GTINF, GTVER, etc.) — log but don't produce records
     return {
-      imei,
+      imei: normalizedImei,
       messageType,
       protocolVersion,
       records: [],
@@ -188,7 +190,7 @@ function parseSingleMessage(raw: string): QueclinkParsed | null {
   };
 
   return {
-    imei,
+    imei: normalizedImei,
     messageType,
     protocolVersion,
     records: [record],

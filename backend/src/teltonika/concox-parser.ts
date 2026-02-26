@@ -173,7 +173,8 @@ export function parseConcoxPacket(raw: Buffer): ConcoxParsed | null {
   const crcReceived = raw.readUInt16BE(hdrSize + L - 2);
   const crcCalc = crcItu(raw, 2, hdrSize + L - 2);
   if (crcReceived !== crcCalc) {
-    logger.debug(`[GT06] CRC mismatch: recv=0x${crcReceived.toString(16)} calc=0x${crcCalc.toString(16)} proto=0x${proto.toString(16)}`);
+    logger.warn(`[GT06] CRC mismatch: recv=0x${crcReceived.toString(16)} calc=0x${crcCalc.toString(16)} proto=0x${proto.toString(16)} — packet rejected`);
+    return null;
   }
 
   const result: ConcoxParsed = {

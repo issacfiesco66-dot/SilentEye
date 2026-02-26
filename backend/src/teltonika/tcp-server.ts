@@ -476,7 +476,7 @@ export function createTeltonikaTcpServer(port: number, onData?: (imei: string, r
   imeiTimeoutCheck = setInterval(() => {
     const now = Date.now();
     for (const [sock, c] of connections) {
-      if (c.state === 'imei' && c.protocol !== 'queclink' && now - c.lastActivityAt > IMEI_LOGIN_TIMEOUT_MS) {
+      if (c.state === 'imei' && c.protocol !== 'queclink' && c.protocol !== 'concox' && now - c.lastActivityAt > IMEI_LOGIN_TIMEOUT_MS) {
         logger.warn(`[TCP] Timeout IMEI: ${sock.remoteAddress}:${sock.remotePort} sin login en ${IMEI_LOGIN_TIMEOUT_MS / 1000}s`);
         sock.destroy();
       } else if (c.state === 'avl' && c.imei && now - c.lastActivityAt > AVL_IDLE_TIMEOUT_MS) {

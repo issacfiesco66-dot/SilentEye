@@ -78,13 +78,8 @@ export function detectAlert(deviceImei: string, record: AVLRecord): NormalizedAl
     alertType = 'panic';
   }
 
-  // 2. Event IO ID → mapeo directo
+  // 2. Event IO ID → mapeo directo (covers all priorities incl. Queclink/Concox eventIoId=1)
   if (!alertType && EVENT_IO_TO_ALERT[eventIoId]) {
-    alertType = EVENT_IO_TO_ALERT[eventIoId];
-  }
-
-  // 3. Priority = 1 (High) + Event IO ID conocido
-  if (!alertType && priority === 1 && EVENT_IO_TO_ALERT[eventIoId]) {
     alertType = EVENT_IO_TO_ALERT[eventIoId];
   }
 

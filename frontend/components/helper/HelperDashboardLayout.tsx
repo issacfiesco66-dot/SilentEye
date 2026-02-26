@@ -214,7 +214,7 @@ export default function HelperDashboardLayout() {
 
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50 text-zinc-900">
-      <HelperHeader status={helperStatus} onLogout={handleLogout} />
+      <HelperHeader status={helperStatus} onLogout={handleLogout} userName={user.name} userRole={user.role} />
 
       {/* Floating SOS button */}
       <a
