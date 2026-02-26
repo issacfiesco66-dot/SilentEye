@@ -16,6 +16,14 @@ import { api } from './api/routes.js';
 import { startOtpCleanup } from './api/auth.js';
 import { logger } from './utils/logger.js';
 
+// ── Global crash guards ──
+process.on('uncaughtException', (err) => {
+  logger.error('UNCAUGHT EXCEPTION (process kept alive):', err);
+});
+process.on('unhandledRejection', (reason) => {
+  logger.error('UNHANDLED REJECTION (process kept alive):', reason);
+});
+
 const TCP_PORT = parseInt(process.env.TCP_PORT || '5000', 10);
 const TCP_PORT_ALT = process.env.TCP_PORT_ALT ? parseInt(process.env.TCP_PORT_ALT, 10) : null;
 const TCP_PORT_ALT2 = process.env.TCP_PORT_ALT2 ? parseInt(process.env.TCP_PORT_ALT2, 10) : null;

@@ -36,6 +36,7 @@ ENV PORT=8080
 
 EXPOSE 8080 5000
 
-# Con NGROK_AUTHTOKEN: inicia Node en background + ngrok TCP 5000. Sin él: solo Node.
-# NGROK_TCP_URL: opcional, ej. tcp://0.tcp.ngrok.io:12345 (dirección reservada en ngrok) para URL fija entre reinicios.
-CMD ["sh", "-c", "if [ -n \"$NGROK_AUTHTOKEN\" ]; then node dist/index.js & sleep 5 && if [ -n \"$NGROK_TCP_URL\" ]; then exec ngrok tcp 5000 --url \"$NGROK_TCP_URL\" --log=stdout; else exec ngrok tcp 5000 --log=stdout; fi; else exec node dist/index.js; fi"]
+# Wrapper: auto-restart node on crash + ngrok if configured
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+CMD ["sh", "/app/start.sh"]
