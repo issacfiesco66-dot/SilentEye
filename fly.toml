@@ -9,9 +9,6 @@ primary_region = 'dfw'
 [build]
   dockerfile = 'Dockerfile'
 
-[deploy]
-  release_command = 'true'
-
 [env]
   CORS_ORIGINS = 'http://localhost:3000,https://silenteye-3rrwnq.fly.dev,https://silent-eye-frontend.vercel.app'
   NODE_ENV = 'production'
