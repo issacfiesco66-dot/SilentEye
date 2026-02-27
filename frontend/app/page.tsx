@@ -213,14 +213,15 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-bold mb-2">Rastreo vehicular en tiempo real</h3>
               <p className="text-zinc-500 text-[15px] leading-relaxed mb-6 max-w-md">
-                Monitorea tu flota completa con GPS Teltonika. Ubicación en vivo, historial de
-                recorridos, alertas de exceso de velocidad y geocercas automáticas.
+                Monitorea tu flota completa con GPS profesional. Compatible con Teltonika, Queclink y Concox.
+                Ubicación en vivo, historial de recorridos, alertas y geocercas automáticas.
               </p>
               <div className="flex flex-wrap gap-x-4 gap-y-2 text-[12px] font-medium text-zinc-400">
                 <span className="flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg> Ubicación en vivo</span>
                 <span className="flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg> Historial de rutas</span>
                 <span className="flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg> Alertas automáticas</span>
                 <span className="flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg> Botón de pánico físico</span>
+                <span className="flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg> Multi-marca GPS</span>
               </div>
             </div>
 
@@ -283,7 +284,7 @@ export default function Home() {
               </div>
               <div className="space-y-10">
                 {[
-                  { n: '01', t: 'Instalación', d: 'Un técnico instala el GPS Teltonika en tu vehículo. Discreto, sin modificaciones visibles. 30 minutos.' },
+                  { n: '01', t: 'Instalación', d: 'Se instala el GPS en tu vehículo (Teltonika, Queclink o Concox). Discreto, sin modificaciones visibles. 30 minutos.' },
                   { n: '02', t: 'Monitorea', d: 'Accede al panel desde cualquier dispositivo. Mapa en vivo, historial, velocidad y estado de cada vehículo.' },
                   { n: '03', t: 'Respuesta', d: 'Ante emergencia, el botón físico del GPS alerta a toda la red con ubicación exacta. Respuesta coordinada.' },
                 ].map((s) => (
@@ -398,7 +399,7 @@ export default function Home() {
               </div>
               <h3 className="font-bold text-zinc-900 text-lg mb-2">Flotillas y trailers</h3>
               <p className="text-[14px] text-zinc-500 leading-relaxed mb-4">
-                Robo de carga en carretera: el conductor está solo, sin cobertura y a merced de los asaltantes. Con GPS Teltonika, la alerta llega a la base y a todos los vehículos cercanos de la flotilla. Coordinación antes de que el trailer desaparezca.
+                Robo de carga en carretera: el conductor está solo, sin cobertura y a merced de los asaltantes. Con GPS profesional (Teltonika, Queclink o Concox), la alerta llega a la base y a todos los vehículos cercanos de la flotilla. Coordinación antes de que el trailer desaparezca.
               </p>
               <div className="flex items-center gap-2 text-[12px] font-medium text-blue-600">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
@@ -430,7 +431,7 @@ export default function Home() {
           <div className="max-w-xl mb-16">
             <p className="text-[13px] font-semibold text-blue-600 tracking-wide uppercase mb-3">Equipo</p>
             <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">Todo lo que necesitas, listo para instalar</h2>
-            <p className="text-zinc-500 leading-relaxed">Un solo equipo GPS profesional, ya configurado con SilentEye. Lo recibes, lo instalas y empiezas a monitorear.</p>
+            <p className="text-zinc-500 leading-relaxed">Equipos GPS profesionales ya configurados con SilentEye. Compatible con Teltonika, Queclink y Concox. Lo recibes, lo instalas y empiezas a monitorear.</p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8 items-start">
@@ -474,7 +475,11 @@ export default function Home() {
               </div>
 
               <h3 className="text-2xl font-extrabold text-zinc-900 mb-1">GPS Teltonika FMC130</h3>
-              <p className="text-zinc-400 text-sm mb-6">Rastreador vehicular profesional de grado industrial</p>
+              <p className="text-zinc-400 text-sm mb-4">Rastreador vehicular profesional de grado industrial</p>
+              <p className="text-[12px] text-zinc-400 mb-6 flex items-center gap-1.5">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 5 5L20 7"/></svg>
+                También compatible con Queclink y Concox
+              </p>
 
               {/* Price */}
               <div className="flex items-baseline gap-2 mb-6">
@@ -543,7 +548,8 @@ export default function Home() {
             {[
               { q: '¿Necesito instalar alguna app?', a: 'No. SilentEye funciona directo en el navegador de tu celular. Entra al sitio, regístrate con tu teléfono y listo. Sin descargas, sin espacio en tu celular.' },
               { q: '¿El botón SOS tiene algún costo?', a: 'No. El botón de emergencia ciudadano es completamente gratuito para cualquier persona. Solo necesitas un número de teléfono para registrarte.' },
-              { q: '¿La instalación del GPS es invasiva?', a: 'No. El equipo GPS Teltonika se instala de forma discreta dentro del vehículo. No modifica la estética ni el funcionamiento. La instalación toma aproximadamente 30 minutos.' },
+              { q: '¿La instalación del GPS es invasiva?', a: 'No. El equipo GPS (Teltonika, Queclink o Concox) se instala de forma discreta dentro del vehículo. No modifica la estética ni el funcionamiento. La instalación toma aproximadamente 30 minutos.' },
+              { q: '¿Solo aceptan GPS Teltonika?', a: 'No. SilentEye es compatible con equipos Teltonika (FMB/FMC series), Queclink (GL300, GV300, GV58CEU) y Concox (GT06N, WeTrack2, GV20, JM-VL). Si ya tienes un GPS de estas marcas, lo puedes integrar.' },
               { q: '¿Quién recibe mis alertas de emergencia?', a: 'Los administradores del sistema y cualquier voluntario o conductor registrado que se encuentre dentro del radio de 2 km de tu ubicación. Entre más personas estén registradas, más rápida la respuesta.' },
               { q: '¿Funciona en todo el país?', a: 'Sí, siempre que haya señal de telefonía móvil. En zonas urbanas y carreteras principales la cobertura es excelente. El GPS del vehículo utiliza red celular para transmitir datos.' },
               { q: '¿Puedo monitorear más de un vehículo?', a: 'Sí. SilentEye soporta flotas completas. Cada vehículo aparece de forma independiente en el mapa con su propia información de ubicación, velocidad e historial.' },
