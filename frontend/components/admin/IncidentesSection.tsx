@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import IncidentDetail from './IncidentDetail';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
+import { playAlarmSound, initAudioOnInteraction } from '@/lib/alarm';
 
 const API = '';
 

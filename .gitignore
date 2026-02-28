@@ -1,8 +1,9 @@
 # Dependencies
 node_modules/
 
-# Environment
+# Environment variables (all levels)
 .env
+.env.*
 .env.local
 .env.*.local
 **/.env
@@ -34,6 +35,3 @@ coverage/
 .vercel/
 .cloudflared/
 .fly/
-
-# Teltonika debug logs
-teltonika-minimal.log

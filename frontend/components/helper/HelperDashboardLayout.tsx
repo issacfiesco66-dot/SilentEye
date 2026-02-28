@@ -10,7 +10,7 @@ import DriverMyVehiclesMap from './DriverMyVehiclesMap';
 import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
-import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
+import { playAlarmSound, initAudioOnInteraction } from '@/lib/alarm';
 
 const API = '';
 

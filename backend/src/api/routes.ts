@@ -203,8 +203,8 @@ function requireRole(...roles: string[]) {
 api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
   try {
     const { imei, phone, email, mode } = req.body;
-    // SECURITY: NEVER return OTP codes in production responses
-    const showCode = process.env.NODE_ENV !== 'production';
+    // Return OTP in response only in dev OR if OTP_SHOW_IN_PROD is explicitly enabled
+    const showCode = process.env.NODE_ENV !== 'production' || process.env.OTP_SHOW_IN_PROD === 'true';
 
     if (imei && typeof imei === 'string') {
       if (!isValidImeiInput(imei)) {
@@ -336,25 +336,29 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
 
       // Try email delivery first (for users with email registered)
       const userEmail = userCheck.rows[0].email;
+      let emailOk = false;
+      let smsOk = false;
+
       if (userEmail && isEmailEnabled()) {
-        const sent = await sendOtpEmail(userEmail, code);
-        if (sent) {
-          res.json({ success: true, emailSent: true, emailHint: userEmail.replace(/(.{2})(.*)(@.*)/, '$1***$3') });
-          return;
-        }
+        emailOk = await sendOtpEmail(userEmail, code);
       }
 
-      // Fallback: SMS if Twilio configured
-      if (userCheck.rows[0].role === 'admin' && isSmsEnabled()) {
-        const sent = await sendOtpSms(cleanPhone, code);
-        if (!sent) {
-          logger.warn(`SMS fallback: no se pudo enviar OTP a admin ***${cleanPhone.slice(-4)}`);
-        }
-        res.json({ success: true, smsSent: sent });
-        return;
+      // Fallback: SMS if email not sent
+      if (!emailOk && isSmsEnabled()) {
+        smsOk = await sendOtpSms(cleanPhone, code);
       }
 
-      res.json(showCode ? { success: true, code } : { success: true });
+      const result: Record<string, unknown> = { success: true };
+      if (emailOk) {
+        result.emailSent = true;
+        result.emailHint = userEmail!.replace(/(.{2})(.*)(@.*)/, '$1***$3');
+      } else if (smsOk) {
+        result.smsSent = true;
+      }
+      // Always include code when OTP_SHOW_IN_PROD is enabled (Twilio may accept but not deliver)
+      if (showCode) result.code = code;
+
+      res.json(result);
       return;
     }
 

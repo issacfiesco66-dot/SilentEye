@@ -7,7 +7,7 @@
 
 import { pool } from '../db/pool.js';
 import { hasPostGis } from '../db/postgis-check.js';
-import type { AVLRecord } from '../teltonika/avl-decoder.js';
+import type { AVLRecord } from '../gps/avl-decoder.js';
 import { logger } from '../utils/logger.js';
 import { broadcastLocation, broadcastPanic } from './websocket.js';
 import { sendPushToUsers } from './push-service.js';

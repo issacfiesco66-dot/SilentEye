@@ -11,7 +11,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
+import { playAlarmSound, initAudioOnInteraction } from '@/lib/alarm';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { clearSession } from '@/lib/session';
 

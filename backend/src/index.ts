@@ -10,7 +10,7 @@ import http from 'http';
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import { createTeltonikaTcpServer } from './teltonika/tcp-server.js';
+import { createTeltonikaTcpServer } from './gps/tcp-server.js';
 import { createWebSocketServer, getWebSocketClientCount } from './services/websocket.js';
 import { api } from './api/routes.js';
 import { startOtpCleanup } from './api/auth.js';

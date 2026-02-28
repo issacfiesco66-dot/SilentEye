@@ -2,7 +2,7 @@ import { pool } from '../db/pool.js';
 import { hasPostGis } from '../db/postgis-check.js';
 import { logger } from '../utils/logger.js';
 import { broadcastAlert } from './websocket.js';
-import type { NormalizedAlert } from '../teltonika/alert-detector.js';
+import type { NormalizedAlert } from '../gps/alert-detector.js';
 
 const ALERT_RADIUS_M = parseInt(process.env.PANIC_ALERT_RADIUS_M || '2000', 10) || 2000; // 1–3 km
 

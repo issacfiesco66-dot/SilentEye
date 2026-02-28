@@ -17,7 +17,7 @@ import DriversSection from '@/components/admin/DriversSection';
 import GpsActivitySection from '@/components/admin/GpsActivitySection';
 import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
+import { playAlarmSound, initAudioOnInteraction } from '@/lib/alarm';
 
 type Tab = 'incidents' | 'alerts' | 'gps_activity' | 'map' | 'vehicles' | 'drivers';
 

@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import IncidentDetail from './IncidentDetail';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { playAlarmSound, initAudioOnInteraction } from '@/utils/alarm';
+import { playAlarmSound, initAudioOnInteraction } from '@/lib/alarm';
 
 const API = '';
 
