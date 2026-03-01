@@ -10,7 +10,7 @@ primary_region = 'dfw'
   dockerfile = 'Dockerfile'
 
 [env]
-  CORS_ORIGINS = 'http://localhost:3000,https://silenteye-3rrwnq.fly.dev,https://silent-eye-frontend.vercel.app'
+  CORS_ORIGINS = 'http://localhost:3000,https://silenteye-3rrwnq.fly.dev,https://silent-eye-frontend.vercel.app,https://silenteye.com,https://www.silenteye.com'
   NODE_ENV = 'production'
   PORT = '8080'
   TCP_PORT = '5000'
