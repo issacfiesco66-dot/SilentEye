@@ -32,12 +32,9 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link href="/sos" className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
+            <Link href="/sos" className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
               SOS
-            </Link>
-            <Link href="/login" className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors">
-              Acceder
             </Link>
           </div>
         </div>
@@ -64,19 +61,19 @@ export default function Home() {
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
-                href="/login"
-                className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors"
-              >
-                Comenzar gratis
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-              </Link>
-              <Link
                 href="/sos"
-                className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
                 Emergencia SOS
               </Link>
+              <a
+                href="#problema"
+                className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors"
+              >
+                Conoce más
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </a>
             </div>
           </div>
 
@@ -596,10 +593,10 @@ export default function Home() {
               </div>
               <h3 className="text-sm font-bold text-zinc-700 mb-2">¿Ya tienes un GPS?</h3>
               <p className="text-[13px] text-zinc-400 leading-relaxed mb-4">Si tu dispositivo es de alguna de estas marcas, solo necesitas apuntar el servidor a SilentEye. Sin cambiar de equipo.</p>
-              <Link href="/login" className="text-[13px] font-semibold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1">
-                Conectar mi GPS
+              <a href="#faq" className="text-[13px] font-semibold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1">
+                ¿Cómo conecto mi GPS?
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-              </Link>
+              </a>
             </div>
           </div>
 
@@ -660,18 +657,18 @@ export default function Home() {
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link
-                  href="/login"
+                  href="/sos"
                   className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-zinc-900 bg-white rounded-lg hover:bg-zinc-100 transition-colors"
                 >
-                  Crear cuenta
+                  Activar SOS
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                 </Link>
-                <Link
-                  href="/sos"
-                  className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-red-400 bg-white/10 rounded-lg hover:bg-white/15 transition-colors"
+                <a
+                  href="#problema"
+                  className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-zinc-400 bg-white/10 rounded-lg hover:bg-white/15 transition-colors"
                 >
-                  Emergencia SOS
-                </Link>
+                  Conoce más
+                </a>
               </div>
             </div>
           </div>
@@ -694,9 +691,8 @@ export default function Home() {
             <a href="#dispositivos" className="hover:text-zinc-900 transition-colors">GPS compatibles</a>
             <a href="#comparativa" className="hover:text-zinc-900 transition-colors">Comparativa</a>
             <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
-            <Link href="/login" className="hover:text-zinc-900 transition-colors">Acceder</Link>
           </div>
-          <p className="text-[12px] text-zinc-300">SilentEye &copy; {new Date().getFullYear()}</p>
+          <Link href="/login" className="text-[12px] text-zinc-300 no-underline cursor-default">SilentEye &copy; {new Date().getFullYear()}</Link>
         </div>
       </footer>
     </div>
