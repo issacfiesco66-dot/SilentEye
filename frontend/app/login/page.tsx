@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { saveSession } from '@/lib/session';
 
 // Use relative URLs so requests go through Next.js rewrites (server-side proxy → no CORS)
@@ -10,8 +10,25 @@ const API = '';
 type LoginMode = 'driver' | 'admin' | 'citizen';
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [showAdmin, setShowAdmin] = useState(false);
   const [mode, setMode] = useState<LoginMode>('citizen');
+
+  useEffect(() => {
+    if (searchParams.get('mode') === 'admin') {
+      setShowAdmin(true);
+      setMode('admin');
+    }
+  }, [searchParams]);
   const [step, setStep] = useState<'input' | 'otp'>('input');
   const [imei, setImei] = useState('');
   const [phone, setPhone] = useState('');
@@ -190,12 +207,14 @@ export default function LoginPage() {
             >
               Conductor
             </button>
-            <button
-              onClick={() => { setMode('admin'); resetForm(); }}
-              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${mode === 'admin' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
-            >
-              Admin
-            </button>
+            {showAdmin && (
+              <button
+                onClick={() => { setMode('admin'); resetForm(); }}
+                className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${mode === 'admin' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+              >
+                Admin
+              </button>
+            )}
           </div>
 
           {/* Form */}
@@ -303,7 +322,7 @@ export default function LoginPage() {
           </div>
 
           <p className="text-zinc-300 text-[12px] text-center mt-8">
-            SOS: correo electrónico &middot; Conductor: IMEI del GPS &middot; Admin: teléfono
+            SOS: correo electrónico &middot; Conductor: IMEI del GPS
           </p>
         </div>
       </div>
