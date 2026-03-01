@@ -6,6 +6,7 @@
 
 import Link from 'next/link';
 import AuthRedirect from '@/components/AuthRedirect';
+import SecretAdminTrigger from '@/components/SecretAdminTrigger';
 
 export default function Home() {
   return (
@@ -681,12 +682,14 @@ export default function Home() {
       {/* ── Footer ── */}
       <footer className="border-t border-zinc-100 px-6 py-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-zinc-900 rounded-md flex items-center justify-center">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+          <SecretAdminTrigger>
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 bg-zinc-900 rounded-md flex items-center justify-center">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </div>
+              <span className="text-sm font-bold tracking-tight">SilentEye</span>
             </div>
-            <span className="text-sm font-bold tracking-tight">SilentEye</span>
-          </div>
+          </SecretAdminTrigger>
           <div className="flex items-center gap-6 text-[13px] text-zinc-400">
             <a href="#problema" className="hover:text-zinc-900 transition-colors">Problema</a>
             <a href="#producto" className="hover:text-zinc-900 transition-colors">Plataforma</a>
