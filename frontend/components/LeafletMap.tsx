@@ -74,6 +74,9 @@ function MapController({
       initialRef.current = true;
       map.setView(center, zoom);
     }
+    // Fix tiles not rendering when container resizes after mount
+    const timer = setTimeout(() => map.invalidateSize(), 200);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {

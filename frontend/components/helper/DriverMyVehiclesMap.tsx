@@ -187,7 +187,7 @@ export default function DriverMyVehiclesMap() {
 
       {/* Map */}
       {liveLocations.length > 0 && (
-        <div className="flex-1 min-h-[300px] rounded-xl overflow-hidden border border-zinc-200/80 shadow-sm shadow-zinc-100">
+        <div className="h-[50vh] min-h-[300px] rounded-xl overflow-hidden border border-zinc-200/80 shadow-sm shadow-zinc-100">
           <MapView
             incidents={[]}
             liveLocations={liveLocations}
