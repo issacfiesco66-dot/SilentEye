@@ -6,6 +6,16 @@ import MapView from '../MapView';
 
 const API = '';
 
+interface Vehicle {
+  id: string;
+  plate: string;
+  name?: string;
+  imei: string;
+  driver_id?: string;
+  owner_id?: string;
+  parked_at?: string | null;
+}
+
 interface VehiclePosition {
   imei?: string;
   vehicleId?: string;
@@ -18,15 +28,30 @@ interface VehiclePosition {
 
 export default function DriverMyVehiclesMap() {
   const router = useRouter();
-  const [liveLocations, setLiveLocations] = useState<VehiclePosition[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [positions, setPositions] = useState<VehiclePosition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toggling, setToggling] = useState<string | null>(null); // vehicleId being toggled
+  const [toggling, setToggling] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addPlate, setAddPlate] = useState('');
   const [addImei, setAddImei] = useState('');
   const [addName, setAddName] = useState('');
   const [adding, setAdding] = useState(false);
+
+  const fetchVehicles = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API}/api/vehicles`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401) { router.replace('/login'); return; }
+      if (res.ok) {
+        setVehicles(await res.json());
+      }
+    } catch { /* silent */ }
+  }, [router]);
 
   const fetchPositions = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -35,32 +60,40 @@ export default function DriverMyVehiclesMap() {
       const res = await fetch(`${API}/api/gps/my-positions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.status === 401) {
-        router.replace('/login');
-        return;
-      }
       if (res.ok) {
-        const data = await res.json();
-        setLiveLocations(data);
+        setPositions(await res.json());
         setError(null);
-      } else {
-        setError('No se pudieron cargar las posiciones');
       }
     } catch {
       setError('Error de conexión');
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
+    fetchVehicles();
     fetchPositions();
-  }, [fetchPositions]);
+  }, [fetchVehicles, fetchPositions]);
 
   useEffect(() => {
     const interval = setInterval(fetchPositions, 5000);
     return () => clearInterval(interval);
   }, [fetchPositions]);
+
+  // Merge: all vehicles from /api/vehicles, enriched with GPS positions
+  const liveLocations: VehiclePosition[] = vehicles.map((v) => {
+    const pos = positions.find((p) => p.vehicleId === v.id || p.imei === v.imei);
+    return {
+      imei: v.imei,
+      vehicleId: v.id,
+      plate: v.plate || v.name || v.imei,
+      latitude: pos?.latitude ?? 0,
+      longitude: pos?.longitude ?? 0,
+      speed: pos?.speed ?? 0,
+      parkedAt: pos?.parkedAt ?? v.parked_at ?? null,
+    };
+  });
 
   const togglePark = async (vehicleId: string, isParked: boolean) => {
     const token = localStorage.getItem('token');
@@ -73,11 +106,11 @@ export default function DriverMyVehiclesMap() {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       });
       if (res.ok) {
-        // Optimistic update
-        setLiveLocations((prev) =>
+        // Optimistic update on the vehicles list (liveLocations is derived)
+        setVehicles((prev) =>
           prev.map((v) =>
-            v.vehicleId === vehicleId
-              ? { ...v, parkedAt: isParked ? null : new Date().toISOString() }
+            v.id === vehicleId
+              ? { ...v, parked_at: isParked ? null : new Date().toISOString() }
               : v
           )
         );
@@ -105,7 +138,7 @@ export default function DriverMyVehiclesMap() {
       });
       if (res.ok) {
         setAddPlate(''); setAddImei(''); setAddName(''); setShowAddForm(false);
-        fetchPositions();
+        fetchVehicles();
       } else {
         const data = await res.json().catch(() => ({}));
         setError(data.error || 'Error al agregar vehículo');
@@ -225,7 +258,9 @@ export default function DriverMyVehiclesMap() {
                     <div className="min-w-0">
                       <div className="font-semibold text-zinc-900 text-sm truncate">{v.plate || v.imei}</div>
                       <div className="text-[11px] mt-0.5">
-                        {isParked ? (
+                        {v.latitude === 0 && v.longitude === 0 ? (
+                          <span className="text-amber-500 font-medium">Sin señal GPS</span>
+                        ) : isParked ? (
                           <span className="text-blue-600 font-medium">Estacionado</span>
                         ) : (
                           <span className="text-zinc-400">{v.speed ?? 0} km/h</span>
@@ -263,12 +298,12 @@ export default function DriverMyVehiclesMap() {
         </div>
       )}
 
-      {/* Map */}
-      {liveLocations.length > 0 && (
+      {/* Map — only show if any vehicle has GPS data */}
+      {liveLocations.some(v => v.latitude !== 0 || v.longitude !== 0) && (
         <div className="h-[50vh] min-h-[300px] rounded-xl overflow-hidden border border-zinc-200/80 shadow-sm shadow-zinc-100">
           <MapView
             incidents={[]}
-            liveLocations={liveLocations}
+            liveLocations={liveLocations.filter(v => v.latitude !== 0 || v.longitude !== 0)}
             selectedId={null}
             onSelectIncident={() => {}}
           />

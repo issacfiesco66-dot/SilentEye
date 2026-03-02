@@ -577,6 +577,21 @@ api.get('/vehicles', authMiddleware, requireRole('admin', 'helper', 'driver', 'f
     res.json(r.rows);
     return;
   }
+  if (role === 'driver') {
+    const r = await pool.query(
+      `SELECT v.id, v.plate, v.name, v.imei, v.driver_id, v.owner_id, v.parked_at, v.parked_lat, v.parked_lng,
+              u.name as driver_name, o.name as owner_name
+       FROM vehicles v
+       LEFT JOIN users u ON v.driver_id = u.id
+       LEFT JOIN users o ON v.owner_id = o.id
+       WHERE v.driver_id = $1 OR v.owner_id = $1
+       ORDER BY v.plate`,
+      [userId]
+    );
+    res.json(r.rows);
+    return;
+  }
+  // admin, helper — see all
   const r = await pool.query(
     `SELECT v.id, v.plate, v.name, v.imei, v.driver_id, v.owner_id, v.parked_at, v.parked_lat, v.parked_lng,
             u.name as driver_name, o.name as owner_name
