@@ -22,6 +22,11 @@ export default function DriverMyVehiclesMap() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toggling, setToggling] = useState<string | null>(null); // vehicleId being toggled
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addPlate, setAddPlate] = useState('');
+  const [addImei, setAddImei] = useState('');
+  const [addName, setAddName] = useState('');
+  const [adding, setAdding] = useState(false);
 
   const fetchPositions = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -87,6 +92,31 @@ export default function DriverMyVehiclesMap() {
     }
   };
 
+  const handleAddVehicle = async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !addPlate.trim() || !addImei.trim()) return;
+    setAdding(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/api/vehicles`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plate: addPlate.trim(), imei: addImei.trim(), name: addName.trim() || null }),
+      });
+      if (res.ok) {
+        setAddPlate(''); setAddImei(''); setAddName(''); setShowAddForm(false);
+        fetchPositions();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Error al agregar vehículo');
+      }
+    } catch {
+      setError('Error de conexión');
+    } finally {
+      setAdding(false);
+    }
+  };
+
   if (loading && liveLocations.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-zinc-400">
@@ -111,11 +141,59 @@ export default function DriverMyVehiclesMap() {
             }
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[10px] text-zinc-400 font-medium">Tiempo real</span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] text-zinc-400 font-medium">Tiempo real</span>
+          </div>
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="w-8 h-8 rounded-lg bg-zinc-900 text-white flex items-center justify-center hover:bg-zinc-700 active:scale-95 transition-all"
+            title="Agregar vehículo"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          </button>
         </div>
       </div>
+
+      {/* Add vehicle form */}
+      {showAddForm && (
+        <div className="p-4 rounded-xl border border-zinc-200 bg-white shadow-sm space-y-3">
+          <h3 className="text-sm font-bold text-zinc-900">Agregar vehículo</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <input
+              value={addPlate} onChange={(e) => setAddPlate(e.target.value)}
+              placeholder="Placa *" maxLength={20}
+              className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400"
+            />
+            <input
+              value={addImei} onChange={(e) => setAddImei(e.target.value.replace(/\D/g, ''))}
+              placeholder="IMEI del GPS (15 dígitos) *" maxLength={15}
+              className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400"
+            />
+            <input
+              value={addName} onChange={(e) => setAddName(e.target.value)}
+              placeholder="Nombre (opcional)" maxLength={100}
+              className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleAddVehicle}
+              disabled={adding || !addPlate.trim() || addImei.trim().length !== 15}
+              className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-[12px] font-semibold hover:bg-zinc-700 active:scale-95 transition-all disabled:opacity-40"
+            >
+              {adding ? 'Agregando...' : 'Agregar'}
+            </button>
+            <button
+              onClick={() => setShowAddForm(false)}
+              className="px-4 py-2 rounded-lg text-zinc-500 text-[12px] font-semibold hover:bg-zinc-100 transition-all"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-amber-600 text-xs flex items-center gap-2">

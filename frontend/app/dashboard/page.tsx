@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import MapView from '@/components/MapView';
 import HelperDashboardLayout from '@/components/helper/HelperDashboardLayout';
+import FleetDashboard from '@/components/fleet/FleetDashboard';
 import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
@@ -20,7 +21,7 @@ interface User {
   id: string;
   phone: string;
   name: string;
-  role: 'driver' | 'helper' | 'admin' | 'citizen';
+  role: 'driver' | 'helper' | 'admin' | 'citizen' | 'fleet_owner';
 }
 
 interface Incident {
@@ -146,6 +147,9 @@ export default function DashboardPage() {
     const incidentParam = params?.get('incident');
     router.replace(incidentParam ? `/sos?incident=${incidentParam}` : '/sos');
     return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">Redirigiendo a SOS...</div>;
+  }
+  if (role === 'fleet_owner') {
+    return <FleetDashboard />;
   }
   if (role === 'helper' || role === 'driver') {
     return <HelperDashboardLayout />;

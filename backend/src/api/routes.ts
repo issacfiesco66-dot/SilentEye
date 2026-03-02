@@ -561,11 +561,28 @@ api.post('/helpers/location', authMiddleware, requireRole('helper', 'driver'), a
   res.json({ success: true });
 }));
 
-api.get('/vehicles', authMiddleware, requireRole('admin', 'helper', 'driver'), asyncHandler(async (req, res) => {
+api.get('/vehicles', authMiddleware, requireRole('admin', 'helper', 'driver', 'fleet_owner'), asyncHandler(async (req, res) => {
+  const { userId, role } = (req as any).user;
+  if (role === 'fleet_owner') {
+    const r = await pool.query(
+      `SELECT v.id, v.plate, v.name, v.imei, v.driver_id, v.owner_id, v.parked_at, v.parked_lat, v.parked_lng,
+              u.name as driver_name, o.name as owner_name
+       FROM vehicles v
+       LEFT JOIN users u ON v.driver_id = u.id
+       LEFT JOIN users o ON v.owner_id = o.id
+       WHERE v.owner_id = $1
+       ORDER BY v.plate`,
+      [userId]
+    );
+    res.json(r.rows);
+    return;
+  }
   const r = await pool.query(
-    `SELECT v.id, v.plate, v.name, v.imei, v.driver_id, v.parked_at, v.parked_lat, v.parked_lng, u.name as driver_name
+    `SELECT v.id, v.plate, v.name, v.imei, v.driver_id, v.owner_id, v.parked_at, v.parked_lat, v.parked_lng,
+            u.name as driver_name, o.name as owner_name
      FROM vehicles v
      LEFT JOIN users u ON v.driver_id = u.id
+     LEFT JOIN users o ON v.owner_id = o.id
      ORDER BY v.plate`
   );
   res.json(r.rows);
@@ -584,14 +601,15 @@ api.get('/vehicles/:id', authMiddleware, asyncHandler(async (req, res) => {
     res.status(404).json({ error: 'Vehículo no encontrado' });
     return;
   }
-  if (role !== 'admin' && v.driver_id !== userId) {
+  if (role !== 'admin' && v.driver_id !== userId && v.owner_id !== userId) {
     res.status(403).json({ error: 'Acceso denegado' });
     return;
   }
   res.json(v);
 }));
 
-api.post('/vehicles', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+api.post('/vehicles', authMiddleware, requireRole('admin', 'driver', 'fleet_owner'), asyncHandler(async (req, res) => {
+  const { userId, role } = (req as any).user;
   const { plate, name, imei, driver_id } = req.body;
   if (!plate || !imei) {
     res.status(400).json({ error: 'Placa e IMEI requeridos' });
@@ -609,10 +627,24 @@ api.post('/vehicles', authMiddleware, requireRole('admin'), asyncHandler(async (
     res.status(400).json({ error: 'Nombre máximo 100 caracteres' });
     return;
   }
+
+  // Determine owner_id and driver_id based on role
+  let ownerId: string | null = null;
+  let assignedDriverId: string | null = driver_id || null;
+
+  if (role === 'fleet_owner') {
+    ownerId = userId;
+    // fleet_owner can optionally assign a sub-driver
+  } else if (role === 'driver') {
+    ownerId = userId;
+    assignedDriverId = userId; // driver is both owner and driver
+  }
+  // admin: owner_id stays null unless explicitly set, driver_id from body
+
   try {
     const r = await pool.query(
-      `INSERT INTO vehicles (plate, name, imei, driver_id) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [plate, name || null, imei, driver_id || null]
+      `INSERT INTO vehicles (plate, name, imei, driver_id, owner_id) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [plate, name || null, imei, assignedDriverId, ownerId]
     );
     res.status(201).json(r.rows[0]);
   } catch (err: unknown) {
@@ -625,9 +657,20 @@ api.post('/vehicles', authMiddleware, requireRole('admin'), asyncHandler(async (
   }
 }));
 
-api.put('/vehicles/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+api.put('/vehicles/:id', authMiddleware, requireRole('admin', 'fleet_owner'), asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const { userId, role } = (req as any).user;
   const { plate, name, imei, driver_id } = req.body;
+
+  // Fleet owner can only edit their own vehicles
+  if (role === 'fleet_owner') {
+    const check = await pool.query('SELECT owner_id FROM vehicles WHERE id = $1', [id]);
+    if (!check.rows[0] || check.rows[0].owner_id !== userId) {
+      res.status(403).json({ error: 'Solo puedes editar tus propios vehículos' });
+      return;
+    }
+  }
+
   const driverId = driver_id === '' || driver_id === undefined ? null : driver_id;
   try {
     await pool.query(
@@ -656,8 +699,18 @@ api.put('/vehicles/:id', authMiddleware, requireRole('admin'), asyncHandler(asyn
   res.json(r.rows[0]);
 }));
 
-api.delete('/vehicles/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+api.delete('/vehicles/:id', authMiddleware, requireRole('admin', 'fleet_owner'), asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const { userId, role } = (req as any).user;
+
+  if (role === 'fleet_owner') {
+    const check = await pool.query('SELECT owner_id FROM vehicles WHERE id = $1', [id]);
+    if (!check.rows[0] || check.rows[0].owner_id !== userId) {
+      res.status(403).json({ error: 'Solo puedes eliminar tus propios vehículos' });
+      return;
+    }
+  }
+
   const r = await pool.query('DELETE FROM vehicles WHERE id = $1 RETURNING id', [id]);
   if (!r.rows[0]) {
     res.status(404).json({ error: 'Vehículo no encontrado' });
@@ -666,19 +719,84 @@ api.delete('/vehicles/:id', authMiddleware, requireRole('admin'), asyncHandler(a
   res.json({ success: true });
 }));
 
+// ── Fleet owner: manage sub-drivers ─────────────────────────────────────────
+
+// List drivers assigned to fleet_owner's vehicles
+api.get('/fleet/drivers', authMiddleware, requireRole('fleet_owner'), asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const r = await pool.query(
+    `SELECT DISTINCT u.id, u.phone, u.name, u.role, u.email
+     FROM users u
+     JOIN vehicles v ON v.driver_id = u.id AND v.owner_id = $1
+     ORDER BY u.name`,
+    [userId]
+  );
+  res.json(r.rows);
+}));
+
+// Create a sub-driver (fleet_owner only)
+api.post('/fleet/drivers', authMiddleware, requireRole('fleet_owner'), asyncHandler(async (req, res) => {
+  const { phone, name, email } = req.body;
+  if (!phone || typeof phone !== 'string' || !name || typeof name !== 'string') {
+    res.status(400).json({ error: 'Teléfono y nombre requeridos' });
+    return;
+  }
+  if (!isValidPhone(phone)) {
+    res.status(400).json({ error: 'Teléfono inválido' });
+    return;
+  }
+  // Check if user already exists
+  const existing = await pool.query('SELECT id, phone, name, role FROM users WHERE phone = $1', [phone.trim()]);
+  if (existing.rows[0]) {
+    // Return existing user (fleet_owner can assign them)
+    res.json(existing.rows[0]);
+    return;
+  }
+  const cleanEmail = email && typeof email === 'string' ? email.trim().toLowerCase() : null;
+  const r = await pool.query(
+    `INSERT INTO users (phone, name, role, email) VALUES ($1, $2, 'driver', $3) RETURNING id, phone, name, role`,
+    [phone.trim(), name.trim(), cleanEmail]
+  );
+  res.status(201).json(r.rows[0]);
+}));
+
+// Assign or unassign a driver to a fleet_owner's vehicle
+api.put('/fleet/vehicles/:id/driver', authMiddleware, requireRole('fleet_owner'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { userId } = (req as any).user;
+  const { driver_id } = req.body;
+
+  // Verify vehicle ownership
+  const check = await pool.query('SELECT id, owner_id FROM vehicles WHERE id = $1', [id]);
+  if (!check.rows[0] || check.rows[0].owner_id !== userId) {
+    res.status(403).json({ error: 'Solo puedes gestionar tus propios vehículos' });
+    return;
+  }
+
+  const driverId = driver_id === '' || driver_id === null || driver_id === undefined ? null : driver_id;
+  await pool.query('UPDATE vehicles SET driver_id = $2, updated_at = NOW() WHERE id = $1', [id, driverId]);
+
+  const r = await pool.query(
+    `SELECT v.*, u.name as driver_name FROM vehicles v
+     LEFT JOIN users u ON v.driver_id = u.id WHERE v.id = $1`,
+    [id]
+  );
+  res.json(r.rows[0]);
+}));
+
 // Park vehicle: activate theft detection mode
 api.post('/vehicles/:id/park', authMiddleware, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { userId, role } = (req as any).user;
 
   // Verify ownership or admin
-  const v = await pool.query('SELECT id, driver_id, plate, parked_at FROM vehicles WHERE id = $1', [id]);
+  const v = await pool.query('SELECT id, driver_id, owner_id, plate, parked_at FROM vehicles WHERE id = $1', [id]);
   if (!v.rows[0]) {
     res.status(404).json({ error: 'Vehículo no encontrado' });
     return;
   }
-  if (role !== 'admin' && v.rows[0].driver_id !== userId) {
-    res.status(403).json({ error: 'Solo el conductor asignado o un admin puede estacionar este vehículo' });
+  if (role !== 'admin' && v.rows[0].driver_id !== userId && v.rows[0].owner_id !== userId) {
+    res.status(403).json({ error: 'Solo el conductor asignado, el dueño o un admin puede estacionar este vehículo' });
     return;
   }
   if (v.rows[0].parked_at) {
@@ -708,13 +826,13 @@ api.post('/vehicles/:id/unpark', authMiddleware, asyncHandler(async (req, res) =
   const { id } = req.params;
   const { userId, role } = (req as any).user;
 
-  const v = await pool.query('SELECT id, driver_id, plate, parked_at FROM vehicles WHERE id = $1', [id]);
+  const v = await pool.query('SELECT id, driver_id, owner_id, plate, parked_at FROM vehicles WHERE id = $1', [id]);
   if (!v.rows[0]) {
     res.status(404).json({ error: 'Vehículo no encontrado' });
     return;
   }
-  if (role !== 'admin' && v.rows[0].driver_id !== userId) {
-    res.status(403).json({ error: 'Solo el conductor asignado o un admin puede desestacionar este vehículo' });
+  if (role !== 'admin' && v.rows[0].driver_id !== userId && v.rows[0].owner_id !== userId) {
+    res.status(403).json({ error: 'Solo el conductor asignado, el dueño o un admin puede desestacionar este vehículo' });
     return;
   }
   if (!v.rows[0].parked_at) {
@@ -1228,20 +1346,20 @@ api.delete('/alerts', authMiddleware, requireRole('admin'), asyncHandler(async (
   res.json({ success: true, deleted });
 }));
 
-// Posiciones de MIS vehículos (solo drivers): vehículos donde driver_id = userId
-api.get('/gps/my-positions', authMiddleware, requireRole('driver'), asyncHandler(async (req, res) => {
+// Posiciones de MIS vehículos (drivers + fleet_owners): vehículos donde driver_id = userId OR owner_id = userId
+api.get('/gps/my-positions', authMiddleware, requireRole('driver', 'fleet_owner'), asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
-  const limit = Math.min(parseInt(String(req.query.limit || 20), 10) || 20, 50);
+  const limit = Math.min(parseInt(String(req.query.limit || 50), 10) || 50, 100);
   const pg = await hasPostGis();
 
   const subq = pg
     ? `SELECT DISTINCT ON (g.imei) g.imei, g.vehicle_id, g.latitude, g.longitude, g.speed, g.timestamp_at, v.plate, v.parked_at
        FROM gps_logs g
-       JOIN vehicles v ON v.id = g.vehicle_id AND v.driver_id = $1
+       JOIN vehicles v ON v.id = g.vehicle_id AND (v.driver_id = $1 OR v.owner_id = $1)
        ORDER BY g.imei, g.timestamp_at DESC`
     : `SELECT DISTINCT ON (g.imei) g.imei, g.vehicle_id, g.latitude, g.longitude, g.speed, g.timestamp_at, v.plate, v.parked_at
        FROM gps_logs g
-       JOIN vehicles v ON v.id = g.vehicle_id AND v.driver_id = $1
+       JOIN vehicles v ON v.id = g.vehicle_id AND (v.driver_id = $1 OR v.owner_id = $1)
        ORDER BY g.imei, g.timestamp_at DESC`;
 
   const r = await pool.query(
@@ -1506,7 +1624,7 @@ api.put('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (
 api.put('/users/:id/role', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
-  if (!['driver', 'helper', 'admin', 'citizen'].includes(role)) {
+  if (!['driver', 'helper', 'admin', 'citizen', 'fleet_owner'].includes(role)) {
     res.status(400).json({ error: 'Rol inválido' });
     return;
   }

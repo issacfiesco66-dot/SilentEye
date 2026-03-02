@@ -127,7 +127,7 @@ export async function findOrCreateUser(phone: string, name?: string, role?: stri
       return byEmail.rows[0];
     }
   }
-  const validRoles = ['driver', 'helper', 'admin', 'citizen'];
+  const validRoles = ['driver', 'helper', 'admin', 'citizen', 'fleet_owner'];
   const finalRole = role && validRoles.includes(role) ? role : 'driver';
   const insert = await pool.query(
     `INSERT INTO users (phone, name, role, email) VALUES ($1, $2, $3, $4)

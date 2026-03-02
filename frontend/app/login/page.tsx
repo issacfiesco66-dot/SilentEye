@@ -7,7 +7,7 @@ import { saveSession } from '@/lib/session';
 // Use relative URLs so requests go through Next.js rewrites (server-side proxy → no CORS)
 const API = '';
 
-type LoginMode = 'driver' | 'admin' | 'citizen';
+type LoginMode = 'driver' | 'admin' | 'citizen' | 'fleet_owner';
 
 export default function LoginPage() {
   return (
@@ -54,7 +54,7 @@ function LoginContent() {
       }
       const identifier = mode === 'driver' ? imei.trim() : mode === 'citizen' ? email.trim() : phone.trim();
       if (!identifier) {
-        setError(mode === 'driver' ? 'Ingresa el número de GPS (IMEI)' : mode === 'citizen' ? 'Ingresa tu correo electrónico' : 'Ingresa tu teléfono');
+        setError(mode === 'driver' ? 'Ingresa el número de GPS (IMEI)' : mode === 'citizen' ? 'Ingresa tu correo electrónico' : mode === 'fleet_owner' ? 'Ingresa tu teléfono registrado' : 'Ingresa tu teléfono');
         setLoading(false);
         return;
       }
@@ -115,7 +115,7 @@ function LoginContent() {
       } else if (mode === 'citizen') {
         body = { email: email.trim().toLowerCase(), code: code.trim(), name: name.trim() || undefined, mode: 'citizen' };
       } else {
-        body = { phone: phone.trim(), code: code.trim(), name: name.trim() || undefined };
+        body = { phone: phone.trim(), code: code.trim() };
       }
       const res = await fetch(`${API}/api/auth/otp/verify`, {
         method: 'POST',
@@ -207,6 +207,12 @@ function LoginContent() {
             >
               Conductor
             </button>
+            <button
+              onClick={() => { setMode('fleet_owner'); resetForm(); }}
+              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${mode === 'fleet_owner' ? 'bg-white text-blue-600 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+            >
+              Flotilla
+            </button>
             {showAdmin && (
               <button
                 onClick={() => { setMode('admin'); resetForm(); }}
@@ -228,6 +234,15 @@ function LoginContent() {
                       <span className="text-[13px] text-red-600 font-medium">Botón de emergencia ciudadano</span>
                     </div>
                     <p className="text-[12px] text-zinc-400 px-1">Ingresa tu correo electrónico. Recibirás un código de verificación.</p>
+                  </div>
+                )}
+                {mode === 'fleet_owner' && (
+                  <div className="space-y-2 mb-5">
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-lg">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
+                      <span className="text-[13px] text-blue-700 font-medium">Panel de flotilla</span>
+                    </div>
+                    <p className="text-[12px] text-zinc-400 px-1">Administra todos tus vehículos y conductores. Ingresa con tu teléfono registrado.</p>
                   </div>
                 )}
                 <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">
@@ -322,7 +337,7 @@ function LoginContent() {
           </div>
 
           <p className="text-zinc-300 text-[12px] text-center mt-8">
-            SOS: correo electrónico &middot; Conductor: IMEI del GPS
+            SOS: correo electrónico &middot; Conductor: IMEI &middot; Flotilla: teléfono
           </p>
         </div>
       </div>
