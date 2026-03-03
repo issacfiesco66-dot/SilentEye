@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, Circle, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -96,6 +96,8 @@ export default function LeafletMap({
   onSelectIncident,
   centerOnIncidentId,
   routeLine,
+  polyline,
+  geofences,
 }: {
   incidents: Incident[];
   liveLocations: Location[];
@@ -103,6 +105,8 @@ export default function LeafletMap({
   onSelectIncident: (id: string | null) => void;
   centerOnIncidentId?: string | null;
   routeLine?: [number, number][];
+  polyline?: [number, number][];
+  geofences?: { latitude: number; longitude: number; radius_m: number; name: string }[];
 }) {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [geoReady, setGeoReady] = useState(false);
@@ -241,6 +245,28 @@ export default function LeafletMap({
             }}
           />
         )}
+
+        {/* Direct polyline (lat,lng already correct) */}
+        {polyline && polyline.length >= 2 && (
+          <Polyline
+            positions={polyline}
+            pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.85 }}
+          />
+        )}
+
+        {/* Geofence circles */}
+        {geofences?.map((g, i) => (
+          <Circle
+            key={`geo-${i}`}
+            center={[g.latitude, g.longitude]}
+            radius={g.radius_m}
+            pathOptions={{ color: '#f59e0b', weight: 2, fillColor: '#fbbf24', fillOpacity: 0.12 }}
+          >
+            <Tooltip direction="top" offset={[0, -10]} className="!bg-amber-600 !text-white !text-xs !border-0 !rounded-md !px-2 !py-1">
+              {g.name} ({g.radius_m}m)
+            </Tooltip>
+          </Circle>
+        ))}
 
         {/* Live vehicle locations */}
         {liveLocations.map((loc, idx) => (

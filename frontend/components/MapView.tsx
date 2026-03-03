@@ -33,11 +33,15 @@ export default function MapView({
   liveLocations,
   selectedId,
   onSelectIncident,
+  polyline,
+  geofences,
 }: {
   incidents: Incident[];
   liveLocations: Location[];
   selectedId: string | null;
   onSelectIncident: (id: string | null) => void;
+  polyline?: [number, number][];
+  geofences?: { latitude: number; longitude: number; radius_m: number; name: string }[];
 }) {
   return (
     <div className="w-full h-full">
@@ -46,6 +50,8 @@ export default function MapView({
         liveLocations={liveLocations}
         selectedId={selectedId}
         onSelectIncident={onSelectIncident}
+        polyline={polyline}
+        geofences={geofences}
       />
     </div>
   );

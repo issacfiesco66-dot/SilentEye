@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import MapView from '../MapView';
+import TripHistory from '../TripHistory';
+import GeofenceManager from '../GeofenceManager';
 
 const API = '';
 
@@ -38,6 +40,9 @@ export default function DriverMyVehiclesMap() {
   const [addImei, setAddImei] = useState('');
   const [addName, setAddName] = useState('');
   const [adding, setAdding] = useState(false);
+  const [historyVehicle, setHistoryVehicle] = useState<{ id: string; plate: string } | null>(null);
+  const [geofences, setGeofences] = useState<{ latitude: number; longitude: number; radius_m: number; name: string }[]>([]);
+  const [showGeofences, setShowGeofences] = useState(false);
 
   const fetchVehicles = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -80,6 +85,18 @@ export default function DriverMyVehiclesMap() {
     const interval = setInterval(fetchPositions, 5000);
     return () => clearInterval(interval);
   }, [fetchPositions]);
+
+  // Fetch geofences for map display
+  const fetchGeofences = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API}/api/geofences`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setGeofences(await res.json());
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { fetchGeofences(); }, [fetchGeofences]);
 
   // Merge: all vehicles from /api/vehicles, enriched with GPS positions
   const liveLocations: VehiclePosition[] = vehicles.map((v) => {
@@ -180,6 +197,13 @@ export default function DriverMyVehiclesMap() {
             <span className="text-[10px] text-zinc-400 font-medium">Tiempo real</span>
           </div>
           <button
+            onClick={() => setShowGeofences(true)}
+            className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center hover:bg-amber-200 active:scale-95 transition-all"
+            title="Geocercas"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+          </button>
+          <button
             onClick={() => setShowAddForm(!showAddForm)}
             className="w-8 h-8 rounded-lg bg-zinc-900 text-white flex items-center justify-center hover:bg-zinc-700 active:scale-95 transition-all"
             title="Agregar vehículo"
@@ -268,18 +292,27 @@ export default function DriverMyVehiclesMap() {
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => v.vehicleId && togglePark(v.vehicleId, isParked)}
-                    disabled={isToggling || !v.vehicleId}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
-                      isToggling ? 'opacity-50 cursor-wait' :
-                      isParked
-                        ? 'bg-zinc-900 text-white hover:bg-zinc-700 active:scale-95'
-                        : 'bg-blue-600 text-white hover:bg-blue-500 active:scale-95'
-                    }`}
-                  >
-                    {isToggling ? '...' : isParked ? 'Desestacionar' : 'Estacionar'}
-                  </button>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                      onClick={() => v.vehicleId && setHistoryVehicle({ id: v.vehicleId, plate: v.plate || v.imei || '' })}
+                      className="px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-zinc-100 text-zinc-600 hover:bg-zinc-200 active:scale-95 transition-all"
+                      title="Historial"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </button>
+                    <button
+                      onClick={() => v.vehicleId && togglePark(v.vehicleId, isParked)}
+                      disabled={isToggling || !v.vehicleId}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                        isToggling ? 'opacity-50 cursor-wait' :
+                        isParked
+                          ? 'bg-zinc-900 text-white hover:bg-zinc-700 active:scale-95'
+                          : 'bg-blue-600 text-white hover:bg-blue-500 active:scale-95'
+                      }`}
+                    >
+                      {isToggling ? '...' : isParked ? 'Desestacionar' : 'Estacionar'}
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -306,8 +339,27 @@ export default function DriverMyVehiclesMap() {
             liveLocations={liveLocations.filter(v => v.latitude !== 0 || v.longitude !== 0)}
             selectedId={null}
             onSelectIncident={() => {}}
+            geofences={geofences}
           />
         </div>
+      )}
+
+      {/* Trip History Modal */}
+      {historyVehicle && (
+        <TripHistory
+          vehicleId={historyVehicle.id}
+          plate={historyVehicle.plate}
+          onClose={() => setHistoryVehicle(null)}
+          MapView={MapView}
+        />
+      )}
+
+      {/* Geofence Manager Modal */}
+      {showGeofences && (
+        <GeofenceManager
+          onClose={() => setShowGeofences(false)}
+          onUpdate={fetchGeofences}
+        />
       )}
     </div>
   );

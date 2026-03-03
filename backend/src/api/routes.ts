@@ -864,6 +864,167 @@ api.post('/vehicles/:id/unpark', authMiddleware, asyncHandler(async (req, res) =
   res.json({ success: true });
 }));
 
+// ── Trip History ─────────────────────────────────────────────────────────────
+
+api.get('/vehicles/:id/history', authMiddleware, requireRole('admin', 'helper', 'driver', 'fleet_owner'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { userId, role } = (req as any).user;
+
+  // Verify access
+  const v = await pool.query('SELECT id, driver_id, owner_id FROM vehicles WHERE id = $1', [id]);
+  if (!v.rows[0]) { res.status(404).json({ error: 'Vehículo no encontrado' }); return; }
+  if (role !== 'admin' && role !== 'helper' && v.rows[0].driver_id !== userId && v.rows[0].owner_id !== userId) {
+    res.status(403).json({ error: 'Acceso denegado' }); return;
+  }
+
+  const date = String(req.query.date || '');
+  const from = String(req.query.from || '');
+  const to = String(req.query.to || '');
+
+  let whereDate = '';
+  const params: unknown[] = [id];
+
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    whereDate = `AND timestamp_at >= $2::date AND timestamp_at < ($2::date + interval '1 day')`;
+    params.push(date);
+  } else if (from) {
+    whereDate = `AND timestamp_at >= $2::timestamptz`;
+    params.push(from);
+    if (to) { whereDate += ` AND timestamp_at <= $${params.length + 1}::timestamptz`; params.push(to); }
+  } else {
+    // Default: today
+    whereDate = `AND timestamp_at >= CURRENT_DATE AND timestamp_at < CURRENT_DATE + interval '1 day'`;
+  }
+
+  const r = await pool.query(
+    `SELECT latitude, longitude, speed, altitude, timestamp_at
+     FROM gps_logs
+     WHERE vehicle_id = $1 AND latitude != 0 AND longitude != 0 ${whereDate}
+     ORDER BY timestamp_at ASC
+     LIMIT 5000`,
+    params
+  );
+
+  // Compute summary
+  let totalDistanceM = 0;
+  let maxSpeed = 0;
+  for (let i = 1; i < r.rows.length; i++) {
+    const prev = r.rows[i - 1];
+    const curr = r.rows[i];
+    const R = 6371000;
+    const toRad = (d: number) => d * Math.PI / 180;
+    const dLat = toRad(curr.latitude - prev.latitude);
+    const dLon = toRad(curr.longitude - prev.longitude);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(prev.latitude)) * Math.cos(toRad(curr.latitude)) * Math.sin(dLon/2)**2;
+    totalDistanceM += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    if (curr.speed > maxSpeed) maxSpeed = curr.speed;
+  }
+
+  res.json({
+    vehicleId: id,
+    points: r.rows.map((row: { latitude: number; longitude: number; speed: number; altitude: number; timestamp_at: string }) => ({
+      lat: row.latitude,
+      lng: row.longitude,
+      speed: row.speed,
+      altitude: row.altitude,
+      time: row.timestamp_at,
+    })),
+    summary: {
+      totalPoints: r.rows.length,
+      distanceKm: Math.round(totalDistanceM / 100) / 10,
+      maxSpeed,
+      startTime: r.rows[0]?.timestamp_at || null,
+      endTime: r.rows[r.rows.length - 1]?.timestamp_at || null,
+    },
+  });
+}));
+
+// ── Geofences CRUD ──────────────────────────────────────────────────────────
+
+api.get('/geofences', authMiddleware, requireRole('admin', 'fleet_owner', 'driver'), asyncHandler(async (req, res) => {
+  const { userId, role } = (req as any).user;
+  if (role === 'admin') {
+    const r = await pool.query('SELECT g.*, u.name as user_name FROM geofences g LEFT JOIN users u ON g.user_id = u.id ORDER BY g.created_at DESC');
+    res.json(r.rows);
+  } else {
+    const r = await pool.query('SELECT * FROM geofences WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+    res.json(r.rows);
+  }
+}));
+
+api.post('/geofences', authMiddleware, requireRole('admin', 'fleet_owner', 'driver'), asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const { name, latitude, longitude, radius_m, alert_on_exit, alert_on_enter } = req.body;
+
+  if (!name || typeof name !== 'string' || name.trim().length < 1) {
+    res.status(400).json({ error: 'Nombre requerido' }); return;
+  }
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    res.status(400).json({ error: 'Coordenadas requeridas' }); return;
+  }
+  const radius = Math.min(Math.max(parseInt(String(radius_m || 500), 10) || 500, 50), 50000);
+
+  const r = await pool.query(
+    `INSERT INTO geofences (user_id, name, latitude, longitude, radius_m, alert_on_exit, alert_on_enter)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING *`,
+    [userId, name.trim(), latitude, longitude, radius, alert_on_exit !== false, alert_on_enter === true]
+  );
+  res.status(201).json(r.rows[0]);
+}));
+
+api.put('/geofences/:id', authMiddleware, requireRole('admin', 'fleet_owner', 'driver'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { userId, role } = (req as any).user;
+
+  const check = await pool.query('SELECT user_id FROM geofences WHERE id = $1', [id]);
+  if (!check.rows[0]) { res.status(404).json({ error: 'Geocerca no encontrada' }); return; }
+  if (role !== 'admin' && check.rows[0].user_id !== userId) { res.status(403).json({ error: 'Acceso denegado' }); return; }
+
+  const { name, latitude, longitude, radius_m, alert_on_exit, alert_on_enter, is_active } = req.body;
+  const r = await pool.query(
+    `UPDATE geofences SET
+       name = COALESCE($2, name),
+       latitude = COALESCE($3, latitude),
+       longitude = COALESCE($4, longitude),
+       radius_m = COALESCE($5, radius_m),
+       alert_on_exit = COALESCE($6, alert_on_exit),
+       alert_on_enter = COALESCE($7, alert_on_enter),
+       is_active = COALESCE($8, is_active)
+     WHERE id = $1 RETURNING *`,
+    [id, name?.trim() || null, latitude ?? null, longitude ?? null, radius_m ?? null,
+     alert_on_exit ?? null, alert_on_enter ?? null, is_active ?? null]
+  );
+  res.json(r.rows[0]);
+}));
+
+api.delete('/geofences/:id', authMiddleware, requireRole('admin', 'fleet_owner', 'driver'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { userId, role } = (req as any).user;
+
+  const check = await pool.query('SELECT user_id FROM geofences WHERE id = $1', [id]);
+  if (!check.rows[0]) { res.status(404).json({ error: 'Geocerca no encontrada' }); return; }
+  if (role !== 'admin' && check.rows[0].user_id !== userId) { res.status(403).json({ error: 'Acceso denegado' }); return; }
+
+  await pool.query('DELETE FROM geofences WHERE id = $1', [id]);
+  res.json({ success: true });
+}));
+
+// Speed limit config
+api.put('/me/speed-limit', authMiddleware, requireRole('admin', 'fleet_owner', 'driver'), asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const { speed_limit } = req.body;
+  const limit = Math.min(Math.max(parseInt(String(speed_limit || 0), 10) || 0, 0), 300);
+  await pool.query('UPDATE users SET speed_limit = $2, updated_at = NOW() WHERE id = $1', [userId, limit]);
+  res.json({ success: true, speed_limit: limit });
+}));
+
+api.get('/me/speed-limit', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const r = await pool.query('SELECT speed_limit FROM users WHERE id = $1', [userId]);
+  res.json({ speed_limit: r.rows[0]?.speed_limit || 0 });
+}));
+
 api.get('/incidents', authMiddleware, asyncHandler(async (req, res) => {
   const { userId, role } = (req as any).user;
   let query = `

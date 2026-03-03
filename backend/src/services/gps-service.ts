@@ -115,6 +115,102 @@ export async function processGpsData(imei: string, record: AVLRecord): Promise<v
       }
     }
 
+    // ── Speed alert ──
+    if (vehicle?.id && speed > 0 && latitude !== 0 && longitude !== 0) {
+      try {
+        // Check owner's and driver's speed limit
+        const ownerIds: string[] = [];
+        if (vehicle.driver_id) ownerIds.push(vehicle.driver_id);
+        const ownerQ = await client.query(
+          `SELECT id, speed_limit FROM users WHERE id = ANY($1::uuid[]) AND speed_limit > 0`,
+          [ownerIds]
+        );
+        // Also check fleet owner
+        const vOwner = await client.query('SELECT owner_id FROM vehicles WHERE id = $1', [vehicle.id]);
+        if (vOwner.rows[0]?.owner_id) {
+          const fleetOwner = await client.query('SELECT id, speed_limit FROM users WHERE id = $1 AND speed_limit > 0', [vOwner.rows[0].owner_id]);
+          if (fleetOwner.rows[0]) ownerQ.rows.push(fleetOwner.rows[0]);
+        }
+        for (const u of ownerQ.rows) {
+          if (speed > u.speed_limit) {
+            sendPushToUsers([u.id], {
+              title: '⚡ Exceso de velocidad',
+              body: `${vehicle.plate || imei} a ${speed} km/h (límite: ${u.speed_limit} km/h)`,
+              icon: '/icon-192.png',
+              tag: `speed-${vehicle.id}-${Math.floor(Date.now() / 60000)}`,
+              data: { url: '/dashboard', vehicleId: vehicle.id },
+            }).catch(() => {});
+          }
+        }
+      } catch (e) { logger.warn('Speed alert check error (non-fatal):', e); }
+    }
+
+    // ── Geofence check ──
+    if (vehicle?.id && latitude !== 0 && longitude !== 0) {
+      try {
+        // Get all active geofences for the vehicle's driver and owner
+        const userIds: string[] = [];
+        if (vehicle.driver_id) userIds.push(vehicle.driver_id);
+        const vOwner2 = await client.query('SELECT owner_id FROM vehicles WHERE id = $1', [vehicle.id]);
+        if (vOwner2.rows[0]?.owner_id && !userIds.includes(vOwner2.rows[0].owner_id)) {
+          userIds.push(vOwner2.rows[0].owner_id);
+        }
+        if (userIds.length > 0) {
+          const geoResult = await client.query(
+            `SELECT * FROM geofences WHERE user_id = ANY($1::uuid[]) AND is_active = TRUE`,
+            [userIds]
+          );
+          for (const fence of geoResult.rows) {
+            const dist = haversineDistance(latitude, longitude, fence.latitude, fence.longitude);
+            const inside = dist <= fence.radius_m;
+            // Check for exit: vehicle was inside, now outside
+            if (!inside && fence.alert_on_exit) {
+              // Prevent duplicate alerts within 5 min
+              const recent = await client.query(
+                `SELECT id FROM geofence_alerts WHERE geofence_id = $1 AND vehicle_id = $2 AND alert_type = 'exit' AND created_at > NOW() - interval '5 minutes'`,
+                [fence.id, vehicle.id]
+              );
+              if (recent.rows.length === 0) {
+                await client.query(
+                  `INSERT INTO geofence_alerts (geofence_id, vehicle_id, alert_type, latitude, longitude) VALUES ($1, $2, 'exit', $3, $4)`,
+                  [fence.id, vehicle.id, latitude, longitude]
+                );
+                sendPushToUsers([fence.user_id], {
+                  title: '🚧 Fuera de geocerca',
+                  body: `${vehicle.plate || imei} salió de "${fence.name}"`,
+                  icon: '/icon-192.png',
+                  tag: `geofence-exit-${fence.id}-${vehicle.id}`,
+                  data: { url: '/dashboard', vehicleId: vehicle.id },
+                }).catch(() => {});
+                logger.info(`GEOFENCE EXIT vehicle=${vehicle.plate} fence="${fence.name}" dist=${Math.round(dist)}m`);
+              }
+            }
+            // Check for enter
+            if (inside && fence.alert_on_enter) {
+              const recent = await client.query(
+                `SELECT id FROM geofence_alerts WHERE geofence_id = $1 AND vehicle_id = $2 AND alert_type = 'enter' AND created_at > NOW() - interval '5 minutes'`,
+                [fence.id, vehicle.id]
+              );
+              if (recent.rows.length === 0) {
+                await client.query(
+                  `INSERT INTO geofence_alerts (geofence_id, vehicle_id, alert_type, latitude, longitude) VALUES ($1, $2, 'enter', $3, $4)`,
+                  [fence.id, vehicle.id, latitude, longitude]
+                );
+                sendPushToUsers([fence.user_id], {
+                  title: '📍 Entró a geocerca',
+                  body: `${vehicle.plate || imei} entró a "${fence.name}"`,
+                  icon: '/icon-192.png',
+                  tag: `geofence-enter-${fence.id}-${vehicle.id}`,
+                  data: { url: '/dashboard', vehicleId: vehicle.id },
+                }).catch(() => {});
+                logger.info(`GEOFENCE ENTER vehicle=${vehicle.plate} fence="${fence.name}" dist=${Math.round(dist)}m`);
+              }
+            }
+          }
+        }
+      } catch (e) { logger.warn('Geofence check error (non-fatal):', e); }
+    }
+
     // Check if this vehicle has an active incident — if so, share location with all responders
     let incidentFollowerIds: string[] | undefined;
     if (vehicle?.id) {
