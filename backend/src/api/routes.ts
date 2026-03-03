@@ -142,8 +142,8 @@ api.post('/setup/cleanup', asyncHandler(async (req, res) => {
     return;
   }
   const tables = [
-    'gps_logs', 'alerts', 'incident_followers', 'incidents',
-    'helper_locations', 'push_subscriptions', 'otp_codes', 'vehicles',
+    'geofence_alerts', 'gps_logs', 'alerts', 'incident_followers', 'incidents',
+    'helper_locations', 'push_subscriptions', 'otp_codes', 'geofences', 'vehicles',
   ];
   for (const t of tables) {
     await pool.query(`TRUNCATE TABLE ${t} CASCADE`);
@@ -1743,7 +1743,7 @@ api.post('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req
     res.status(400).json({ error: 'Email máximo 255 caracteres' });
     return;
   }
-  const finalRole = ['driver', 'helper', 'admin', 'citizen'].includes(role) ? role : 'driver';
+  const finalRole = ['driver', 'helper', 'admin', 'citizen', 'fleet_owner'].includes(role) ? role : 'driver';
   const existing = await pool.query('SELECT id FROM users WHERE phone = $1', [phone]);
   if (existing.rows[0]) {
     res.status(409).json({ error: 'Ya existe un usuario con ese teléfono' });

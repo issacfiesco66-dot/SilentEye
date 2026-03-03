@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 const API = '';
 
@@ -64,7 +64,7 @@ export default function TripHistory({ vehicleId, plate, onClose, MapView }: Prop
   };
 
   // Load on mount
-  useState(() => { fetchHistory(date); });
+  useEffect(() => { fetchHistory(date); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fmtTime = (iso: string | null) => {
     if (!iso) return '--';

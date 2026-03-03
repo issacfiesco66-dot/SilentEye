@@ -45,7 +45,7 @@ export async function processGpsData(imei: string, record: AVLRecord): Promise<v
   const client = await pool.connect();
   try {
     const vehicleResult = await client.query(
-      'SELECT id, driver_id, plate, parked_at, parked_lat, parked_lng FROM vehicles WHERE imei = $1',
+      'SELECT id, driver_id, owner_id, plate, parked_at, parked_lat, parked_lng FROM vehicles WHERE imei = $1',
       [imei]
     );
     const vehicle = vehicleResult.rows[0];
@@ -121,16 +121,11 @@ export async function processGpsData(imei: string, record: AVLRecord): Promise<v
         // Check owner's and driver's speed limit
         const ownerIds: string[] = [];
         if (vehicle.driver_id) ownerIds.push(vehicle.driver_id);
+        if (vehicle.owner_id && !ownerIds.includes(vehicle.owner_id)) ownerIds.push(vehicle.owner_id);
         const ownerQ = await client.query(
           `SELECT id, speed_limit FROM users WHERE id = ANY($1::uuid[]) AND speed_limit > 0`,
           [ownerIds]
         );
-        // Also check fleet owner
-        const vOwner = await client.query('SELECT owner_id FROM vehicles WHERE id = $1', [vehicle.id]);
-        if (vOwner.rows[0]?.owner_id) {
-          const fleetOwner = await client.query('SELECT id, speed_limit FROM users WHERE id = $1 AND speed_limit > 0', [vOwner.rows[0].owner_id]);
-          if (fleetOwner.rows[0]) ownerQ.rows.push(fleetOwner.rows[0]);
-        }
         for (const u of ownerQ.rows) {
           if (speed > u.speed_limit) {
             sendPushToUsers([u.id], {
@@ -151,9 +146,8 @@ export async function processGpsData(imei: string, record: AVLRecord): Promise<v
         // Get all active geofences for the vehicle's driver and owner
         const userIds: string[] = [];
         if (vehicle.driver_id) userIds.push(vehicle.driver_id);
-        const vOwner2 = await client.query('SELECT owner_id FROM vehicles WHERE id = $1', [vehicle.id]);
-        if (vOwner2.rows[0]?.owner_id && !userIds.includes(vOwner2.rows[0].owner_id)) {
-          userIds.push(vOwner2.rows[0].owner_id);
+        if (vehicle.owner_id && !userIds.includes(vehicle.owner_id)) {
+          userIds.push(vehicle.owner_id);
         }
         if (userIds.length > 0) {
           const geoResult = await client.query(
