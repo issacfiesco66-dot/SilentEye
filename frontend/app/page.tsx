@@ -690,7 +690,7 @@ export default function Home() {
               <span className="text-sm font-bold tracking-tight">SilentEye</span>
             </div>
           </SecretAdminTrigger>
-          <div className="flex items-center gap-6 text-[13px] text-zinc-400">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-zinc-400">
             <a href="#problema" className="hover:text-zinc-900 transition-colors">Problema</a>
             <a href="#producto" className="hover:text-zinc-900 transition-colors">Plataforma</a>
             <a href="#recuperacion" className="hover:text-zinc-900 transition-colors">Recuperación</a>
@@ -699,7 +699,12 @@ export default function Home() {
             <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
             <Link href="/login" className="hover:text-zinc-900 transition-colors">Acceder</Link>
           </div>
-          <p className="text-[12px] text-zinc-300">SilentEye &copy; {new Date().getFullYear()}</p>
+          <div className="flex items-center gap-4">
+            <Link href="/privacidad" className="text-[12px] text-zinc-400 hover:text-zinc-600 transition-colors">Privacidad</Link>
+            <Link href="/cookies" className="text-[12px] text-zinc-400 hover:text-zinc-600 transition-colors">Cookies</Link>
+            <Link href="/terminos" className="text-[12px] text-zinc-400 hover:text-zinc-600 transition-colors">Términos</Link>
+            <span className="text-[12px] text-zinc-300">SilentEye &copy; {new Date().getFullYear()}</span>
+          </div>
         </div>
       </footer>
     </div>
