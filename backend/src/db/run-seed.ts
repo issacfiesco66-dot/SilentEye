@@ -4,7 +4,7 @@ export async function runSeed(): Promise<{ ok: boolean; message: string }> {
   try {
     await pool.query(`
       INSERT INTO users (phone, name, role) VALUES
-      ('+51999999999', 'Admin', 'admin'),
+      ('+525610669353', 'Admin', 'admin'),
       ('+51999999998', 'Helper 1', 'helper'),
       ('+51999999997', 'Conductor 1', 'driver')
       ON CONFLICT (phone) DO NOTHING
@@ -30,7 +30,7 @@ export async function runSeed(): Promise<{ ok: boolean; message: string }> {
 
     return {
       ok: true,
-      message: 'Seed completado. Admin: +51999999999 (código 123456), Helper: +51999999998, Driver: +51999999997',
+      message: 'Seed completado. Admin: +525610669353, Helper: +51999999998, Driver: +51999999997',
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
