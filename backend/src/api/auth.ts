@@ -31,6 +31,10 @@ export async function createOtp(phone: string): Promise<string> {
   const code = generateOtp();
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
   await pool.query(
+    'UPDATE otp_codes SET used = true WHERE phone = $1 AND NOT used',
+    [phone]
+  );
+  await pool.query(
     'INSERT INTO otp_codes (phone, code, expires_at) VALUES ($1, $2, $3)',
     [phone, code, expiresAt]
   );
