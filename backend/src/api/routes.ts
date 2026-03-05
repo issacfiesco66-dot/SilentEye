@@ -459,7 +459,7 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
       const token = signToken({ userId: user.id, role: user.role });
-      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, permissions: getPermissions(user.role) } });
+      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role, permissions: getPermissions(user.role) } });
       return;
     }
 
@@ -489,7 +489,7 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
       // Use email as the phone field key (citizens identify by email)
       const user = existingUser ?? await findOrCreateUser(cleanEmail, name?.trim(), 'citizen', cleanEmail);
       const token = signToken({ userId: user.id, role: user.role });
-      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, permissions: getPermissions(user.role) } });
+      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role, permissions: getPermissions(user.role) } });
       return;
     }
 
@@ -511,7 +511,7 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
       const token = signToken({ userId: existingUser.id, role: existingUser.role });
-      res.json({ token, user: { id: existingUser.id, phone: existingUser.phone, name: existingUser.name, permissions: getPermissions(existingUser.role) } });
+      res.json({ token, user: { id: existingUser.id, phone: existingUser.phone, name: existingUser.name, role: existingUser.role, permissions: getPermissions(existingUser.role) } });
       return;
     }
 
