@@ -7,28 +7,29 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useState, useCallback } from 'react';
-import { getSession, isTokenExpired, clearSession, type SessionUser } from '@/lib/session';
+import { getSession, isTokenExpired, clearSession, type SessionUser, type Permissions } from '@/lib/session';
 
 interface UseSessionOptions {
-  /** Required role(s). If set, redirects to fallback if user role doesn't match. */
-  requiredRole?: string | string[];
+  /** Required permission key. Redirects to fallback if user lacks this permission. */
+  requiredPermission?: keyof Permissions;
   /** Where to redirect if not authenticated (default: '/login') */
   loginPath?: string;
-  /** Where to redirect if wrong role (default: '/dashboard') */
-  roleFallbackPath?: string;
+  /** Where to redirect if lacking permission (default: '/dashboard') */
+  fallbackPath?: string;
 }
 
 interface UseSessionResult {
   token: string | null;
   user: SessionUser | null;
+  permissions: Permissions | null;
   ready: boolean; // true once initial check is done
   logout: () => void;
 }
 
 export function useSession(opts?: UseSessionOptions): UseSessionResult {
   const loginPath = opts?.loginPath ?? '/login';
-  const roleFallbackPath = opts?.roleFallbackPath ?? '/dashboard';
-  const requiredRole = opts?.requiredRole;
+  const fallbackPath = opts?.fallbackPath ?? '/dashboard';
+  const requiredPermission = opts?.requiredPermission;
 
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -50,17 +51,14 @@ export function useSession(opts?: UseSessionOptions): UseSessionResult {
   useLayoutEffect(() => {
     const session = readSession();
     if (!session) {
-      // No valid session → redirect to login
       window.location.href = loginPath;
       return;
     }
 
-    // Role check
-    if (requiredRole) {
-      const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-      const userRole = session.user.role.toLowerCase();
-      if (!roles.includes(userRole)) {
-        window.location.href = roleFallbackPath;
+    // Permission check (backend-driven)
+    if (requiredPermission && session.user.permissions) {
+      if (!session.user.permissions[requiredPermission]) {
+        window.location.href = fallbackPath;
         return;
       }
     }
@@ -89,5 +87,7 @@ export function useSession(opts?: UseSessionOptions): UseSessionResult {
     window.location.href = loginPath;
   }, [loginPath]);
 
-  return { token, user, ready, logout };
+  const permissions = user?.permissions ?? null;
+
+  return { token, user, permissions, ready, logout };
 }

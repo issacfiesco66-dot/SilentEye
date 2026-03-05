@@ -21,7 +21,6 @@ interface User {
   id: string;
   phone: string;
   name: string;
-  role: 'driver' | 'helper' | 'admin' | 'citizen' | 'fleet_owner';
 }
 
 interface Incident {
@@ -45,7 +44,7 @@ interface Location {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { token, user: sessionUser, ready: authReady, logout } = useSession();
+  const { token, user: sessionUser, permissions, ready: authReady, logout } = useSession();
   const user = sessionUser as User | null;
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -59,7 +58,7 @@ export default function DashboardPage() {
 
     const fetchData = async () => {
       try {
-        const canFetchVehicles = user.role === 'admin' || user.role === 'helper' || user.role === 'driver';
+        const canFetchVehicles = permissions?.manageAllVehicles || permissions?.viewOwnVehicles;
 
         const [incRes, vehiclesRes] = await Promise.all([
           fetch(`${API}/api/incidents`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -84,7 +83,7 @@ export default function DashboardPage() {
 
   useWebSocket({
     token,
-    enabled: !!user && !!token && user.role === 'admin',
+    enabled: !!user && !!token && !!permissions?.viewAdminPanel,
     onMessage: (msg) => {
       if (msg.type === 'location' && msg.payload) {
         const p = msg.payload as Location;
@@ -140,18 +139,17 @@ export default function DashboardPage() {
 
   if (!authReady || !user) return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">Cargando...</div>;
 
-  const role = String(user.role || '').toLowerCase();
-  if (role === 'citizen') {
-    // Preserve ?incident=XXX param through the redirect
+  const dashType = permissions?.dashboardType;
+  if (dashType === 'sos') {
     const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const incidentParam = params?.get('incident');
     router.replace(incidentParam ? `/sos?incident=${incidentParam}` : '/sos');
     return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">Redirigiendo a SOS...</div>;
   }
-  if (role === 'fleet_owner') {
+  if (dashType === 'fleet') {
     return <FleetDashboard />;
   }
-  if (role === 'helper' || role === 'driver') {
+  if (dashType === 'field') {
     return <HelperDashboardLayout />;
   }
 
@@ -173,7 +171,7 @@ export default function DashboardPage() {
           <span className="text-sm font-bold tracking-tight">SilentEye</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-zinc-400 text-[13px] font-medium capitalize">{role}</span>
+          <span className="text-zinc-400 text-[13px] font-medium">{user.name || 'Usuario'}</span>
           <button
             onClick={handleLogout}
             className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
@@ -219,7 +217,7 @@ export default function DashboardPage() {
             </ul>
           </div>
 
-          {role === 'admin' && (
+          {permissions?.viewAdminPanel && (
             <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4">
               <Link
                 href="/admin"

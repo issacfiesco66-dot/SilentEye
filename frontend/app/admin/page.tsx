@@ -24,8 +24,8 @@ type Tab = 'incidents' | 'alerts' | 'gps_activity' | 'map' | 'vehicles' | 'drive
 export default function AdminPage() {
   const router = useRouter();
   const { token, user: sessionUser, ready: authReady, logout } = useSession({
-    requiredRole: 'admin',
-    roleFallbackPath: '/dashboard',
+    requiredPermission: 'viewAdminPanel',
+    fallbackPath: '/dashboard',
   });
   const user = sessionUser;
   const [activeTab, setActiveTab] = useState<Tab>('incidents');

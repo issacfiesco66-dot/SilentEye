@@ -11,12 +11,27 @@ const COOKIE_TOKEN = 'se_token';
 const COOKIE_USER = 'se_user';
 const COOKIE_MAX_AGE = 30 * 24 * 3600; // 30 days (matches JWT)
 
+export interface Permissions {
+  viewAdminPanel: boolean;
+  manageUsers: boolean;
+  manageAllVehicles: boolean;
+  viewOwnVehicles: boolean;
+  manageGeofences: boolean;
+  manageFleet: boolean;
+  respondIncidents: boolean;
+  viewGpsActivity: boolean;
+  viewAlerts: boolean;
+  triggerPanic: boolean;
+  dashboardType: 'admin' | 'fleet' | 'field' | 'sos';
+}
+
 export interface SessionUser {
   id: string;
   phone?: string;
   name?: string;
   role: string;
   email?: string;
+  permissions?: Permissions;
 }
 
 // ── Cookie helpers ──

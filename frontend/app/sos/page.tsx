@@ -116,7 +116,7 @@ export default function SOSPage() {
   }, []);
 
   const userName = sessionUser?.name || sessionUser?.phone || '';
-  const userRole = sessionUser?.role?.toLowerCase() || '';
+  const dashType = sessionUser?.permissions?.dashboardType;
 
   // Continuous geolocation — try high accuracy first, fallback to low
   useEffect(() => {
@@ -377,9 +377,9 @@ export default function SOSPage() {
     <div className="min-h-screen bg-zinc-50 text-zinc-900 flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-white/90 backdrop-blur-lg border-b border-zinc-200/60 px-4 h-12 flex items-center justify-between">
-        <Link href={userRole === 'citizen' ? '/' : '/dashboard'} className="flex items-center gap-1 text-zinc-400 hover:text-zinc-600 text-xs font-medium transition-colors">
+        <Link href={dashType === 'sos' ? '/' : '/dashboard'} className="flex items-center gap-1 text-zinc-400 hover:text-zinc-600 text-xs font-medium transition-colors">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-          {userRole === 'citizen' ? 'Inicio' : 'Dashboard'}
+          {dashType === 'sos' ? 'Inicio' : 'Dashboard'}
         </Link>
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-red-500" />

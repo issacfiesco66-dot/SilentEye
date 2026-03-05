@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import { saveSession } from '@/lib/session';
 
-// Use relative URLs so requests go through Next.js rewrites (server-side proxy → no CORS)
 const API = '';
 
-type LoginMode = 'driver' | 'admin' | 'citizen' | 'fleet_owner';
+/** Login method — based on input type, NOT user role */
+type LoginMethod = 'email' | 'imei' | 'phone';
 
 export default function LoginPage() {
   return (
@@ -19,16 +19,7 @@ export default function LoginPage() {
 
 function LoginContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [showAdmin, setShowAdmin] = useState(false);
-  const [mode, setMode] = useState<LoginMode>('citizen');
-
-  useEffect(() => {
-    if (searchParams.get('mode') === 'admin') {
-      setShowAdmin(true);
-      setMode('admin');
-    }
-  }, [searchParams]);
+  const [method, setMethod] = useState<LoginMethod>('email');
   const [step, setStep] = useState<'input' | 'otp'>('input');
   const [imei, setImei] = useState('');
   const [phone, setPhone] = useState('');
@@ -39,33 +30,36 @@ function LoginContent() {
   const [error, setError] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [emailHint, setEmailHint] = useState('');
+  const [isCitizenFlow, setIsCitizenFlow] = useState(false);
 
   const requestOtp = async () => {
     setLoading(true);
     setError('');
     try {
       let body: Record<string, string | undefined>;
-      if (mode === 'driver') {
+      if (method === 'imei') {
         body = { imei: imei.trim() };
-      } else if (mode === 'citizen') {
+      } else if (method === 'email') {
         body = { email: email.trim().toLowerCase(), mode: 'citizen' };
       } else {
         body = { phone: phone.trim() };
       }
-      const identifier = mode === 'driver' ? imei.trim() : mode === 'citizen' ? email.trim() : phone.trim();
+      const identifier = method === 'imei' ? imei.trim() : method === 'email' ? email.trim() : phone.trim();
       if (!identifier) {
-        setError(mode === 'driver' ? 'Ingresa el número de GPS (IMEI)' : mode === 'citizen' ? 'Ingresa tu correo electrónico' : mode === 'fleet_owner' ? 'Ingresa tu teléfono registrado' : 'Ingresa tu teléfono');
+        setError(method === 'imei' ? 'Ingresa el número de GPS (IMEI)' : method === 'email' ? 'Ingresa tu correo electrónico' : 'Ingresa tu teléfono');
         setLoading(false);
         return;
       }
-      // Client-side email validation for citizen
-      if (mode === 'citizen') {
+      if (method === 'email') {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email.trim())) {
           setError('Ingresa un correo electrónico válido');
           setLoading(false);
           return;
         }
+        setIsCitizenFlow(true);
+      } else {
+        setIsCitizenFlow(false);
       }
       const res = await fetch(`${API}/api/auth/otp/request`, {
         method: 'POST',
@@ -75,16 +69,11 @@ function LoginContent() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al solicitar OTP');
       setStep('otp');
-      // Only auto-fill code for driver/admin modes (never for citizen)
-      if (data.code && mode !== 'citizen') {
+      if (data.code && method !== 'email') {
         setCode(data.code);
       }
-      if (data.emailSent) {
-        setEmailSent(true);
-      }
-      if (data.emailHint) {
-        setEmailHint(data.emailHint);
-      }
+      if (data.emailSent) setEmailSent(true);
+      if (data.emailHint) setEmailHint(data.emailHint);
     } catch (e: unknown) {
       setError((e as Error).message || 'Error. ¿El backend está corriendo?');
     } finally {
@@ -97,12 +86,11 @@ function LoginContent() {
       setError('Ingresa el código');
       return;
     }
-    // Citizen mode: require name for new registrations
-    if (mode === 'citizen' && !name.trim()) {
+    if (isCitizenFlow && !name.trim()) {
       setError('Tu nombre es requerido para registrarte');
       return;
     }
-    if (mode === 'citizen' && name.trim().length < 2) {
+    if (isCitizenFlow && name.trim().length < 2) {
       setError('Nombre muy corto (mínimo 2 caracteres)');
       return;
     }
@@ -110,9 +98,9 @@ function LoginContent() {
     setError('');
     try {
       let body: Record<string, string | undefined>;
-      if (mode === 'driver') {
+      if (method === 'imei') {
         body = { imei: imei.trim(), code: code.trim() };
-      } else if (mode === 'citizen') {
+      } else if (method === 'email') {
         body = { email: email.trim().toLowerCase(), code: code.trim(), name: name.trim() || undefined, mode: 'citizen' };
       } else {
         body = { phone: phone.trim(), code: code.trim() };
@@ -125,7 +113,9 @@ function LoginContent() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Código inválido');
       saveSession(data.token, data.user);
-      router.replace(data.user?.role === 'citizen' ? '/sos' : '/dashboard');
+      // Route based on backend-provided permissions
+      const dashType = data.user?.permissions?.dashboardType;
+      router.replace(dashType === 'sos' ? '/sos' : '/dashboard');
     } catch (e: unknown) {
       setError((e as Error).message);
     } finally {
@@ -191,43 +181,35 @@ function LoginContent() {
           </div>
 
           <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 mb-1">Iniciar sesión</h1>
-          <p className="text-[15px] text-zinc-400 mb-8">Elige tu tipo de acceso para continuar</p>
+          <p className="text-[15px] text-zinc-400 mb-8">Elige tu método de acceso</p>
 
-          {/* Mode tabs */}
+          {/* Method tabs — based on input type, NOT role */}
           <div className="flex gap-1 mb-6 p-1 bg-zinc-100 rounded-lg">
             <button
-              onClick={() => { setMode('citizen'); resetForm(); }}
-              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${mode === 'citizen' ? 'bg-white text-red-600 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+              onClick={() => { setMethod('email'); resetForm(); }}
+              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'email' ? 'bg-white text-red-600 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
             >
               SOS
             </button>
             <button
-              onClick={() => { setMode('driver'); resetForm(); }}
-              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${mode === 'driver' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+              onClick={() => { setMethod('imei'); resetForm(); }}
+              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'imei' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
             >
-              Conductor
+              GPS
             </button>
             <button
-              onClick={() => { setMode('fleet_owner'); resetForm(); }}
-              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${mode === 'fleet_owner' ? 'bg-white text-blue-600 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+              onClick={() => { setMethod('phone'); resetForm(); }}
+              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'phone' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
             >
-              Flotilla
+              Teléfono
             </button>
-            {showAdmin && (
-              <button
-                onClick={() => { setMode('admin'); resetForm(); }}
-                className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${mode === 'admin' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
-              >
-                Admin
-              </button>
-            )}
           </div>
 
           {/* Form */}
           <div>
             {step === 'input' ? (
               <>
-                {mode === 'citizen' && (
+                {method === 'email' && (
                   <div className="space-y-2 mb-5">
                     <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-lg">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
@@ -236,31 +218,27 @@ function LoginContent() {
                     <p className="text-[12px] text-zinc-400 px-1">Ingresa tu correo electrónico. Recibirás un código de verificación.</p>
                   </div>
                 )}
-                {mode === 'fleet_owner' && (
+                {method === 'phone' && (
                   <div className="space-y-2 mb-5">
-                    <div className="flex items-center gap-2 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-lg">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
-                      <span className="text-[13px] text-blue-700 font-medium">Panel de flotilla</span>
-                    </div>
-                    <p className="text-[12px] text-zinc-400 px-1">Administra todos tus vehículos y conductores. Ingresa con tu teléfono registrado.</p>
+                    <p className="text-[12px] text-zinc-400 px-1">Ingresa el teléfono registrado por el administrador.</p>
                   </div>
                 )}
                 <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">
-                  {mode === 'driver' ? 'Número de GPS (IMEI)' : mode === 'citizen' ? 'Correo electrónico' : 'Número de teléfono'}
+                  {method === 'imei' ? 'Número de GPS (IMEI)' : method === 'email' ? 'Correo electrónico' : 'Número de teléfono'}
                 </label>
                 <input
-                  type={mode === 'driver' ? 'text' : mode === 'citizen' ? 'email' : 'tel'}
-                  value={mode === 'driver' ? imei : mode === 'citizen' ? email : phone}
-                  onChange={(e) => mode === 'driver' ? setImei(e.target.value) : mode === 'citizen' ? setEmail(e.target.value) : setPhone(e.target.value)}
-                  placeholder={mode === 'driver' ? 'Ej: 123456789012345' : mode === 'citizen' ? 'tu@correo.com' : '+52 222 123 4567'}
+                  type={method === 'imei' ? 'text' : method === 'email' ? 'email' : 'tel'}
+                  value={method === 'imei' ? imei : method === 'email' ? email : phone}
+                  onChange={(e) => method === 'imei' ? setImei(e.target.value) : method === 'email' ? setEmail(e.target.value) : setPhone(e.target.value)}
+                  placeholder={method === 'imei' ? 'Ej: 123456789012345' : method === 'email' ? 'tu@correo.com' : '+52 222 123 4567'}
                   className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all mb-1.5"
                 />
-                {mode === 'driver' && (
+                {method === 'imei' && (
                   <p className="text-zinc-400 text-[12px] mb-4">
                     El GPS debe estar registrado por el administrador
                   </p>
                 )}
-                {mode !== 'driver' && <div className="mb-4" />}
+                {method !== 'imei' && <div className="mb-4" />}
                 <button
                   onClick={requestOtp}
                   disabled={loading}
@@ -272,11 +250,11 @@ function LoginContent() {
             ) : (
               <>
                 <p className="text-zinc-500 text-[13px] mb-4">
-                  {mode === 'citizen'
+                  {method === 'email'
                     ? <>Ingresa el código de verificación enviado a <span className="font-semibold text-zinc-700">{email}</span></>
                     : emailHint
                     ? <>Código enviado al correo <span className="font-semibold text-zinc-700">{emailHint}</span></>
-                    : <>Código enviado a <span className="font-semibold text-zinc-700">{mode === 'driver' ? 'tu teléfono registrado' : phone}</span></>
+                    : <>Código enviado a <span className="font-semibold text-zinc-700">{method === 'imei' ? 'tu teléfono/correo registrado' : phone}</span></>
                   }
                 </p>
                 {emailSent && (
@@ -285,7 +263,7 @@ function LoginContent() {
                     <span className="text-[13px] text-blue-700 font-medium">Código enviado a tu correo &mdash; revisa tu bandeja de entrada</span>
                   </div>
                 )}
-                {code && mode !== 'citizen' && (
+                {code && method !== 'email' && (
                   <div className="flex items-center gap-2 px-3 py-2.5 mb-4 bg-emerald-50 border border-emerald-100 rounded-lg">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
                     <span className="text-[13px] text-emerald-700 font-medium">Código generado &mdash; válido 10 min</span>
@@ -300,9 +278,9 @@ function LoginContent() {
                   maxLength={6}
                   className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] font-mono tracking-widest focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all mb-4"
                 />
-                {(mode === 'admin' || mode === 'citizen') && (
+                {isCitizenFlow && (
                   <>
-                    <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Nombre {mode === 'citizen' ? <span className="text-red-500">*</span> : <span className="font-normal text-zinc-400">(opcional)</span>}</label>
+                    <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Nombre <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       value={name}
@@ -323,7 +301,7 @@ function LoginContent() {
                   onClick={resetForm}
                   className="w-full text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
                 >
-                  ← Cambiar {mode === 'driver' ? 'IMEI' : mode === 'citizen' ? 'correo' : 'teléfono'}
+                  ← Cambiar {method === 'imei' ? 'IMEI' : method === 'email' ? 'correo' : 'teléfono'}
                 </button>
               </>
             )}
@@ -337,7 +315,7 @@ function LoginContent() {
           </div>
 
           <p className="text-zinc-300 text-[12px] text-center mt-8">
-            SOS: correo electrónico &middot; Conductor: IMEI &middot; Flotilla: teléfono
+            SOS: correo &middot; GPS: IMEI &middot; Operadores: teléfono
           </p>
         </div>
       </div>

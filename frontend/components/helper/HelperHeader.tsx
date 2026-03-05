@@ -20,11 +20,10 @@ interface HelperHeaderProps {
   status: HelperStatus;
   onLogout: () => void;
   userName?: string;
-  userRole?: string;
+  showVehicles?: boolean;
 }
 
-export default function HelperHeader({ status, onLogout, userName, userRole }: HelperHeaderProps) {
-  const roleLabel = userRole === 'driver' ? 'Conductor' : userRole === 'helper' ? 'Helper' : '';
+export default function HelperHeader({ status, onLogout, userName }: HelperHeaderProps) {
 
   return (
     <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-lg border-b border-zinc-200/60 px-4 h-12 flex items-center justify-between">
@@ -37,7 +36,7 @@ export default function HelperHeader({ status, onLogout, userName, userRole }: H
         </div>
         {userName && (
           <span className="hidden sm:inline text-[11px] text-zinc-400 font-medium truncate max-w-[120px]">
-            {userName}{roleLabel ? ` · ${roleLabel}` : ''}
+            {userName}
           </span>
         )}
         <span

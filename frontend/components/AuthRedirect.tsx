@@ -4,18 +4,18 @@ import { useLayoutEffect } from 'react';
 import { getSession, isTokenExpired } from '@/lib/session';
 
 /**
- * If the user is already logged in, redirect them to their role-appropriate page.
+ * If the user is already logged in, redirect them to their permission-appropriate page.
  * Renders nothing — just performs the redirect check before paint.
  */
 export default function AuthRedirect() {
   useLayoutEffect(() => {
     const session = getSession();
-    if (!session || isTokenExpired(session.token)) return; // not logged in — stay on landing
+    if (!session || isTokenExpired(session.token)) return;
 
-    const role = session.user.role?.toLowerCase();
-    if (role === 'citizen') {
+    const dashType = session.user.permissions?.dashboardType;
+    if (dashType === 'sos') {
       window.location.replace('/sos');
-    } else if (role === 'admin' || role === 'helper' || role === 'driver') {
+    } else if (dashType) {
       window.location.replace('/dashboard');
     }
   }, []);

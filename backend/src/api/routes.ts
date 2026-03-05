@@ -110,6 +110,63 @@ function signWitnessToken(incidentId: string, userId: string, response: string):
   return createHmac('sha256', secret).update(`${incidentId}:${userId}:${response}`).digest('hex');
 }
 
+// ── Permissions: maps internal role → capabilities (frontend never sees role names) ──
+interface Permissions {
+  viewAdminPanel: boolean;
+  manageUsers: boolean;
+  manageAllVehicles: boolean;
+  viewOwnVehicles: boolean;
+  manageGeofences: boolean;
+  manageFleet: boolean;
+  respondIncidents: boolean;
+  viewGpsActivity: boolean;
+  viewAlerts: boolean;
+  triggerPanic: boolean;
+  /** Which dashboard layout to render */
+  dashboardType: 'admin' | 'fleet' | 'field' | 'sos';
+}
+
+function getPermissions(role: string): Permissions {
+  switch (role) {
+    case 'admin':
+      return {
+        viewAdminPanel: true, manageUsers: true, manageAllVehicles: true,
+        viewOwnVehicles: true, manageGeofences: true, manageFleet: false,
+        respondIncidents: true, viewGpsActivity: true, viewAlerts: true,
+        triggerPanic: true, dashboardType: 'admin',
+      };
+    case 'fleet_owner':
+      return {
+        viewAdminPanel: false, manageUsers: false, manageAllVehicles: false,
+        viewOwnVehicles: true, manageGeofences: true, manageFleet: true,
+        respondIncidents: false, viewGpsActivity: false, viewAlerts: true,
+        triggerPanic: true, dashboardType: 'fleet',
+      };
+    case 'helper':
+      return {
+        viewAdminPanel: false, manageUsers: false, manageAllVehicles: false,
+        viewOwnVehicles: false, manageGeofences: false, manageFleet: false,
+        respondIncidents: true, viewGpsActivity: false, viewAlerts: true,
+        triggerPanic: true, dashboardType: 'field',
+      };
+    case 'driver':
+      return {
+        viewAdminPanel: false, manageUsers: false, manageAllVehicles: false,
+        viewOwnVehicles: true, manageGeofences: true, manageFleet: false,
+        respondIncidents: true, viewGpsActivity: false, viewAlerts: true,
+        triggerPanic: true, dashboardType: 'field',
+      };
+    case 'citizen':
+    default:
+      return {
+        viewAdminPanel: false, manageUsers: false, manageAllVehicles: false,
+        viewOwnVehicles: false, manageGeofences: false, manageFleet: false,
+        respondIncidents: false, viewGpsActivity: false, viewAlerts: false,
+        triggerPanic: true, dashboardType: 'sos',
+      };
+  }
+}
+
 // Setup: migrar y seed (requiere ?secret=XXX, MIGRATE_SECRET en Fly Secrets)
 const MIGRATE_SECRET = process.env.MIGRATE_SECRET || '';
 function checkSetupSecret(req: import('express').Request): boolean {
@@ -402,7 +459,7 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
       const token = signToken({ userId: user.id, role: user.role });
-      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
+      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, permissions: getPermissions(user.role) } });
       return;
     }
 
@@ -432,7 +489,7 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
       // Use email as the phone field key (citizens identify by email)
       const user = existingUser ?? await findOrCreateUser(cleanEmail, name?.trim(), 'citizen', cleanEmail);
       const token = signToken({ userId: user.id, role: user.role });
-      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role } });
+      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, permissions: getPermissions(user.role) } });
       return;
     }
 
@@ -454,7 +511,7 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
       const token = signToken({ userId: existingUser.id, role: existingUser.role });
-      res.json({ token, user: { id: existingUser.id, phone: existingUser.phone, name: existingUser.name, role: existingUser.role } });
+      res.json({ token, user: { id: existingUser.id, phone: existingUser.phone, name: existingUser.name, permissions: getPermissions(existingUser.role) } });
       return;
     }
 
@@ -481,7 +538,7 @@ api.get('/me', authMiddleware, asyncHandler(async (req, res) => {
   const u = r.rows[0];
   const lastLocation = (u.lng != null && u.lat != null) ? { lng: parseFloat(u.lng), lat: parseFloat(u.lat) } : null;
   const { lng, lat, ...rest } = u;
-  res.json({ ...rest, lastLocation });
+  res.json({ ...rest, lastLocation, permissions: getPermissions(u.role) });
 }));
 
 api.put('/me/location', authMiddleware, asyncHandler(async (req, res) => {

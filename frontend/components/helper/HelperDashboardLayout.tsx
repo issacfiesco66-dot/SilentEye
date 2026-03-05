@@ -56,9 +56,9 @@ function computeHelperStatus(
 
 export default function HelperDashboardLayout() {
   const router = useRouter();
-  const { token, user: sessionUser, ready: authReady, logout } = useSession({
-    requiredRole: ['helper', 'driver'],
-    roleFallbackPath: '/dashboard',
+  const { token, user: sessionUser, permissions, ready: authReady, logout } = useSession({
+    requiredPermission: 'respondIncidents',
+    fallbackPath: '/dashboard',
   });
   const user = sessionUser as User | null;
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -214,7 +214,7 @@ export default function HelperDashboardLayout() {
 
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50 text-zinc-900">
-      <HelperHeader status={helperStatus} onLogout={handleLogout} userName={user.name} userRole={user.role} />
+      <HelperHeader status={helperStatus} onLogout={handleLogout} userName={user.name} showVehicles={!!permissions?.viewOwnVehicles} />
 
       {/* Floating SOS button */}
       <a
@@ -230,7 +230,7 @@ export default function HelperDashboardLayout() {
             Cargando...
           </div>
         ) : !activeIncident ? (
-          user.role === 'driver' ? (
+          permissions?.viewOwnVehicles ? (
             <DriverMyVehiclesMap />
           ) : (
             <SinIncidentePlaceholder wsConnected={wsConnected} />
