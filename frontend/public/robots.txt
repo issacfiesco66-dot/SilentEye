@@ -1,0 +1,11 @@
+# SilentEye — Plataforma GPS de Seguridad Vehicular
+# https://silenteye.mx
+
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /api/
+
+# Sitemap
+Sitemap: https://silenteye.mx/sitemap.xml

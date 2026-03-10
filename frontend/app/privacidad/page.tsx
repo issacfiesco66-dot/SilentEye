@@ -2,8 +2,10 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Política de Privacidad — SilentEye',
-  description: 'Política de privacidad de SilentEye, plataforma de seguridad vehicular.',
+  title: 'Política de Privacidad — Plataforma GPS de Seguridad Vehicular',
+  description:
+    'Política de privacidad de SilentEye. Cómo protegemos tus datos de ubicación GPS, información vehicular y datos personales en nuestra plataforma de rastreo GPS y seguridad vehicular.',
+  alternates: { canonical: 'https://silenteye.mx/privacidad' },
 };
 
 export default function PrivacidadPage() {

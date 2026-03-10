@@ -2,8 +2,10 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Política de Cookies — SilentEye',
-  description: 'Política de cookies de SilentEye, plataforma de seguridad vehicular.',
+  title: 'Política de Cookies — Plataforma GPS de Rastreo Vehicular',
+  description:
+    'Política de cookies de SilentEye. Cookies esenciales utilizadas en nuestra plataforma GPS de rastreo vehicular y monitoreo en tiempo real.',
+  alternates: { canonical: 'https://silenteye.mx/cookies' },
 };
 
 export default function CookiesPage() {

@@ -2,8 +2,10 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Términos de Servicio — SilentEye',
-  description: 'Términos y condiciones de uso de SilentEye, plataforma de seguridad vehicular.',
+  title: 'Términos de Servicio — Plataforma GPS de Seguridad Vehicular',
+  description:
+    'Términos y condiciones de uso de SilentEye. Reglas de uso de la plataforma GPS de rastreo vehicular, monitoreo de flotillas GPS y botón de pánico.',
+  alternates: { canonical: 'https://silenteye.mx/terminos' },
 };
 
 export default function TerminosPage() {
