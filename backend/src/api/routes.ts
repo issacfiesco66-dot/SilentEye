@@ -8,6 +8,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { createHmac, timingSafeEqual } from 'crypto';
+import bcrypt from 'bcryptjs';
 import { pool } from '../db/pool.js';
 import { hasPostGis } from '../db/postgis-check.js';
 import {
@@ -522,13 +523,58 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
   }
 }));
 
+// ── Email + Password login (for admin / fleet_owner) ──
+api.post('/auth/login', authRateLimit, asyncHandler(async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || typeof email !== 'string' || !password || typeof password !== 'string') {
+      res.status(400).json({ error: 'Email y contraseña requeridos' });
+      return;
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const userResult = await pool.query(
+      'SELECT id, phone, name, role, email, password_hash, is_active FROM users WHERE email = $1',
+      [cleanEmail]
+    );
+    const user = userResult.rows[0];
+    if (!user || !user.password_hash) {
+      res.status(401).json({ error: 'Email o contraseña incorrectos' });
+      return;
+    }
+    if (user.is_active === false) {
+      res.status(403).json({ error: 'Cuenta desactivada. Contacta al administrador.' });
+      return;
+    }
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) {
+      res.status(401).json({ error: 'Email o contraseña incorrectos' });
+      return;
+    }
+    const token = signToken({ userId: user.id, role: user.role });
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        phone: user.phone,
+        name: user.name,
+        role: user.role,
+        email: user.email,
+        permissions: getPermissions(user.role),
+      },
+    });
+  } catch (err) {
+    logger.error('Login error:', err);
+    res.status(500).json({ error: 'Error al iniciar sesión' });
+  }
+}));
+
 api.get('/me', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const pg = await hasPostGis();
   const r = await pool.query(
     pg
-      ? `SELECT id, phone, name, role, last_location_at, ST_X(last_location) as lng, ST_Y(last_location) as lat FROM users WHERE id = $1`
-      : `SELECT id, phone, name, role, last_location_at, last_lat as lat, last_lng as lng FROM users WHERE id = $1`,
+      ? `SELECT id, phone, name, role, email, last_location_at, ST_X(last_location) as lng, ST_Y(last_location) as lat FROM users WHERE id = $1`
+      : `SELECT id, phone, name, role, email, last_location_at, last_lat as lat, last_lng as lng FROM users WHERE id = $1`,
     [userId]
   );
   if (!r.rows[0]) {
@@ -539,6 +585,92 @@ api.get('/me', authMiddleware, asyncHandler(async (req, res) => {
   const lastLocation = (u.lng != null && u.lat != null) ? { lng: parseFloat(u.lng), lat: parseFloat(u.lat) } : null;
   const { lng, lat, ...rest } = u;
   res.json({ ...rest, lastLocation, permissions: getPermissions(u.role) });
+}));
+
+// ── Profile: update name / email ──
+api.put('/me/profile', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const { name, email } = req.body;
+  const updates: string[] = [];
+  const params: unknown[] = [];
+  let p = 1;
+
+  if (name != null && typeof name === 'string' && name.trim().length >= 2) {
+    if (name.trim().length > 100) {
+      res.status(400).json({ error: 'Nombre máximo 100 caracteres' });
+      return;
+    }
+    updates.push(`name = $${p++}`);
+    params.push(name.trim());
+  }
+  if (email !== undefined) {
+    if (email && typeof email === 'string') {
+      const cleanEmail = email.trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        res.status(400).json({ error: 'Email inválido' });
+        return;
+      }
+      const dup = await pool.query('SELECT id FROM users WHERE email = $1 AND id != $2', [cleanEmail, userId]);
+      if (dup.rows[0]) {
+        res.status(409).json({ error: 'Ya existe otro usuario con ese email' });
+        return;
+      }
+      updates.push(`email = $${p++}`);
+      params.push(cleanEmail);
+    } else {
+      updates.push(`email = $${p++}`);
+      params.push(null);
+    }
+  }
+  if (updates.length === 0) {
+    res.status(400).json({ error: 'Indica name o email para actualizar' });
+    return;
+  }
+  params.push(userId);
+  const r = await pool.query(
+    `UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${p} RETURNING id, phone, name, role, email`,
+    params
+  );
+  if (!r.rows[0]) {
+    res.status(404).json({ error: 'Usuario no encontrado' });
+    return;
+  }
+  res.json({ ...r.rows[0], permissions: getPermissions(r.rows[0].role) });
+}));
+
+// ── Profile: change password ──
+api.put('/me/password', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+    res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+    return;
+  }
+
+  // If user already has a password, require the current one
+  const userResult = await pool.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+  const user = userResult.rows[0];
+  if (!user) {
+    res.status(404).json({ error: 'Usuario no encontrado' });
+    return;
+  }
+  if (user.password_hash) {
+    if (!currentPassword || typeof currentPassword !== 'string') {
+      res.status(400).json({ error: 'Contraseña actual requerida' });
+      return;
+    }
+    const valid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!valid) {
+      res.status(401).json({ error: 'Contraseña actual incorrecta' });
+      return;
+    }
+  }
+
+  const hash = await bcrypt.hash(newPassword, 10);
+  await pool.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, userId]);
+  res.json({ success: true, message: 'Contraseña actualizada' });
 }));
 
 api.put('/me/location', authMiddleware, asyncHandler(async (req, res) => {

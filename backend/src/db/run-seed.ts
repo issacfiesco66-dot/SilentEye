@@ -1,14 +1,20 @@
+import bcrypt from 'bcryptjs';
 import { pool } from './pool.js';
 
 export async function runSeed(): Promise<{ ok: boolean; message: string }> {
   try {
+    const adminPasswordHash = await bcrypt.hash('123456', 10);
+
     await pool.query(`
-      INSERT INTO users (phone, name, role) VALUES
-      ('+525610669353', 'Admin', 'admin'),
-      ('+51999999998', 'Helper 1', 'helper'),
-      ('+51999999997', 'Conductor 1', 'driver')
-      ON CONFLICT (phone) DO NOTHING
-    `);
+      INSERT INTO users (phone, name, role, email, password_hash) VALUES
+      ('+525610669353', 'Admin', 'admin', 'djonny319@gmail.com', $1),
+      ('+51999999998', 'Helper 1', 'helper', NULL, NULL),
+      ('+51999999997', 'Conductor 1', 'driver', NULL, NULL)
+      ON CONFLICT (phone) DO UPDATE SET
+        email = EXCLUDED.email,
+        password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash),
+        role = EXCLUDED.role
+    `, [adminPasswordHash]);
 
     await pool.query(
       `INSERT INTO vehicles (plate, name, imei) VALUES

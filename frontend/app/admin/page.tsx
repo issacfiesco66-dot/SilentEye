@@ -63,12 +63,17 @@ export default function AdminPage() {
           Dashboard
         </Link>
         <span className="text-sm font-bold tracking-tight">Administración</span>
-        <button
-          onClick={handleLogout}
-          className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
-        >
-          Salir
-        </button>
+        <div className="flex items-center gap-4">
+          <Link href="/perfil" className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors">
+            Perfil
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
+          >
+            Salir
+          </button>
+        </div>
       </header>
 
       <div className="p-3 md:p-6 max-w-5xl mx-auto overflow-hidden">

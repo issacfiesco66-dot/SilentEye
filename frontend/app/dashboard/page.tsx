@@ -171,7 +171,9 @@ export default function DashboardPage() {
           <span className="text-sm font-bold tracking-tight">SilentEye</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-zinc-400 text-[13px] font-medium">{user.name || 'Usuario'}</span>
+          <Link href="/perfil" className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors">
+            {user.name || 'Usuario'}
+          </Link>
           <button
             onClick={handleLogout}
             className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
