@@ -19,7 +19,7 @@ export default function LoginPage() {
 
 function LoginContent() {
   const router = useRouter();
-  const [method, setMethod] = useState<LoginMethod>('admin');
+  const [method, setMethod] = useState<LoginMethod>('email');
   const [step, setStep] = useState<'input' | 'otp'>('input');
   const [imei, setImei] = useState('');
   const [phone, setPhone] = useState('');
@@ -212,12 +212,6 @@ function LoginContent() {
           {/* Method tabs */}
           <div className="flex gap-1 mb-6 p-1 bg-zinc-100 rounded-lg">
             <button
-              onClick={() => { setMethod('admin'); resetForm(); }}
-              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'admin' ? 'bg-white text-blue-600 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
-            >
-              Admin
-            </button>
-            <button
               onClick={() => { setMethod('email'); resetForm(); }}
               className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'email' ? 'bg-white text-red-600 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
             >
@@ -239,40 +233,7 @@ function LoginContent() {
 
           {/* Form */}
           <div>
-            {method === 'admin' ? (
-              <>
-                <div className="space-y-2 mb-5">
-                  <div className="flex items-center gap-2 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-lg">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    <span className="text-[13px] text-blue-700 font-medium">Acceso administrador</span>
-                  </div>
-                </div>
-                <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Correo electrónico</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@correo.com"
-                  className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all mb-4"
-                />
-                <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Contraseña</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••"
-                  onKeyDown={(e) => e.key === 'Enter' && loginWithPassword()}
-                  className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all mb-4"
-                />
-                <button
-                  onClick={loginWithPassword}
-                  disabled={loading}
-                  className="w-full py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-semibold disabled:opacity-40 transition-colors"
-                >
-                  {loading ? 'Ingresando...' : 'Iniciar sesión'}
-                </button>
-              </>
-            ) : step === 'input' ? (
+            {step === 'input' ? (
               <>
                 {method === 'email' && (
                   <div className="space-y-2 mb-5">
