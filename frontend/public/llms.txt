@@ -107,6 +107,22 @@ Camionetas pickup y SUV son un blanco frecuente de robo vehicular en México. Co
 - [Política de Cookies](https://silenteye.mx/cookies): Solo cookies esenciales, sin rastreo de terceros.
 - [Términos de Servicio](https://silenteye.mx/terminos): Condiciones de uso de la plataforma.
 
+## Blog — Guías y artículos sobre GPS y seguridad vehicular
+
+- [Mejor GPS para auto en México 2026](https://silenteye.mx/blog/mejor-gps-para-auto-mexico): Comparativa de Cobán TK103, Sinotrack ST-901 y Teltonika FMB920. Precios, instalación y funciones.
+- [GPS para trailers y camiones de carga](https://silenteye.mx/blog/gps-para-trailers-camiones-carga): Teltonika FMC130, Queclink GV500, monitoreo en carretera 24/7 y botón de pánico.
+- [GPS para motos: Cómo evitar el robo](https://silenteye.mx/blog/gps-para-motos-antirrobo): Sinotrack ST-901, Concox WeTrack2. Instalación discreta y alertas automáticas.
+- [¿Qué es una plataforma GPS?](https://silenteye.mx/blog/plataforma-gps-que-es-como-funciona): Explicación de cómo funciona el rastreo vehicular en tiempo real.
+- [Cómo instalar un GPS en tu auto](https://silenteye.mx/blog/como-instalar-gps-en-auto): Guía paso a paso de instalación de rastreador GPS.
+- [Cobán TK103 vs Sinotrack ST-901](https://silenteye.mx/blog/gps-coban-tk103-vs-sinotrack-st901): Comparativa de los dos GPS más populares en México.
+- [GPS para flotillas](https://silenteye.mx/blog/gps-para-flotillas-gestion-vehiculos): Gestión de múltiples vehículos desde un solo panel.
+- [GPS para conductores de Uber y Didi](https://silenteye.mx/blog/gps-uber-didi-conductor-seguridad): Botón de pánico para conductores de plataformas.
+- [Cómo funciona el rastreo GPS en tiempo real](https://silenteye.mx/blog/como-funciona-rastreo-gps-tiempo-real): Satélites, dispositivos, red celular y plataformas.
+- [Geocercas GPS: Qué son y cómo configurarlas](https://silenteye.mx/blog/geocercas-gps-que-son-como-configurar): Zonas virtuales para proteger tu vehículo.
+- [Teltonika FMB920: Configuración con SilentEye](https://silenteye.mx/blog/teltonika-fmb920-configuracion-silenteye): Tutorial paso a paso para GPS Teltonika.
+- [Recuperación vehicular con GPS](https://silenteye.mx/blog/recuperacion-vehicular-gps-como-funciona): Por qué los primeros minutos importan.
+- [GPS para camionetas pickup y SUV](https://silenteye.mx/blog/gps-para-camioneta-pickup-suv): Protección para los vehículos más robados en México.
+
 ## Contacto
 
 - Sitio web: https://silenteye.mx

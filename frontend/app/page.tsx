@@ -35,8 +35,8 @@ export default function Home() {
             <a href="#producto" className="hover:text-zinc-900 transition-colors">Plataforma</a>
             <a href="#vehiculos" className="hover:text-zinc-900 transition-colors">Vehículos</a>
             <a href="#dispositivos" className="hover:text-zinc-900 transition-colors">GPS compatibles</a>
-            <a href="#comparativa" className="hover:text-zinc-900 transition-colors">Comparativa</a>
             <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
+            <Link href="/blog" className="hover:text-zinc-900 transition-colors">Blog</Link>
           </div>
 
           <div className="flex items-center gap-3">
@@ -826,8 +826,8 @@ export default function Home() {
             <a href="#producto" className="hover:text-zinc-900 transition-colors">Plataforma</a>
             <a href="#vehiculos" className="hover:text-zinc-900 transition-colors">Vehículos</a>
             <a href="#dispositivos" className="hover:text-zinc-900 transition-colors">GPS compatibles</a>
-            <a href="#comparativa" className="hover:text-zinc-900 transition-colors">Comparativa</a>
             <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
+            <Link href="/blog" className="hover:text-zinc-900 transition-colors">Blog</Link>
             <Link href="/login" className="hover:text-zinc-900 transition-colors">Acceder</Link>
           </div>
           <div className="flex items-center gap-4">
