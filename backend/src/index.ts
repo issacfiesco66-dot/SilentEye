@@ -44,6 +44,9 @@ const corsOrigins = process.env.CORS_ORIGINS
 // Añadir vercel.app (incluye previews: silent-eye-frontend-xxx.vercel.app)
 const allowOrigin = (origin: string) =>
   corsOrigins.includes(origin) || /^https:\/\/silent-eye-frontend(-[\w-]+)?\.vercel\.app$/.test(origin);
+if (isProd && corsOrigins.length === 0) {
+  logger.warn('⚠️  CORS_ORIGINS no configurado en producción — solo se permitirán dominios *.vercel.app');
+}
 app.use(cors({
   origin: isProd
     ? (origin, cb) => {

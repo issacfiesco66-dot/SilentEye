@@ -261,8 +261,8 @@ function requireRole(...roles: string[]) {
 api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
   try {
     const { imei, phone, email, mode } = req.body;
-    // Return OTP in response only in dev OR if OTP_SHOW_IN_PROD is explicitly enabled
-    const showCode = process.env.NODE_ENV !== 'production' || process.env.OTP_SHOW_IN_PROD === 'true';
+    // SECURITY: Never return OTP code in production responses
+    const showCode = process.env.NODE_ENV !== 'production';
 
     if (imei && typeof imei === 'string') {
       if (!isValidImeiInput(imei)) {
@@ -413,7 +413,7 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       } else if (smsOk) {
         result.smsSent = true;
       }
-      // Always include code when OTP_SHOW_IN_PROD is enabled (Twilio may accept but not deliver)
+      // Only include code in dev mode (never in production)
       if (showCode) result.code = code;
 
       res.json(result);
@@ -644,8 +644,8 @@ api.put('/me/password', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const { currentPassword, newPassword } = req.body;
 
-  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
-    res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+    res.status(400).json({ error: 'La nueva contraseña debe tener al menos 8 caracteres' });
     return;
   }
 
@@ -668,7 +668,7 @@ api.put('/me/password', authMiddleware, asyncHandler(async (req, res) => {
     }
   }
 
-  const hash = await bcrypt.hash(newPassword, 10);
+  const hash = await bcrypt.hash(newPassword, 12);
   await pool.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, userId]);
   res.json({ success: true, message: 'Contraseña actualizada' });
 }));

@@ -1,6 +1,6 @@
 # SilentEye Backend - Fly.io (contexto: raíz del repo)
 # Con ngrok para TCP GPS: flujo GPS -> ngrok cloud -> ngrok agent -> localhost:5000
-FROM node:20-alpine
+FROM node:20.11.1-alpine3.19
 
 WORKDIR /app
 

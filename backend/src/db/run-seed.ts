@@ -3,7 +3,11 @@ import { pool } from './pool.js';
 
 export async function runSeed(): Promise<{ ok: boolean; message: string }> {
   try {
-    const adminPasswordHash = await bcrypt.hash('123456', 10);
+    const adminPwd = process.env.ADMIN_SEED_PASSWORD;
+    if (!adminPwd || adminPwd.length < 8) {
+      return { ok: false, message: 'ADMIN_SEED_PASSWORD env var requerida (mín. 8 caracteres)' };
+    }
+    const adminPasswordHash = await bcrypt.hash(adminPwd, 12);
 
     await pool.query(`
       INSERT INTO users (phone, name, role, email, password_hash) VALUES
