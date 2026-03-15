@@ -145,6 +145,38 @@ export const faqJsonLd = {
         text: 'Un GPS tradicional solo rastrea y genera eventos para revisión posterior. SilentEye va más allá: distribuye alertas automáticas en menos de 3 segundos a todas las personas cercanas con ubicación GPS en vivo. No hay central de monitoreo, no hay llamada, no hay espera. La reacción ocurre mientras el evento sigue sucediendo.',
       },
     },
+    {
+      '@type': 'Question',
+      name: '¿Qué GPS es mejor para un auto particular?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Para autos particulares recomendamos GPS Cobán TK103 o Sinotrack ST-901 por su bajo costo y fácil instalación. Si buscas algo más robusto, el Teltonika FMB920 es grado industrial. Todos son compatibles con SilentEye y ofrecen rastreo GPS en tiempo real, geocercas y alerta de robo automática.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: '¿Qué GPS recomiendan para trailers y camiones de carga?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Para trailers y camiones de carga recomendamos GPS Teltonika FMC130 o Queclink GV500 por su resistencia industrial, conectividad estable en carretera y botón de pánico físico (DIN1). SilentEye monitorea la ruta completa con alertas de desvío, exceso de velocidad y coordinación de recuperación vehicular.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: '¿SilentEye funciona con GPS para motos y motocicletas?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Sí. Los GPS Sinotrack ST-901 y Concox WeTrack2 son ultracompactos e ideales para motos. Se instalan de forma discreta y SilentEye detecta movimiento no autorizado, vibración y envía alertas instantáneas. Las motos son el vehículo más robado en México — un GPS con SilentEye ofrece protección real.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: '¿Cuánto cuesta la plataforma GPS de SilentEye?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'El botón de emergencia SOS es completamente gratuito. La plataforma de rastreo GPS para autos, camiones, trailers, motos y flotillas tiene planes accesibles que dependen de la cantidad de vehículos. Contacta con nosotros para una cotización personalizada.',
+      },
+    },
   ],
 };
 

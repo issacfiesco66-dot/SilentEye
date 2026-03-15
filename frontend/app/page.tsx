@@ -33,7 +33,7 @@ export default function Home() {
           <div className="hidden md:flex items-center gap-8 text-[13px] font-medium text-zinc-500">
             <a href="#problema" className="hover:text-zinc-900 transition-colors">Problema</a>
             <a href="#producto" className="hover:text-zinc-900 transition-colors">Plataforma</a>
-            <a href="#recuperacion" className="hover:text-zinc-900 transition-colors">Recuperación</a>
+            <a href="#vehiculos" className="hover:text-zinc-900 transition-colors">Vehículos</a>
             <a href="#dispositivos" className="hover:text-zinc-900 transition-colors">GPS compatibles</a>
             <a href="#comparativa" className="hover:text-zinc-900 transition-colors">Comparativa</a>
             <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
@@ -57,7 +57,7 @@ export default function Home() {
         <div className="relative max-w-7xl mx-auto">
           <div className="max-w-3xl">
             <p className="text-[13px] font-semibold text-blue-600 tracking-wide uppercase mb-6">
-              Plataforma inteligente de seguridad vehicular
+              Plataforma GPS para autos, camiones, trailers, motos y flotillas
             </p>
             <h1 className="text-[clamp(2.5rem,6vw,4.5rem)] font-extrabold leading-[1.05] tracking-tight text-zinc-900 mb-6">
               Tu GPS ya rastrea.{' '}
@@ -444,6 +444,125 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── GPS por tipo de vehículo ── */}
+      <section id="vehiculos" className="px-6 py-24 md:py-32">
+        <div className="max-w-7xl mx-auto">
+          <div className="max-w-xl mb-16">
+            <p className="text-[13px] font-semibold text-blue-600 tracking-wide uppercase mb-3">GPS por tipo de vehículo</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">Una plataforma GPS para cada vehículo</h2>
+            <p className="text-zinc-500 leading-relaxed">No importa si es un auto particular, un trailer de carga o una moto. SilentEye se adapta a cualquier tipo de vehículo con GPS.</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* GPS para autos */}
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 hover:border-blue-200 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-5">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18 10l-2.7-3.6A1.5 1.5 0 0 0 14.1 6H9.9a1.5 1.5 0 0 0-1.2.6L6 10l-2.5 1.1C2.7 11.3 2 12.1 2 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+              </div>
+              <h3 className="font-bold text-zinc-900 text-lg mb-2">GPS para autos</h3>
+              <p className="text-[14px] text-zinc-500 leading-relaxed mb-4">
+                Protege tu auto particular con rastreo GPS en tiempo real. Detecta movimiento no autorizado, corte de corriente y activa alertas automáticas si tu carro es robado. Compatible con GPS Cobán TK103, Sinotrack ST-901 y Teltonika FMB920.
+              </p>
+              <ul className="space-y-1.5 text-[13px] text-zinc-500">
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Alerta de robo en menos de 3 segundos</li>
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Geocercas para estacionamientos</li>
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Historial de recorridos completo</li>
+              </ul>
+            </div>
+
+            {/* GPS para camiones y trailers */}
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 hover:border-blue-200 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center mb-5">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18h2a1 1 0 0 0 1-1v-3.28a1 1 0 0 0-.684-.948l-1.923-.641a1 1 0 0 1-.684-.948V6h2a2 2 0 0 1 2 2v4.5"/><circle cx="7" cy="18" r="2"/><path d="M15 18H9"/><circle cx="17" cy="18" r="2"/></svg>
+              </div>
+              <h3 className="font-bold text-zinc-900 text-lg mb-2">GPS para camiones y trailers</h3>
+              <p className="text-[14px] text-zinc-500 leading-relaxed mb-4">
+                Rastreo GPS industrial para camiones de carga, trailers y transporte pesado. Monitoreo de rutas en carretera, alertas de desvío, control de velocidad y botón de pánico para el conductor. Ideal con GPS Teltonika FMC130 y Queclink GV500.
+              </p>
+              <ul className="space-y-1.5 text-[13px] text-zinc-500">
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Monitoreo en carretera 24/7</li>
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Alertas de desvío de ruta</li>
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Botón de pánico discreto para conductor</li>
+              </ul>
+            </div>
+
+            {/* GPS para motos */}
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 hover:border-blue-200 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center mb-5">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+              </div>
+              <h3 className="font-bold text-zinc-900 text-lg mb-2">GPS para motos</h3>
+              <p className="text-[14px] text-zinc-500 leading-relaxed mb-4">
+                Las motos son el vehículo más robado en México. Con un GPS Sinotrack ST-901 o Concox WeTrack2, tu moto queda protegida con rastreo en tiempo real y alerta instantánea si se mueve sin autorización. GPS compacto, instalación discreta.
+              </p>
+              <ul className="space-y-1.5 text-[13px] text-zinc-500">
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>GPS ultracompacto para motos</li>
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Alerta de vibración y movimiento</li>
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Localización precisa para recuperación</li>
+              </ul>
+            </div>
+
+            {/* GPS para flotillas */}
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 hover:border-blue-200 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center mb-5">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <h3 className="font-bold text-zinc-900 text-lg mb-2">GPS para flotillas</h3>
+              <p className="text-[14px] text-zinc-500 leading-relaxed mb-4">
+                Gestión completa de flotillas GPS desde un solo panel. Monitorea todos tus vehículos en tiempo real, asigna conductores, establece geocercas y recibe alertas de velocidad. Ideal para empresas de transporte y logística.
+              </p>
+              <ul className="space-y-1.5 text-[13px] text-zinc-500">
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Panel multi-vehículo en tiempo real</li>
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Asignación de conductores por vehículo</li>
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Geocercas y alertas de velocidad</li>
+              </ul>
+            </div>
+
+            {/* GPS para Uber / Didi */}
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 hover:border-blue-200 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-violet-50 flex items-center justify-center mb-5">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8Z"/><circle cx="12" cy="10" r="3"/></svg>
+              </div>
+              <h3 className="font-bold text-zinc-900 text-lg mb-2">GPS para Uber, Didi y taxis</h3>
+              <p className="text-[14px] text-zinc-500 leading-relaxed mb-4">
+                Conductores de plataformas como Uber, Didi e InDriver suben pasajeros desconocidos cada día. Con un GPS con botón de pánico, una alerta silenciosa llega a toda la red de apoyo sin que el pasajero lo note. Protección real en cada viaje.
+              </p>
+              <ul className="space-y-1.5 text-[13px] text-zinc-500">
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Botón de pánico silencioso</li>
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Alerta a personas cercanas en 3s</li>
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Seguimiento GPS en vivo para tu familia</li>
+              </ul>
+            </div>
+
+            {/* GPS para camionetas */}
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-6 hover:border-blue-200 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-cyan-50 flex items-center justify-center mb-5">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0891b2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+              </div>
+              <h3 className="font-bold text-zinc-900 text-lg mb-2">GPS para camionetas y SUV</h3>
+              <p className="text-[14px] text-zinc-500 leading-relaxed mb-4">
+                Camionetas pickup y SUV son un blanco frecuente de robo vehicular en México. Con GPS industrial y SilentEye, tu camioneta queda monitoreada con rastreo en tiempo real, alertas de ignición y coordinación automática ante robo.
+              </p>
+              <ul className="space-y-1.5 text-[13px] text-zinc-500">
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0891b2" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Detección de encendido no autorizado</li>
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0891b2" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Red de apoyo cercana ante emergencias</li>
+                <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0891b2" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Recuperación vehicular coordinada</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-10 bg-zinc-900 text-white rounded-xl px-6 py-5 md:px-8 md:py-6 flex flex-col md:flex-row items-start md:items-center gap-4">
+            <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m10-10h-4M6 12H2"/></svg>
+            </div>
+            <div>
+              <p className="font-bold text-[15px] mb-1">Cualquier vehículo, cualquier GPS compatible, una sola plataforma</p>
+              <p className="text-zinc-400 text-[14px] leading-relaxed">SilentEye funciona con GPS Teltonika, Queclink, Concox, Cobán y Sinotrack. No importa si es auto, moto, camión, trailer o camioneta — la protección es la misma: rastreo GPS en tiempo real, alertas automáticas y respuesta en menos de 3 segundos.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Proceso de Recuperación Vehicular ── */}
       <section id="recuperacion" className="px-6 py-24 md:py-32">
         <div className="max-w-7xl mx-auto">
@@ -637,9 +756,14 @@ export default function Home() {
               { q: '¿El botón SOS tiene algún costo?', a: 'No. El botón de emergencia ciudadano es completamente gratuito para cualquier persona. Solo necesitas un número de teléfono para registrarte.' },
               { q: '¿Necesito comprar un GPS nuevo?', a: 'No necesariamente. Si ya tienes un GPS Teltonika, Queclink, Concox, Cobán o Sinotrack, solo necesitas apuntar el servidor a SilentEye. La plataforma es compatible con estos equipos sin necesidad de cambiar de hardware.' },
               { q: '¿Qué marcas de GPS son compatibles?', a: 'SilentEye es multi-marca: Teltonika (FMB/FMC series), Queclink (GL300, GV300, GV58CEU), Concox (GT06N, WeTrack2, GV20, JM-VL), Cobán (TK103, TK303, GPS103) y Sinotrack (ST-901, ST-906). Si tu GPS es de alguna de estas marcas, se conecta directamente.' },
+              { q: '¿Qué GPS es mejor para un auto particular?', a: 'Para autos particulares recomendamos GPS Cobán TK103 o Sinotrack ST-901 por su bajo costo y fácil instalación. Si buscas algo más robusto, el Teltonika FMB920 es grado industrial. Todos son compatibles con SilentEye y ofrecen rastreo en tiempo real, geocercas y alerta de robo.' },
+              { q: '¿Qué GPS recomiendan para trailers y camiones?', a: 'Para trailers y camiones de carga recomendamos GPS Teltonika FMC130 o Queclink GV500 por su resistencia industrial, conectividad estable en carretera y botón de pánico físico (DIN1). SilentEye monitorea la ruta completa con alertas de desvío y exceso de velocidad.' },
+              { q: '¿Sirve para motos y motocicletas?', a: 'Sí. Los GPS Sinotrack ST-901 y Concox WeTrack2 son ultracompactos e ideales para motos. Se instalan de forma discreta y SilentEye detecta movimiento no autorizado, vibración y envía alertas instantáneas. Las motos son el vehículo más robado en México — un GPS con SilentEye cambia eso.' },
+              { q: '¿Funciona como plataforma GPS para flotillas?', a: 'Sí. SilentEye es una plataforma completa para gestión de flotillas GPS. Puedes monitorear todos tus camiones, trailers, camionetas o autos desde un solo panel. Asigna conductores, establece geocercas, recibe alertas de velocidad y coordina respuestas ante emergencias.' },
               { q: '¿Quién recibe mis alertas de emergencia?', a: 'Los administradores del sistema y cualquier voluntario o conductor registrado que se encuentre dentro del radio de 2 km de tu ubicación. Entre más personas estén registradas, más rápida la respuesta.' },
-              { q: '¿Funciona en todo el país?', a: 'Sí, siempre que haya señal de telefonía móvil. En zonas urbanas y carreteras principales la cobertura es excelente. El GPS del vehículo utiliza red celular para transmitir datos.' },
-              { q: '¿Puedo monitorear más de un vehículo?', a: 'Sí. SilentEye soporta flotas completas. Cada vehículo aparece de forma independiente en el mapa con su propia información de ubicación, velocidad e historial.' },
+              { q: '¿Funciona en todo México?', a: 'Sí, siempre que haya señal de telefonía móvil. En zonas urbanas y carreteras principales la cobertura es excelente. El GPS del vehículo utiliza red celular para transmitir datos. Funciona en CDMX, Puebla, Guadalajara, Monterrey y cualquier ciudad del país.' },
+              { q: '¿Puedo monitorear más de un vehículo?', a: 'Sí. SilentEye soporta flotas completas. Cada vehículo — auto, moto, camión, trailer o camioneta — aparece de forma independiente en el mapa con su propia información de ubicación GPS, velocidad e historial de recorridos.' },
+              { q: '¿Cuánto cuesta la plataforma GPS?', a: 'El botón de emergencia SOS es gratuito para todos. La plataforma de rastreo GPS tiene planes accesibles que dependen de la cantidad de vehículos. Contacta con nosotros para una cotización personalizada según tu flota.' },
             ].map((item, i) => (
               <details key={i} className="group">
                 <summary className="flex items-center justify-between py-5 cursor-pointer list-none text-[15px] font-semibold text-zinc-900 hover:text-zinc-600 transition-colors">
@@ -700,7 +824,7 @@ export default function Home() {
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-zinc-400">
             <a href="#problema" className="hover:text-zinc-900 transition-colors">Problema</a>
             <a href="#producto" className="hover:text-zinc-900 transition-colors">Plataforma</a>
-            <a href="#recuperacion" className="hover:text-zinc-900 transition-colors">Recuperación</a>
+            <a href="#vehiculos" className="hover:text-zinc-900 transition-colors">Vehículos</a>
             <a href="#dispositivos" className="hover:text-zinc-900 transition-colors">GPS compatibles</a>
             <a href="#comparativa" className="hover:text-zinc-900 transition-colors">Comparativa</a>
             <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
