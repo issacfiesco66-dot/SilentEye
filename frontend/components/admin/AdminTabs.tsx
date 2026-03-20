@@ -1,6 +1,6 @@
 'use client';
 
-type Tab = 'incidents' | 'alerts' | 'gps_activity' | 'map' | 'vehicles' | 'drivers';
+export type Tab = 'incidents' | 'alerts' | 'gps_activity' | 'map' | 'vehicles' | 'drivers' | 'comandancia';
 
 interface AdminTabsProps {
   activeTab: Tab;
@@ -14,6 +14,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'map', label: 'Mapa en vivo' },
   { id: 'vehicles', label: 'Vehículos' },
   { id: 'drivers', label: 'Conductores' },
+  { id: 'comandancia', label: 'Comandancia' },
 ];
 
 export default function AdminTabs({ activeTab, onTabChange }: AdminTabsProps) {

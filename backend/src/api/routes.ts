@@ -2309,3 +2309,200 @@ api.delete('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(asyn
     res.status(500).json({ error: 'Error al eliminar usuario' });
   }
 }));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ██  SISTEMA DE DETECCIÓN DE FLOTAS Y PROSPECCIÓN AUTOMATIZADA
+// ══════════════════════════════════════════════════════════════════════════════
+
+const INGEST_TOKEN = process.env.SILENTEYE_SECRET_TOKEN || '';
+const SITE_URL = process.env.PUBLIC_SITE_URL || 'https://silenteye.mx';
+
+function generateFolio(): string {
+  const prefix = 'SE';
+  const ts = Date.now().toString(36).toUpperCase();
+  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}-${ts}-${rand}`;
+}
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 80);
+}
+
+// ── Webhook: Ingest prospects from scraper (Bearer token auth) ──
+const ingestRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: 'Demasiadas solicitudes de ingesta' },
+  keyGenerator: (req) => req.ip || 'unknown',
+});
+
+api.post('/ingest-prospects', ingestRateLimit, asyncHandler(async (req, res) => {
+  // Bearer token validation
+  const auth = req.headers.authorization;
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!INGEST_TOKEN || INGEST_TOKEN.length < 16) {
+    logger.error('SILENTEYE_SECRET_TOKEN no configurado o muy corto');
+    res.status(503).json({ error: 'Servicio no configurado' });
+    return;
+  }
+  if (!token || token.length !== INGEST_TOKEN.length || !timingSafeEqual(Buffer.from(token), Buffer.from(INGEST_TOKEN))) {
+    res.status(401).json({ error: 'Token inválido' });
+    return;
+  }
+
+  const { razonSocial, telefono, ubicacion, tipoTransporte, latitud, longitud } = req.body;
+  if (!razonSocial || typeof razonSocial !== 'string' || razonSocial.trim().length < 2) {
+    res.status(400).json({ error: 'razonSocial requerida (mín. 2 caracteres)' });
+    return;
+  }
+
+  const folio = generateFolio();
+  const baseSlug = slugify(razonSocial.trim());
+  const slug = `${baseSlug}-${folio.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+  const tipo = ['Fletes', 'Mudanzas', 'Materiales', 'Paquetería', 'Carga General'].includes(tipoTransporte) ? tipoTransporte : 'Fletes';
+
+  try {
+    const r = await pool.query(
+      `INSERT INTO fleet_prospects (folio, razon_social, telefono_whatsapp, ubicacion_patio, latitud, longitud, tipo_transporte, slug)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, folio, slug, razon_social, status_seguridad, created_at`,
+      [folio, razonSocial.trim(), telefono?.trim() || null, ubicacion?.trim() || null, latitud || null, longitud || null, tipo, slug]
+    );
+
+    const prospect = r.rows[0];
+    const demoUrl = `${SITE_URL}/monitoreo-demo/${prospect.slug}`;
+
+    // WhatsApp alert message template
+    const whatsappMessage = `🔒 *PROTOCOLOS DE SEGURIDAD SILENT EYE*\n\nHemos detectado actividad logística de *${razonSocial.trim()}* en ${ubicacion?.trim() || 'su zona'}.\n\nHemos generado una unidad de monitoreo virtual para su flota aquí:\n👉 ${demoUrl}\n\nEvite robos y controle su combustible hoy mismo.\n\n📞 Folio de Seguridad: ${folio}`;
+
+    res.status(201).json({
+      ok: true,
+      prospect: {
+        id: prospect.id,
+        folio: prospect.folio,
+        slug: prospect.slug,
+        demoUrl,
+        statusSeguridad: prospect.status_seguridad,
+      },
+      whatsappMessage,
+    });
+  } catch (err) {
+    logger.error('POST /ingest-prospects error:', err);
+    res.status(500).json({ error: 'Error al registrar prospecto' });
+  }
+}));
+
+// ── Public: Get prospect data for demo page (increments view count) ──
+api.get('/prospects/demo/:slug', asyncHandler(async (req, res) => {
+  const { slug } = req.params;
+  if (!slug || typeof slug !== 'string' || slug.length > 120) {
+    res.status(400).json({ error: 'Slug inválido' });
+    return;
+  }
+
+  try {
+    const r = await pool.query(
+      `UPDATE fleet_prospects SET vistas_demo = vistas_demo + 1, updated_at = NOW()
+       WHERE slug = $1
+       RETURNING folio, razon_social, ubicacion_patio, latitud, longitud, tipo_transporte, vistas_demo, status_seguridad, created_at`,
+      [slug]
+    );
+    if (!r.rows[0]) {
+      res.status(404).json({ error: 'Prospecto no encontrado' });
+      return;
+    }
+    const p = r.rows[0];
+    res.json({
+      folio: p.folio,
+      razonSocial: p.razon_social,
+      ubicacionPatio: p.ubicacion_patio,
+      latitud: p.latitud,
+      longitud: p.longitud,
+      tipoTransporte: p.tipo_transporte,
+      vistasDemo: p.vistas_demo,
+      statusSeguridad: p.status_seguridad,
+      createdAt: p.created_at,
+    });
+  } catch (err) {
+    logger.error('GET /prospects/demo/:slug error:', err);
+    res.status(500).json({ error: 'Error interno' });
+  }
+}));
+
+// ── Admin: List all prospects (Comandancia) ──
+api.get('/prospects', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, folio, razon_social, telefono_whatsapp, ubicacion_patio, tipo_transporte,
+              vistas_demo, status_seguridad, slug, notas, created_at, updated_at
+       FROM fleet_prospects ORDER BY created_at DESC`
+    );
+    res.json(r.rows);
+  } catch (err) {
+    logger.error('GET /prospects error:', err);
+    res.status(500).json({ error: 'Error al obtener prospectos' });
+  }
+}));
+
+// ── Admin: Update prospect status/notes ──
+api.put('/prospects/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { statusSeguridad, notas } = req.body;
+  const validStatuses = ['detectado', 'demo_enviada', 'interesado', 'contactado', 'cliente', 'descartado'];
+  const updates: string[] = [];
+  const params: unknown[] = [];
+  let p = 1;
+
+  if (statusSeguridad && typeof statusSeguridad === 'string') {
+    if (!validStatuses.includes(statusSeguridad)) {
+      res.status(400).json({ error: `Status inválido. Permitidos: ${validStatuses.join(', ')}` });
+      return;
+    }
+    updates.push(`status_seguridad = $${p++}`);
+    params.push(statusSeguridad);
+  }
+  if (notas !== undefined) {
+    updates.push(`notas = $${p++}`);
+    params.push(typeof notas === 'string' ? notas.trim() : null);
+  }
+  if (updates.length === 0) {
+    res.status(400).json({ error: 'Indica statusSeguridad o notas para actualizar' });
+    return;
+  }
+  params.push(id);
+  try {
+    const r = await pool.query(
+      `UPDATE fleet_prospects SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${p} RETURNING *`,
+      params
+    );
+    if (!r.rows[0]) {
+      res.status(404).json({ error: 'Prospecto no encontrado' });
+      return;
+    }
+    res.json(r.rows[0]);
+  } catch (err) {
+    logger.error('PUT /prospects/:id error:', err);
+    res.status(500).json({ error: 'Error al actualizar prospecto' });
+  }
+}));
+
+// ── Admin: Delete prospect ──
+api.delete('/prospects/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  try {
+    const r = await pool.query('DELETE FROM fleet_prospects WHERE id = $1 RETURNING id', [id]);
+    if (!r.rows[0]) {
+      res.status(404).json({ error: 'Prospecto no encontrado' });
+      return;
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('DELETE /prospects/:id error:', err);
+    res.status(500).json({ error: 'Error al eliminar prospecto' });
+  }
+}));

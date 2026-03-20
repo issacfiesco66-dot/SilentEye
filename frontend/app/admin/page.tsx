@@ -8,18 +8,17 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import AdminTabs from '@/components/admin/AdminTabs';
+import AdminTabs, { type Tab } from '@/components/admin/AdminTabs';
 import IncidentesSection from '@/components/admin/IncidentesSection';
 import AlertsSection from '@/components/admin/AlertsSection';
 import AdminMapView from '@/components/admin/AdminMapView';
 import VehiclesSection from '@/components/admin/VehiclesSection';
 import DriversSection from '@/components/admin/DriversSection';
+import ComandanciaSection from '@/components/admin/ComandanciaSection';
 import GpsActivitySection from '@/components/admin/GpsActivitySection';
 import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { playAlarmSound, initAudioOnInteraction } from '@/lib/alarm';
-
-type Tab = 'incidents' | 'alerts' | 'gps_activity' | 'map' | 'vehicles' | 'drivers';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -113,6 +112,12 @@ export default function AdminPage() {
           {activeTab === 'drivers' && (
             <div className="bg-zinc-50 rounded-xl p-3 sm:p-6 border border-zinc-200">
               <DriversSection currentUserId={user.id} />
+            </div>
+          )}
+
+          {activeTab === 'comandancia' && (
+            <div className="bg-zinc-50 rounded-xl p-3 sm:p-6 border border-zinc-200">
+              <ComandanciaSection />
             </div>
           )}
         </div>
