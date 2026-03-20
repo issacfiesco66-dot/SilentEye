@@ -82,7 +82,7 @@ export interface AlertEvent {
   createdAt: string;
 }
 
-type MessageType = 'location' | 'panic' | 'incident_update' | 'alert';
+type MessageType = 'location' | 'panic' | 'incident_update' | 'alert' | 'prospect_viewing';
 
 interface WSMessage {
   type: MessageType;

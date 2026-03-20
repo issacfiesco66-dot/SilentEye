@@ -16,8 +16,9 @@ interface ProspectData {
   createdAt: string;
 }
 
-// Simulated fuel data points
-const FUEL_DATA = [92, 89, 87, 84, 82, 80, 78, 76, 73, 71, 69, 68, 65, 63, 61, 60, 58, 57, 55, 54];
+// Fuel line data: normal → sudden extraction drop → slow recovery
+const FUEL_NORMAL = [94, 93, 92, 91, 90, 89, 88, 87, 86, 85, 84, 83, 82, 81, 80];
+const FUEL_EXTRACTION = [80, 62, 44, 38, 35, 34, 33, 33, 34, 34, 35, 36, 37, 38, 39];
 
 export default function MonitoreoDemoPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -28,8 +29,10 @@ export default function MonitoreoDemoPage() {
   const [showEngineAlert, setShowEngineAlert] = useState(false);
   const [vehiclePos, setVehiclePos] = useState({ lat: 0, lng: 0 });
   const [trail, setTrail] = useState<{ lat: number; lng: number }[]>([]);
-  const [speed, setSpeed] = useState(62);
-  const [fuelIndex, setFuelIndex] = useState(0);
+  const [speed, setSpeed] = useState(72);
+  const [tick, setTick] = useState(0);
+  const [fuelAlert, setFuelAlert] = useState(false);
+  const [riskUnits, setRiskUnits] = useState(3);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
@@ -49,12 +52,13 @@ export default function MonitoreoDemoPage() {
         const lng = data.longitud || -98.2063;
         setVehiclePos({ lat, lng });
         setTrail([{ lat, lng }]);
+        setRiskUnits(2 + Math.floor(Math.random() * 4));
       })
       .catch(() => setError('Prospecto no encontrado'))
       .finally(() => setLoading(false));
   }, [slug, API]);
 
-  // Initialize Leaflet map
+  // Initialize Leaflet map with dark tiles
   useEffect(() => {
     if (!prospect || !mapRef.current || mapInstanceRef.current) return;
 
@@ -65,25 +69,44 @@ export default function MonitoreoDemoPage() {
       const lng = prospect.longitud || -98.2063;
 
       const map = L.map(mapRef.current!, { zoomControl: false }).setView([lat, lng], 15);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap',
+      // Dark map tiles for command center look
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 19,
       }).addTo(map);
 
-      // Vehicle icon
+      // Danger zone (red, pulsing)
+      L.circle([lat + 0.006, lng - 0.004], {
+        radius: 300, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.12,
+        weight: 1.5, dashArray: '4 6',
+      }).addTo(map);
+      L.circle([lat - 0.003, lng + 0.007], {
+        radius: 250, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.08,
+        weight: 1, dashArray: '4 6',
+      }).addTo(map);
+
+      // Safe geofence (green)
+      L.circle([lat, lng], {
+        radius: 600, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.05,
+        weight: 1.5, dashArray: '8 4',
+      }).addTo(map);
+
+      // Vehicle icon — neon pulse
       const vehicleIcon = L.divIcon({
         className: '',
-        html: `<div style="width:36px;height:36px;background:#1d4ed8;border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h2m10 0h2M2 9l2-6h12l2 6M2 9h16v8H2z"/></svg>
+        html: `<div style="position:relative">
+          <div style="position:absolute;top:-6px;left:-6px;width:48px;height:48px;border-radius:50%;background:rgba(34,197,94,0.15);animation:pulse 2s infinite"></div>
+          <div style="width:36px;height:36px;background:#000;border:2px solid #22c55e;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(34,197,94,0.4)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><path d="M5 17h2m10 0h2M2 9l2-6h12l2 6M2 9h16v8H2z"/></svg>
+          </div>
         </div>`,
         iconSize: [36, 36],
         iconAnchor: [18, 18],
       });
 
       const marker = L.marker([lat, lng], { icon: vehicleIcon }).addTo(map);
-      const trailLine = L.polyline([[lat, lng]], { color: '#3b82f6', weight: 3, opacity: 0.6 }).addTo(map);
-
-      // Geofence circle
-      L.circle([lat, lng], { radius: 500, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.08, weight: 1.5, dashArray: '6 4' }).addTo(map);
+      const trailLine = L.polyline([[lat, lng]], { color: '#22c55e', weight: 2, opacity: 0.5 }).addTo(map);
 
       mapInstanceRef.current = map;
       markerRef.current = marker;
@@ -98,52 +121,55 @@ export default function MonitoreoDemoPage() {
     if (engineOff) return;
     setVehiclePos(prev => {
       const angle = Math.random() * Math.PI * 2;
-      const dist = 0.0003 + Math.random() * 0.0004;
-      const newLat = prev.lat + Math.sin(angle) * dist;
-      const newLng = prev.lng + Math.cos(angle) * dist;
-      return { lat: newLat, lng: newLng };
+      const dist = 0.0003 + Math.random() * 0.0005;
+      return { lat: prev.lat + Math.sin(angle) * dist, lng: prev.lng + Math.cos(angle) * dist };
     });
-    setSpeed(Math.floor(45 + Math.random() * 35));
-    setFuelIndex(prev => (prev + 1) % FUEL_DATA.length);
+    setSpeed(Math.floor(48 + Math.random() * 40));
+    setTick(prev => prev + 1);
   }, [engineOff]);
 
   useEffect(() => {
-    intervalRef.current = setInterval(moveVehicle, 2000);
+    intervalRef.current = setInterval(moveVehicle, 1800);
     return () => clearInterval(intervalRef.current);
   }, [moveVehicle]);
 
-  // Update map marker position
+  // Trigger fuel extraction alert after 15 ticks
+  useEffect(() => {
+    if (tick === 15 && !fuelAlert) {
+      setFuelAlert(true);
+    }
+  }, [tick, fuelAlert]);
+
+  // Update map marker
   useEffect(() => {
     if (!markerRef.current) return;
     markerRef.current.setLatLng([vehiclePos.lat, vehiclePos.lng]);
     setTrail(prev => {
-      const next = [...prev, vehiclePos].slice(-60);
-      if (trailLineRef.current) {
-        trailLineRef.current.setLatLngs(next.map(p => [p.lat, p.lng]));
-      }
+      const next = [...prev, vehiclePos].slice(-80);
+      if (trailLineRef.current) trailLineRef.current.setLatLngs(next.map(p => [p.lat, p.lng]));
       return next;
     });
   }, [vehiclePos]);
 
-  // Engine kill simulation
+  // Engine kill
   const handleEngineKill = () => {
     setEngineOff(true);
     setShowEngineAlert(true);
     setSpeed(0);
-    setTimeout(() => setShowEngineAlert(false), 5000);
+    setTimeout(() => setShowEngineAlert(false), 6000);
   };
 
   const handleEngineRestart = () => {
     setEngineOff(false);
-    setSpeed(45 + Math.floor(Math.random() * 30));
+    setSpeed(55);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
-          <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-zinc-400 text-sm">Cargando sistema de monitoreo...</p>
+          <div className="w-12 h-12 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-green-400/60 text-xs uppercase tracking-[4px] font-bold">Iniciando protocolo de monitoreo...</p>
         </div>
       </div>
     );
@@ -151,175 +177,236 @@ export default function MonitoreoDemoPage() {
 
   if (error || !prospect) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
-          <div className="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6m0-6 6 6"/></svg>
+          <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6m0-6 6 6"/></svg>
           </div>
-          <p className="text-zinc-300 font-bold">Unidad no encontrada</p>
-          <p className="text-zinc-500 text-sm mt-1">Verifique el enlace proporcionado</p>
+          <p className="text-red-400 font-black text-lg">PROTOCOLO NO ENCONTRADO</p>
+          <p className="text-zinc-600 text-xs mt-2 uppercase tracking-wider">Verifique el enlace proporcionado por Silent Eye</p>
         </div>
       </div>
     );
   }
 
-  const fuel = FUEL_DATA[fuelIndex];
+  const fuelData = fuelAlert ? FUEL_EXTRACTION : FUEL_NORMAL;
+  const currentFuel = fuelData[Math.min(tick % 15, 14)];
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
-      {/* Header */}
-      <header className="bg-zinc-900/80 backdrop-blur-lg border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-black text-white select-none">
+      {/* ── Command Center Header ── */}
+      <header className="bg-black/90 backdrop-blur-xl border-b border-zinc-800/50 px-4 py-2.5 flex items-center justify-between relative z-50">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+          <div className="w-9 h-9 bg-black border border-green-500/40 rounded-lg flex items-center justify-center" style={{ boxShadow: '0 0 12px rgba(34,197,94,0.15)' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
           </div>
           <div>
-            <p className="text-[13px] font-bold tracking-tight">SilentEye</p>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Sistema de Monitoreo</p>
+            <p className="text-[13px] font-black tracking-tight text-white">SILENT EYE</p>
+            <p className="text-[9px] text-green-500/60 uppercase tracking-[3px] font-bold">Centro de Comando</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${engineOff ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${engineOff ? 'bg-red-400' : 'bg-emerald-400 animate-pulse'}`} />
-            {engineOff ? 'MOTOR DETENIDO' : 'EN LÍNEA'}
+        <div className="flex items-center gap-3">
+          <span className="hidden sm:inline text-[10px] text-zinc-600 font-mono tabular-nums">{new Date().toLocaleTimeString('es-MX')}</span>
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black tracking-wider uppercase ${
+            engineOff
+              ? 'bg-red-500/10 text-red-400 border border-red-500/30'
+              : 'bg-green-500/10 text-green-400 border border-green-500/30'
+          }`} style={{ boxShadow: engineOff ? '0 0 15px rgba(239,68,68,0.15)' : '0 0 15px rgba(34,197,94,0.15)' }}>
+            <span className={`w-2 h-2 rounded-full ${engineOff ? 'bg-red-500' : 'bg-green-500 animate-pulse'}`} />
+            {engineOff ? 'Motor Bloqueado' : 'Transmitiendo'}
           </span>
         </div>
       </header>
 
-      <div className="flex flex-col lg:flex-row h-[calc(100vh-57px)]">
-        {/* Map */}
+      <div className="flex flex-col lg:flex-row h-[calc(100vh-53px)]">
+        {/* ── Full-screen Map ── */}
         <div className="flex-1 relative">
           <div ref={mapRef} className="w-full h-full min-h-[400px]" />
 
-          {/* Speed overlay */}
-          <div className="absolute top-4 left-4 bg-zinc-900/90 backdrop-blur rounded-xl px-4 py-3 border border-zinc-700">
-            <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Velocidad</p>
-            <p className="text-2xl font-black tabular-nums">{speed} <span className="text-sm font-normal text-zinc-400">km/h</span></p>
+          {/* Top-left: Speed + risk units overlay */}
+          <div className="absolute top-4 left-4 z-[500] space-y-3">
+            <div className="bg-black/80 backdrop-blur-xl rounded-xl px-5 py-3 border border-zinc-800" style={{ boxShadow: '0 0 30px rgba(0,0,0,0.5)' }}>
+              <p className="text-[9px] text-zinc-600 uppercase tracking-[2px] font-bold mb-1">Velocidad</p>
+              <p className="text-3xl font-black tabular-nums" style={{ color: speed > 80 ? '#ef4444' : '#22c55e' }}>
+                {speed} <span className="text-sm font-normal text-zinc-600">km/h</span>
+              </p>
+            </div>
+            <div className="bg-black/80 backdrop-blur-xl rounded-xl px-5 py-3 border border-red-500/20" style={{ boxShadow: '0 0 20px rgba(239,68,68,0.1)' }}>
+              <p className="text-[9px] text-zinc-600 uppercase tracking-[2px] font-bold mb-1">Unidades en Zona de Riesgo</p>
+              <p className="text-2xl font-black text-red-400 tabular-nums">{riskUnits}</p>
+            </div>
           </div>
 
-          {/* Engine alert overlay */}
+          {/* Engine kill fullscreen overlay */}
           {showEngineAlert && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-600/95 backdrop-blur rounded-2xl px-8 py-6 text-center animate-pulse z-[1000]">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="mx-auto mb-3"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4m0 4h.01"/></svg>
-              <p className="text-xl font-black">PARO DE MOTOR EJECUTADO</p>
-              <p className="text-red-100 text-sm mt-1">Motor del vehículo detenido remotamente</p>
+            <div className="absolute inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[1000]">
+              <div className="text-center max-w-md px-6">
+                <div className="w-24 h-24 mx-auto mb-6 rounded-full border-4 border-red-500 flex items-center justify-center animate-pulse" style={{ boxShadow: '0 0 60px rgba(239,68,68,0.4)' }}>
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"/><rect x="8" y="8" width="8" height="8" rx="1" fill="#ef4444"/></svg>
+                </div>
+                <p className="text-3xl font-black text-red-500 tracking-tight">UNIDAD DETENIDA</p>
+                <p className="text-lg text-red-400/60 mt-2 font-bold">GPS BLOQUEADO — MOTOR APAGADO REMOTAMENTE</p>
+                <div className="mt-6 inline-flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-full px-5 py-2">
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                  <span className="text-red-400 text-xs font-bold uppercase tracking-wider">Señal de bloqueo activa</span>
+                </div>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Side Panel */}
-        <div className="lg:w-[380px] bg-zinc-900 border-t lg:border-t-0 lg:border-l border-zinc-800 overflow-y-auto">
-          <div className="p-5 space-y-5">
-            {/* Company Info */}
-            <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-700">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Empresa Monitoreada</p>
-              <p className="text-lg font-bold">{prospect.razonSocial}</p>
-              {prospect.ubicacionPatio && <p className="text-sm text-zinc-400 mt-1">{prospect.ubicacionPatio}</p>}
+        {/* ── Side Panel — Command Center ── */}
+        <div className="lg:w-[400px] bg-zinc-950 border-t lg:border-t-0 lg:border-l border-zinc-800/50 overflow-y-auto">
+          <div className="p-5 space-y-4">
+            {/* Company header */}
+            <div className="bg-black rounded-xl p-4 border border-zinc-800">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <p className="text-[9px] text-green-500/60 uppercase tracking-[3px] font-bold">Protocolo Activo</p>
+              </div>
+              <p className="text-xl font-black text-white leading-tight">{prospect.razonSocial}</p>
+              {prospect.ubicacionPatio && <p className="text-sm text-zinc-500 mt-1">{prospect.ubicacionPatio}</p>}
               <div className="flex items-center gap-2 mt-3">
-                <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[11px] font-bold rounded-full">{prospect.tipoTransporte}</span>
-                <span className="px-2 py-0.5 bg-zinc-700 text-zinc-300 text-[11px] font-bold rounded-full">Folio: {prospect.folio}</span>
+                <span className="px-2.5 py-1 bg-green-500/10 text-green-400 text-[10px] font-black rounded-md border border-green-500/20">{prospect.tipoTransporte}</span>
+                <span className="px-2.5 py-1 bg-zinc-900 text-zinc-400 text-[10px] font-bold rounded-md border border-zinc-800 font-mono">{prospect.folio}</span>
               </div>
             </div>
 
-            {/* Status */}
-            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
+            {/* Status: Blindaje Digital */}
+            <div className="rounded-xl p-4 border" style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.05) 0%, rgba(0,0,0,0.8) 100%)', borderColor: 'rgba(34,197,94,0.2)' }}>
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center border border-green-500/30" style={{ boxShadow: '0 0 10px rgba(34,197,94,0.2)' }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 </div>
-                <p className="text-emerald-400 font-bold text-sm">Estatus: Protegido por Silent Eye</p>
+                <p className="text-green-400 font-black text-sm">Blindaje Digital Activo</p>
               </div>
-              <p className="text-zinc-500 text-[12px] leading-relaxed">Esta unidad cuenta con monitoreo GPS en tiempo real, geocercas activas y respuesta inmediata ante eventos de seguridad.</p>
+              <p className="text-zinc-600 text-[11px] leading-relaxed">Monitoreo GPS en tiempo real, paro de motor remoto, geocercas activas, control de combustible y respuesta inmediata 24/7.</p>
             </div>
 
-            {/* Engine Kill Button */}
-            <div>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Control Remoto del Vehículo</p>
+            {/* ── GIANT ENGINE KILL BUTTON ── */}
+            <div className="pt-1">
+              <p className="text-[9px] text-zinc-600 uppercase tracking-[2px] font-bold mb-3 text-center">Control Remoto del Vehículo</p>
               {!engineOff ? (
                 <button
                   onClick={handleEngineKill}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                  className="w-full group relative overflow-hidden rounded-2xl transition-all active:scale-[0.97]"
+                  style={{ boxShadow: '0 0 40px rgba(239,68,68,0.2)' }}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><rect x="8" y="8" width="8" height="8" rx="1"/></svg>
-                  Simular Paro de Motor
+                  <div className="absolute inset-0 bg-gradient-to-b from-red-600 to-red-800 opacity-90" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/30" />
+                  <div className="relative px-6 py-6 flex flex-col items-center gap-3">
+                    <div className="w-16 h-16 rounded-full border-4 border-white/20 flex items-center justify-center bg-black/20">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><rect x="8" y="8" width="8" height="8" rx="1"/></svg>
+                    </div>
+                    <span className="text-white font-black text-lg tracking-wide">PROBAR PARO DE MOTOR</span>
+                    <span className="text-red-200/60 text-[10px] font-bold uppercase tracking-widest">Detener vehículo remotamente</span>
+                  </div>
                 </button>
               ) : (
                 <button
                   onClick={handleEngineRestart}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                  className="w-full group relative overflow-hidden rounded-2xl transition-all active:scale-[0.97]"
+                  style={{ boxShadow: '0 0 40px rgba(34,197,94,0.15)' }}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-                  Reactivar Motor
+                  <div className="absolute inset-0 bg-gradient-to-b from-green-600 to-green-800 opacity-90" />
+                  <div className="relative px-6 py-5 flex flex-col items-center gap-2">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                    <span className="text-white font-black text-base tracking-wide">REACTIVAR MOTOR</span>
+                  </div>
                 </button>
               )}
             </div>
 
-            {/* Fuel Chart */}
-            <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-700">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Control de Combustible</p>
-                <span className="text-sm font-bold text-amber-400">{fuel}%</span>
+            {/* ── Fuel Chart with extraction alert ── */}
+            <div className={`rounded-xl p-4 border transition-all ${fuelAlert ? 'bg-red-500/5 border-red-500/30' : 'bg-black border-zinc-800'}`}>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[9px] text-zinc-600 uppercase tracking-[2px] font-bold">Control de Combustible</p>
+                <span className={`text-sm font-black tabular-nums ${currentFuel < 50 ? 'text-red-400' : 'text-green-400'}`}>{currentFuel}%</span>
               </div>
-              {/* Bar chart */}
-              <div className="flex items-end gap-[3px] h-20">
-                {FUEL_DATA.slice(0, 15).map((val, i) => {
-                  const isCurrent = i === fuelIndex % 15;
-                  const h = (val / 100) * 100;
-                  const color = val > 60 ? 'bg-emerald-500' : val > 30 ? 'bg-amber-500' : 'bg-red-500';
-                  return (
-                    <div key={i} className="flex-1 flex flex-col justify-end">
-                      <div
-                        className={`${color} rounded-sm transition-all duration-500 ${isCurrent ? 'opacity-100' : 'opacity-40'}`}
-                        style={{ height: `${h}%` }}
-                      />
-                    </div>
-                  );
-                })}
+              {fuelAlert && (
+                <div className="flex items-center gap-2 mb-3 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-ping flex-shrink-0" />
+                  <p className="text-red-400 text-[11px] font-black">Posible extracción detectada (huachicoleo)</p>
+                </div>
+              )}
+              {/* SVG line chart */}
+              <div className="relative h-24 mt-2">
+                <svg viewBox="0 0 300 100" className="w-full h-full" preserveAspectRatio="none">
+                  {/* Grid lines */}
+                  {[0, 25, 50, 75, 100].map(y => (
+                    <line key={y} x1="0" y1={100 - y} x2="300" y2={100 - y} stroke={fuelAlert && y < 50 ? '#ef444420' : '#27272a'} strokeWidth="0.5" />
+                  ))}
+                  {/* Danger zone fill */}
+                  {fuelAlert && (
+                    <rect x="0" y="50" width="300" height="50" fill="rgba(239,68,68,0.05)" />
+                  )}
+                  {/* Fuel line */}
+                  <polyline
+                    fill="none"
+                    stroke={fuelAlert ? '#ef4444' : '#22c55e'}
+                    strokeWidth="2.5"
+                    strokeLinejoin="round"
+                    points={fuelData.map((v, i) => `${(i / 14) * 300},${100 - v}`).join(' ')}
+                  />
+                  {/* Current point glow */}
+                  <circle
+                    cx={(Math.min(tick % 15, 14) / 14) * 300}
+                    cy={100 - currentFuel}
+                    r="4"
+                    fill={fuelAlert ? '#ef4444' : '#22c55e'}
+                    opacity="0.8"
+                  />
+                  <circle
+                    cx={(Math.min(tick % 15, 14) / 14) * 300}
+                    cy={100 - currentFuel}
+                    r="8"
+                    fill={fuelAlert ? '#ef4444' : '#22c55e'}
+                    opacity="0.2"
+                  />
+                </svg>
               </div>
-              <div className="flex justify-between mt-2">
-                <span className="text-[10px] text-zinc-600">Hace 30 min</span>
-                <span className="text-[10px] text-zinc-600">Ahora</span>
+              <div className="flex justify-between mt-1">
+                <span className="text-[9px] text-zinc-700 font-mono">-30 min</span>
+                <span className="text-[9px] text-zinc-700 font-mono">Ahora</span>
               </div>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-zinc-800/50 rounded-xl p-3 border border-zinc-700 text-center">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Km hoy</p>
-                <p className="text-lg font-black tabular-nums">{(124 + fuelIndex * 3).toFixed(0)}</p>
-              </div>
-              <div className="bg-zinc-800/50 rounded-xl p-3 border border-zinc-700 text-center">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Geocercas</p>
-                <p className="text-lg font-black text-emerald-400">3 activas</p>
-              </div>
-              <div className="bg-zinc-800/50 rounded-xl p-3 border border-zinc-700 text-center">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Alertas</p>
-                <p className="text-lg font-black text-amber-400">0</p>
-              </div>
-              <div className="bg-zinc-800/50 rounded-xl p-3 border border-zinc-700 text-center">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Vistas</p>
-                <p className="text-lg font-black tabular-nums">{prospect.vistasDemo}</p>
-              </div>
+            {/* ── Stats Grid ── */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: 'Km hoy', value: `${124 + tick * 3}`, color: 'text-white' },
+                { label: 'Geocercas', value: '3', color: 'text-green-400', sub: 'activas' },
+                { label: 'Alertas', value: fuelAlert ? '1' : '0', color: fuelAlert ? 'text-red-400' : 'text-green-400' },
+              ].map(s => (
+                <div key={s.label} className="bg-black rounded-xl p-3 border border-zinc-800 text-center">
+                  <p className="text-[8px] text-zinc-600 uppercase tracking-[2px] font-bold mb-1">{s.label}</p>
+                  <p className={`text-lg font-black tabular-nums ${s.color}`}>{s.value}</p>
+                  {s.sub && <p className="text-[9px] text-zinc-700">{s.sub}</p>}
+                </div>
+              ))}
             </div>
 
-            {/* CTA */}
-            <div className="bg-blue-600/10 border border-blue-500/20 rounded-xl p-4">
-              <p className="text-blue-400 font-bold text-sm mb-1">Proteja toda su flota</p>
-              <p className="text-zinc-400 text-[12px] leading-relaxed mb-3">Active el monitoreo real para todos sus vehículos. Rastreo GPS en tiempo real, paro de motor remoto, control de combustible y alertas 24/7.</p>
+            {/* ── CTA — Urgency ── */}
+            <div className="rounded-2xl p-5 border border-zinc-700 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)' }}>
+              <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-3xl" />
+              <p className="text-white font-black text-base mb-1 relative">Proteja toda su flota hoy</p>
+              <p className="text-zinc-500 text-[11px] leading-relaxed mb-4 relative">Sus unidades podrían estar operando sin blindaje digital. Active el monitoreo real: paro de motor, control de combustible y geocercas para todos sus vehículos.</p>
               <a
-                href="https://wa.me/525610669353?text=Hola%2C+vi+el+demo+de+monitoreo+de+Silent+Eye+y+quiero+informes+para+mi+flota.+Folio:+{prospect.folio}"
+                href={`https://wa.me/525610669353?text=${encodeURIComponent(`Hola, vi el protocolo de monitoreo de Silent Eye y quiero blindaje digital para mi flota. Folio: ${prospect.folio}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
+                className="relative w-full flex items-center justify-center gap-2 py-4 rounded-xl font-black text-sm transition-all active:scale-[0.98]"
+                style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 0 30px rgba(34,197,94,0.3)' }}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492l4.625-1.475A11.93 11.93 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-2.168 0-4.19-.588-5.932-1.614l-.425-.252-2.742.876.877-2.689-.277-.44A9.77 9.77 0 012.182 12c0-5.422 4.396-9.818 9.818-9.818S21.818 6.578 21.818 12s-4.396 9.818-9.818 9.818z"/></svg>
-                Solicitar informes por WhatsApp
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492l4.625-1.475A11.93 11.93 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>
+                Contactar Asesor de Seguridad
               </a>
+              <p className="text-center text-[9px] text-zinc-700 mt-3 relative uppercase tracking-wider">Un asesor está pendiente de su conexión</p>
             </div>
 
             {/* Footer */}
-            <p className="text-center text-[10px] text-zinc-600 pt-2">
-              SilentEye © {new Date().getFullYear()} — Sistema de Seguridad Patrimonial
+            <p className="text-center text-[9px] text-zinc-800 pt-2 font-mono">
+              SILENT EYE &copy; {new Date().getFullYear()} &mdash; SEGURIDAD PATRIMONIAL
             </p>
           </div>
         </div>

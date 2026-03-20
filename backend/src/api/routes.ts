@@ -19,9 +19,9 @@ import {
   verifyToken,
 } from './auth.js';
 import { getAlerts, deleteAlerts } from '../services/alert-service.js';
-import { broadcastLocation, broadcastPanic, broadcastIncidentUpdate } from '../services/websocket.js';
+import { broadcastLocation, broadcastPanic, broadcastIncidentUpdate, broadcastToAdmins } from '../services/websocket.js';
 import { sendPushToUsers, saveSubscription, removeSubscription, getVapidPublicKey } from '../services/push-service.js';
-import { sendOtpEmail, isEmailEnabled, sendHelperRespondingEmail, sendIncidentResolvedEmail, sendWitnessRequestEmail } from '../services/email-service.js';
+import { sendEmail, sendOtpEmail, isEmailEnabled, sendHelperRespondingEmail, sendIncidentResolvedEmail, sendWitnessRequestEmail } from '../services/email-service.js';
 import { sendOtpSms, isSmsEnabled } from '../services/sms-service.js';
 import { logger } from '../utils/logger.js';
 import { runMigrate } from '../db/run-migrate.js';
@@ -2377,8 +2377,10 @@ api.post('/ingest-prospects', ingestRateLimit, asyncHandler(async (req, res) => 
     const prospect = r.rows[0];
     const demoUrl = `${SITE_URL}/monitoreo-demo/${prospect.slug}`;
 
-    // WhatsApp alert message template
-    const whatsappMessage = `🔒 *PROTOCOLOS DE SEGURIDAD SILENT EYE*\n\nHemos detectado actividad logística de *${razonSocial.trim()}* en ${ubicacion?.trim() || 'su zona'}.\n\nHemos generado una unidad de monitoreo virtual para su flota aquí:\n👉 ${demoUrl}\n\nEvite robos y controle su combustible hoy mismo.\n\n📞 Folio de Seguridad: ${folio}`;
+    // WhatsApp alert message — Protocolo Alerta
+    const empresa = razonSocial.trim();
+    const zona = ubicacion?.trim() || 'su zona';
+    const whatsappMessage = `� *ALERTA DE SEGURIDAD PATRIMONIAL - SILENT EYE*\n\nHemos detectado actividad logística de la empresa *${empresa}* en la zona de *${zona}*. Según nuestros registros de zona, sus unidades podrían estar operando sin Blindaje Digital Activo.\n\nHemos generado un Protocolo de Monitoreo Virtual para su flota aquí:\n� ${demoUrl}\n\n*Acciones disponibles en el panel:*\n• Simulación de Paro de Motor Remoto\n• Reporte de Extracción de Combustible (Huachicoleo)\n• Geocerca de Seguridad Activa\n\nEvite pérdidas hoy mismo. Un asesor de seguridad está pendiente de su conexión.\n\n📋 Folio: ${folio}`;
 
     res.status(201).json({
       ok: true,
@@ -2409,7 +2411,7 @@ api.get('/prospects/demo/:slug', asyncHandler(async (req, res) => {
     const r = await pool.query(
       `UPDATE fleet_prospects SET vistas_demo = vistas_demo + 1, updated_at = NOW()
        WHERE slug = $1
-       RETURNING folio, razon_social, ubicacion_patio, latitud, longitud, tipo_transporte, vistas_demo, status_seguridad, created_at`,
+       RETURNING id, folio, razon_social, ubicacion_patio, latitud, longitud, tipo_transporte, vistas_demo, status_seguridad, telefono_whatsapp, created_at`,
       [slug]
     );
     if (!r.rows[0]) {
@@ -2417,6 +2419,39 @@ api.get('/prospects/demo/:slug', asyncHandler(async (req, res) => {
       return;
     }
     const p = r.rows[0];
+
+    // ── Task 3: Notify admin in real-time when prospect views demo ──
+    broadcastToAdmins('prospect_viewing', {
+      prospectId: p.id,
+      razonSocial: p.razon_social,
+      folio: p.folio,
+      vistasDemo: p.vistas_demo,
+      telefono: p.telefono_whatsapp,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Send email alert to admin (fire-and-forget)
+    const adminResult = await pool.query("SELECT email FROM users WHERE role = 'admin' AND email IS NOT NULL LIMIT 1");
+    if (adminResult.rows[0]?.email && isEmailEnabled()) {
+      const adminEmail = adminResult.rows[0].email;
+      sendEmail(
+        adminEmail,
+        `⚠️ ${p.razon_social} ESTÁ VIENDO EL MONITOREO AHORA`,
+        `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:0 auto;padding:32px 24px;background:#0a0a0a;color:#fff;border-radius:12px">
+          <div style="text-align:center;margin-bottom:24px">
+            <span style="display:inline-block;background:#dc2626;color:#fff;font-weight:900;font-size:13px;padding:6px 16px;border-radius:20px;letter-spacing:1px">⚠️ ALERTA PROSPECT</span>
+          </div>
+          <h2 style="margin:0 0 8px;font-size:20px;font-weight:800;color:#fff">El gerente de ${p.razon_social} está viendo el monitoreo AHORA</h2>
+          <p style="color:#a1a1aa;font-size:14px;margin:0 0 20px">Folio: ${p.folio} · Vista #${p.vistas_demo} · ${p.ubicacion_patio || 'Sin ubicación'}</p>
+          <div style="background:#18181b;border:1px solid #dc2626;border-radius:8px;padding:16px;text-align:center;margin-bottom:20px">
+            <p style="color:#fca5a5;font-size:24px;font-weight:900;margin:0">Llama en 3 minutos</p>
+            ${p.telefono_whatsapp ? `<a href="tel:${p.telefono_whatsapp}" style="display:inline-block;margin-top:12px;background:#22c55e;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px">📞 Llamar a ${p.telefono_whatsapp}</a>` : '<p style="color:#71717a;font-size:13px;margin:8px 0 0">Sin teléfono registrado</p>'}
+          </div>
+          <p style="color:#52525b;font-size:11px;text-align:center;margin:0">SilentEye — Sistema de Prospección Automatizada</p>
+        </div>`
+      ).catch(() => {});
+    }
+
     res.json({
       folio: p.folio,
       razonSocial: p.razon_social,
