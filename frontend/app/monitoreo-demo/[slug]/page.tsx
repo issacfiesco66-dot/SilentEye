@@ -33,11 +33,18 @@ export default function MonitoreoDemoPage() {
   const [tick, setTick] = useState(0);
   const [fuelAlert, setFuelAlert] = useState(false);
   const [riskUnits, setRiskUnits] = useState(3);
+  // Panic button demo state
+  const [panicActive, setPanicActive] = useState(false);
+  const [panicPhase, setPanicPhase] = useState(0); // 0=idle,1=sos,2=radius,3=drivers,4=responding,5=tracking
+  const [panicLog, setPanicLog] = useState<string[]>([]);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   const trailLineRef = useRef<any>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const panicCircleRef = useRef<any>(null);
+  const panicDriverMarkersRef = useRef<any[]>([]);
+  const panicDriverIntervalsRef = useRef<ReturnType<typeof setInterval>[]>([]);
 
   const API = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -165,6 +172,111 @@ export default function MonitoreoDemoPage() {
   const handleEngineRestart = () => {
     setEngineOff(false);
     setSpeed(55);
+  };
+
+  // ── Panic Button Demo ──
+  const handlePanic = async () => {
+    if (panicActive) return;
+    setPanicActive(true);
+    setPanicLog([]);
+    const L = (await import('leaflet')).default;
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    const baseLat = vehiclePos.lat;
+    const baseLng = vehiclePos.lng;
+
+    // Phase 1: SOS sent
+    setPanicPhase(1);
+    setPanicLog(['Chofer presionó botón de PÁNICO']);
+
+    setTimeout(() => {
+      // Phase 2: 3km radius expanding
+      setPanicPhase(2);
+      setPanicLog(prev => [...prev, 'Alerta SOS transmitida — escaneando radio de 3 km...']);
+      const circle = L.circle([baseLat, baseLng], {
+        radius: 3000, color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.06,
+        weight: 2, dashArray: '6 4',
+      }).addTo(map);
+      panicCircleRef.current = circle;
+      map.flyTo([baseLat, baseLng], 13, { duration: 1.5 });
+    }, 1200);
+
+    setTimeout(() => {
+      // Phase 3: Nearby drivers appear
+      setPanicPhase(3);
+      const drivers = [
+        { lat: baseLat + 0.012, lng: baseLng - 0.008, name: 'Carlos M.', dist: '1.2 km' },
+        { lat: baseLat - 0.009, lng: baseLng + 0.015, name: 'Roberto S.', dist: '1.8 km' },
+        { lat: baseLat + 0.018, lng: baseLng + 0.005, name: 'Javier L.', dist: '2.1 km' },
+        { lat: baseLat - 0.015, lng: baseLng - 0.012, name: 'Miguel R.', dist: '2.6 km' },
+      ];
+      setPanicLog(prev => [...prev, `4 conductores detectados en radio de 3 km`]);
+
+      drivers.forEach((d, i) => {
+        setTimeout(() => {
+          const driverIcon = L.divIcon({
+            className: '',
+            html: `<div style="position:relative">
+              <div style="position:absolute;top:-4px;left:-4px;width:36px;height:36px;border-radius:50%;background:rgba(245,158,11,0.2);animation:pulse 1.5s infinite"></div>
+              <div style="width:28px;height:28px;background:#000;border:2px solid #f59e0b;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 15px rgba(245,158,11,0.3)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4-4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+            </div>`,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+          });
+          const marker = L.marker([d.lat, d.lng], { icon: driverIcon }).addTo(map);
+          marker.bindTooltip(`<strong>${d.name}</strong><br/>${d.dist}`, { permanent: false, className: 'leaflet-tooltip-dark' });
+          panicDriverMarkersRef.current.push(marker);
+          setPanicLog(prev => [...prev, `${d.name} notificado (${d.dist})`]);
+        }, i * 500);
+      });
+
+      // Phase 4: Drivers responding
+      setTimeout(() => {
+        setPanicPhase(4);
+        setPanicLog(prev => [...prev, 'Carlos M. aceptó — EN CAMINO']);
+        setTimeout(() => {
+          setPanicLog(prev => [...prev, 'Roberto S. aceptó — EN CAMINO']);
+        }, 800);
+      }, 2500);
+
+      // Phase 5: Real-time tracking active, drivers converge
+      setTimeout(() => {
+        setPanicPhase(5);
+        setPanicLog(prev => [...prev, 'SEGUIMIENTO EN TIEMPO REAL ACTIVO — 2 conductores acercándose']);
+
+        // Animate drivers moving toward vehicle
+        const moveDrivers = () => {
+          panicDriverMarkersRef.current.forEach((m, i) => {
+            if (i > 1) return; // only first 2 converge
+            const pos = m.getLatLng();
+            const dlat = (baseLat - pos.lat) * 0.08;
+            const dlng = (baseLng - pos.lng) * 0.08;
+            m.setLatLng([pos.lat + dlat, pos.lng + dlng]);
+          });
+        };
+        const moveInterval = setInterval(moveDrivers, 1500);
+        panicDriverIntervalsRef.current.push(moveInterval);
+      }, 5000);
+    }, 3000);
+  };
+
+  const handlePanicReset = () => {
+    setPanicActive(false);
+    setPanicPhase(0);
+    setPanicLog([]);
+    const map = mapInstanceRef.current;
+    if (map && panicCircleRef.current) {
+      map.removeLayer(panicCircleRef.current);
+      panicCircleRef.current = null;
+    }
+    panicDriverMarkersRef.current.forEach(m => { if (map) map.removeLayer(m); });
+    panicDriverMarkersRef.current = [];
+    panicDriverIntervalsRef.current.forEach(i => clearInterval(i));
+    panicDriverIntervalsRef.current = [];
+    if (map) map.flyTo([vehiclePos.lat, vehiclePos.lng], 15, { duration: 1 });
   };
 
   if (loading) {
@@ -317,6 +429,106 @@ export default function MonitoreoDemoPage() {
                     <span className="text-white font-black text-base tracking-wide">REACTIVAR MOTOR</span>
                   </div>
                 </button>
+              )}
+            </div>
+
+            {/* ── PANIC BUTTON DEMO ── */}
+            <div className="pt-1">
+              <p className="text-[9px] text-zinc-600 uppercase tracking-[2px] font-bold mb-3 text-center">Botón de Pánico — Función Exclusiva</p>
+              {!panicActive ? (
+                <button
+                  onClick={handlePanic}
+                  className="w-full group relative overflow-hidden rounded-2xl transition-all active:scale-[0.97]"
+                  style={{ boxShadow: '0 0 40px rgba(245,158,11,0.2)' }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-b from-amber-500 to-amber-700 opacity-90" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/30" />
+                  <div className="relative px-6 py-5 flex flex-col items-center gap-2">
+                    <div className="w-14 h-14 rounded-full border-4 border-white/20 flex items-center justify-center bg-black/20">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </div>
+                    <span className="text-white font-black text-base tracking-wide">PROBAR BOTÓN DE PÁNICO</span>
+                    <span className="text-amber-200/60 text-[10px] font-bold uppercase tracking-widest">Simular alerta SOS del chofer</span>
+                  </div>
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  {/* Panic status indicator */}
+                  <div className={`rounded-xl p-4 border transition-all ${
+                    panicPhase >= 5
+                      ? 'bg-green-500/5 border-green-500/30'
+                      : 'bg-amber-500/5 border-amber-500/30'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${
+                        panicPhase >= 5 ? 'bg-green-500' : 'bg-amber-500'
+                      }`} />
+                      <p className={`font-black text-sm ${
+                        panicPhase >= 5 ? 'text-green-400' : 'text-amber-400'
+                      }`}>
+                        {panicPhase === 1 && 'ENVIANDO SOS...'}
+                        {panicPhase === 2 && 'ESCANEANDO CONDUCTORES CERCANOS...'}
+                        {panicPhase === 3 && 'NOTIFICANDO CONDUCTORES...'}
+                        {panicPhase === 4 && 'CONDUCTORES RESPONDIENDO...'}
+                        {panicPhase >= 5 && 'SEGUIMIENTO EN TIEMPO REAL ACTIVO'}
+                      </p>
+                    </div>
+
+                    {/* How it works explanation */}
+                    <div className="bg-black/40 rounded-lg p-3 mb-3 border border-zinc-800">
+                      <p className="text-[10px] text-zinc-400 leading-relaxed">
+                        <span className="text-amber-400 font-black">¿Cómo funciona?</span> Cuando un chofer presiona el botón de pánico (físico en el GPS o desde la app), Silent Eye envía una alerta instantánea a <span className="text-white font-bold">todos los conductores de su flota en un radio de 3 km</span>. Los conductores cercanos reciben la ubicación exacta y pueden dar seguimiento en tiempo real, acudiendo al lugar de inmediato.
+                      </p>
+                    </div>
+
+                    {/* Real-time log */}
+                    <div className="space-y-1.5 max-h-[180px] overflow-y-auto">
+                      {panicLog.map((log, i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          <span className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
+                            log.includes('ACTIVO') ? 'bg-green-500'
+                              : log.includes('EN CAMINO') || log.includes('aceptó') ? 'bg-green-400'
+                              : log.includes('PÁNICO') ? 'bg-red-500'
+                              : 'bg-amber-400'
+                          }`} />
+                          <p className={`text-[11px] font-bold ${
+                            log.includes('ACTIVO') ? 'text-green-400'
+                              : log.includes('EN CAMINO') || log.includes('aceptó') ? 'text-green-400/80'
+                              : log.includes('PÁNICO') ? 'text-red-400'
+                              : 'text-amber-400/80'
+                          }`}>
+                            {log}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Feature highlights */}
+                  {panicPhase >= 5 && (
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { icon: '🛡️', label: 'Botón físico', desc: 'En el GPS del vehículo' },
+                        { icon: '📡', label: 'Radio 3 km', desc: 'Alerta a conductores cercanos' },
+                        { icon: '📍', label: 'Tiempo real', desc: 'Seguimiento GPS en vivo' },
+                        { icon: '⚡', label: 'Respuesta', desc: 'Ayuda en menos de 5 min' },
+                      ].map(f => (
+                        <div key={f.label} className="bg-black rounded-lg p-2.5 border border-zinc-800 text-center">
+                          <p className="text-base mb-0.5">{f.icon}</p>
+                          <p className="text-[10px] text-white font-black">{f.label}</p>
+                          <p className="text-[9px] text-zinc-600">{f.desc}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handlePanicReset}
+                    className="w-full py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 text-[11px] font-bold transition-colors border border-zinc-800"
+                  >
+                    Reiniciar simulación
+                  </button>
+                </div>
               )}
             </div>
 
