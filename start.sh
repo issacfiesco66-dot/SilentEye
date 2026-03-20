@@ -14,11 +14,14 @@ NODE_PID=$!
 
 if [ -n "$NGROK_AUTHTOKEN" ]; then
   sleep 5
+  echo "[start.sh] Starting ngrok tunnel ..."
   if [ -n "$NGROK_TCP_URL" ]; then
-    exec ngrok tcp 5000 --url "$NGROK_TCP_URL" --log=stdout
+    ngrok tcp 5000 --url "$NGROK_TCP_URL" --log=stdout &
   else
-    exec ngrok tcp 5000 --log=stdout
+    ngrok tcp 5000 --log=stdout &
   fi
-else
-  wait $NODE_PID
+  NGROK_PID=$!
+  echo "[start.sh] ngrok started (PID $NGROK_PID) — node continues regardless"
 fi
+
+wait $NODE_PID
