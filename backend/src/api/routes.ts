@@ -2541,3 +2541,127 @@ api.delete('/prospects/:id', authMiddleware, requireRole('admin'), asyncHandler(
     res.status(500).json({ error: 'Error al eliminar prospecto' });
   }
 }));
+
+// ── Admin: Search Google Maps via SerpAPI ──
+const SERPAPI_KEY = process.env.SERPAPI_KEY || '';
+
+api.post('/prospects/search-maps', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+  const { query } = req.body;
+  if (!query || typeof query !== 'string' || query.trim().length < 3) {
+    res.status(400).json({ error: 'Proporciona una búsqueda válida (mín. 3 caracteres)' });
+    return;
+  }
+  if (!SERPAPI_KEY) {
+    res.status(503).json({ error: 'SERPAPI_KEY no configurado. Configúralo en las variables de entorno.' });
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      engine: 'google_maps',
+      q: query.trim(),
+      type: 'search',
+      api_key: SERPAPI_KEY,
+    });
+
+    const serpRes = await fetch(`https://serpapi.com/search.json?${params.toString()}`);
+    if (!serpRes.ok) {
+      const errText = await serpRes.text();
+      logger.error(`SerpAPI error ${serpRes.status}: ${errText}`);
+      res.status(502).json({ error: 'Error al buscar en Google Maps' });
+      return;
+    }
+
+    const data = await serpRes.json() as {
+      local_results?: Array<{
+        title?: string;
+        phone?: string;
+        address?: string;
+        gps_coordinates?: { latitude?: number; longitude?: number };
+        rating?: number;
+        reviews?: number;
+        type?: string;
+        website?: string;
+        place_id?: string;
+      }>;
+    };
+
+    const results = (data.local_results || []).map(r => ({
+      name: r.title || 'Sin nombre',
+      phone: r.phone || null,
+      address: r.address || null,
+      lat: r.gps_coordinates?.latitude || null,
+      lng: r.gps_coordinates?.longitude || null,
+      rating: r.rating || null,
+      reviews: r.reviews || null,
+      type: r.type || null,
+      website: r.website || null,
+      placeId: r.place_id || null,
+    }));
+
+    res.json({ query: query.trim(), count: results.length, results });
+  } catch (err) {
+    logger.error('POST /prospects/search-maps error:', err);
+    res.status(500).json({ error: 'Error interno al buscar' });
+  }
+}));
+
+// ── Admin: Bulk ingest prospects from search results ──
+api.post('/prospects/bulk-ingest', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+  const { prospects } = req.body;
+  if (!Array.isArray(prospects) || prospects.length === 0) {
+    res.status(400).json({ error: 'Envía un array de prospectos' });
+    return;
+  }
+  if (prospects.length > 50) {
+    res.status(400).json({ error: 'Máximo 50 prospectos por lote' });
+    return;
+  }
+
+  const results: Array<{ folio: string; slug: string; demoUrl: string; razonSocial: string; telefono: string | null; whatsappMessage: string; whatsappLink: string }> = [];
+
+  try {
+    for (const p of prospects) {
+      const razonSocial = typeof p.name === 'string' ? p.name.trim() : 'Sin nombre';
+      const telefono = typeof p.phone === 'string' ? p.phone.replace(/[^+\d]/g, '') : null;
+      const ubicacion = typeof p.address === 'string' ? p.address.trim() : null;
+      const tipo = typeof p.type === 'string' ? p.type.trim() : 'Transporte';
+      const latitud = typeof p.lat === 'number' ? p.lat : null;
+      const longitud = typeof p.lng === 'number' ? p.lng : null;
+
+      const folio = generateFolio();
+      const baseSlug = slugify(razonSocial);
+      const slug = `${baseSlug}-${folio.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+
+      // Check for duplicate by phone or name+location
+      if (telefono) {
+        const dup = await pool.query('SELECT id FROM fleet_prospects WHERE telefono_whatsapp = $1 LIMIT 1', [telefono]);
+        if (dup.rows[0]) continue;
+      }
+
+      const r = await pool.query(
+        `INSERT INTO fleet_prospects (folio, razon_social, telefono_whatsapp, ubicacion_patio, latitud, longitud, tipo_transporte, slug)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id, folio, slug`,
+        [folio, razonSocial, telefono, ubicacion, latitud, longitud, tipo, slug]
+      );
+
+      const row = r.rows[0];
+      const demoUrl = `${SITE_URL}/monitoreo-demo/${row.slug}`;
+      const empresa = razonSocial;
+      const zona = ubicacion || 'su zona';
+      const whatsappMessage = `🚨 *ALERTA DE SEGURIDAD PATRIMONIAL - SILENT EYE*\n\nHemos detectado actividad logística de la empresa *${empresa}* en la zona de *${zona}*. Según nuestros registros de zona, sus unidades podrían estar operando sin Blindaje Digital Activo.\n\nHemos generado un Protocolo de Monitoreo Virtual para su flota aquí:\n🔗 ${demoUrl}\n\n*Acciones disponibles en el panel:*\n• Simulación de Paro de Motor Remoto\n• Reporte de Extracción de Combustible (Huachicoleo)\n• Geocerca de Seguridad Activa\n\nEvite pérdidas hoy mismo. Un asesor de seguridad está pendiente de su conexión.\n\n📋 Folio: ${folio}`;
+
+      const whatsappLink = telefono
+        ? `https://wa.me/${telefono.replace(/^\+/, '')}?text=${encodeURIComponent(whatsappMessage.replace(/\\n/g, '\n'))}`
+        : '';
+
+      results.push({ folio, slug: row.slug, demoUrl, razonSocial: empresa, telefono, whatsappMessage, whatsappLink });
+    }
+
+    res.json({ ok: true, ingested: results.length, results });
+  } catch (err) {
+    logger.error('POST /prospects/bulk-ingest error:', err);
+    res.status(500).json({ error: 'Error al ingestar prospectos' });
+  }
+}));
