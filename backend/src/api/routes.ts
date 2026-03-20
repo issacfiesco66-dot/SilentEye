@@ -2380,7 +2380,7 @@ api.post('/ingest-prospects', ingestRateLimit, asyncHandler(async (req, res) => 
     // WhatsApp alert message — Protocolo Alerta
     const empresa = razonSocial.trim();
     const zona = ubicacion?.trim() || 'su zona';
-    const whatsappMessage = `� *ALERTA DE SEGURIDAD PATRIMONIAL - SILENT EYE*\n\nHemos detectado actividad logística de la empresa *${empresa}* en la zona de *${zona}*. Según nuestros registros de zona, sus unidades podrían estar operando sin Blindaje Digital Activo.\n\nHemos generado un Protocolo de Monitoreo Virtual para su flota aquí:\n� ${demoUrl}\n\n*Acciones disponibles en el panel:*\n• Simulación de Paro de Motor Remoto\n• Reporte de Extracción de Combustible (Huachicoleo)\n• Geocerca de Seguridad Activa\n\nEvite pérdidas hoy mismo. Un asesor de seguridad está pendiente de su conexión.\n\n📋 Folio: ${folio}`;
+    const whatsappMessage = `🚨 *ALERTA DE SEGURIDAD PATRIMONIAL - SILENT EYE*\n\nHemos detectado actividad logística de la empresa *${empresa}* en la zona de *${zona}*. Según nuestros registros de zona, sus unidades podrían estar operando sin Blindaje Digital Activo.\n\nHemos generado un Protocolo de Monitoreo Virtual para su flota aquí:\n🔗 ${demoUrl}\n\n*Acciones disponibles en el panel:*\n• Simulación de Paro de Motor Remoto\n• Reporte de Extracción de Combustible (Huachicoleo)\n• Geocerca de Seguridad Activa\n\nEvite pérdidas hoy mismo. Un asesor de seguridad está pendiente de su conexión.\n\n📋 Folio: ${folio}`;
 
     res.status(201).json({
       ok: true,
