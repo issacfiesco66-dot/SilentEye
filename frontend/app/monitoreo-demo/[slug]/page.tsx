@@ -111,6 +111,9 @@ export default function MonitoreoDemoPage() {
       mapInstanceRef.current = map;
       markerRef.current = marker;
       trailLineRef.current = trailLine;
+
+      // Force Leaflet to recalculate container size (fixes blank map in flex layouts)
+      setTimeout(() => map.invalidateSize(), 200);
     };
 
     loadMap();
@@ -221,7 +224,7 @@ export default function MonitoreoDemoPage() {
       <div className="flex flex-col lg:flex-row h-[calc(100vh-53px)]">
         {/* ── Full-screen Map ── */}
         <div className="flex-1 relative">
-          <div ref={mapRef} className="w-full h-full min-h-[400px]" />
+          <div ref={mapRef} className="w-full h-[50vh] lg:h-full" style={{ minHeight: '400px' }} />
 
           {/* Top-left: Speed + risk units overlay */}
           <div className="absolute top-4 left-4 z-[500] space-y-3">
