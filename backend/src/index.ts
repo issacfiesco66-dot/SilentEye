@@ -154,7 +154,31 @@ server.listen(HTTP_PORT, '0.0.0.0', () => {
   logger.info(`TCP Teltonika: 0.0.0.0:${TCP_PORT} | HTTP: ${HTTP_PORT}`);
   startOtpCleanup();
   startIncidentAutoTimeout();
+  startGpsLogsCleanup();
 });
+
+// Cleanup GPS logs older than 90 days (runs every 24 hours)
+const GPS_LOG_RETENTION_DAYS = parseInt(process.env.GPS_LOG_RETENTION_DAYS || '90', 10);
+function startGpsLogsCleanup() {
+  // Run once at startup (delayed 5 min to let the server warm up)
+  setTimeout(runGpsLogsCleanup, 5 * 60 * 1000);
+  // Then every 24 hours
+  setInterval(runGpsLogsCleanup, 24 * 60 * 60 * 1000);
+}
+async function runGpsLogsCleanup() {
+  try {
+    const { pool: dbPool } = await import('./db/pool.js');
+    const r = await dbPool.query(
+      `DELETE FROM gps_logs WHERE created_at < NOW() - INTERVAL '1 day' * $1`,
+      [GPS_LOG_RETENTION_DAYS]
+    );
+    if ((r.rowCount ?? 0) > 0) {
+      logger.info(`GPS logs cleanup: ${r.rowCount} registros eliminados (> ${GPS_LOG_RETENTION_DAYS} días)`);
+    }
+  } catch (err) {
+    logger.warn('GPS logs cleanup error:', err);
+  }
+}
 
 // Auto-resolve incidents stuck in 'active' or 'attending' for > 2 hours
 const INCIDENT_TIMEOUT_MS = parseInt(process.env.INCIDENT_TIMEOUT_HOURS || '2', 10) * 3600 * 1000;

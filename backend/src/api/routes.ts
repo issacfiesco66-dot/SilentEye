@@ -1289,6 +1289,17 @@ const VALID_INCIDENT_STATUSES = ['active', 'attending', 'localizado', 'recuperad
 const TERMINAL_STATUSES = ['resolved', 'recuperado', 'falsa_alarma', 'cancelled'];
 const ADMIN_ONLY_STATUSES = ['resolved'];
 
+// State machine: only these transitions are allowed. Terminal states have no exits.
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  active:       ['attending', 'cancelled', 'falsa_alarma', 'resolved'],
+  attending:    ['localizado', 'cancelled', 'falsa_alarma', 'resolved'],
+  localizado:   ['recuperado', 'resolved', 'falsa_alarma'],
+  recuperado:   ['resolved'],
+  resolved:     [],
+  falsa_alarma: [],
+  cancelled:    [],
+};
+
 api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper', 'driver'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
@@ -1298,6 +1309,23 @@ api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper', 
     res.status(400).json({ error: `Estado inválido. Válidos: ${VALID_INCIDENT_STATUSES.join(', ')}` });
     return;
   }
+
+  // Validate state transition: fetch current status and check allowed transitions
+  const currentIncident = await pool.query('SELECT status FROM incidents WHERE id = $1', [id]);
+  if (!currentIncident.rows[0]) {
+    res.status(404).json({ error: 'Incidente no encontrado' });
+    return;
+  }
+  const currentStatus = currentIncident.rows[0].status;
+  const allowedTransitions = VALID_TRANSITIONS[currentStatus] || [];
+  if (!allowedTransitions.includes(status)) {
+    res.status(400).json({
+      error: `Transición de estado no válida: ${currentStatus} → ${status}`,
+      allowed: allowedTransitions,
+    });
+    return;
+  }
+
   // Solo admin puede marcar resolved
   if ((role === 'helper' || role === 'driver') && ADMIN_ONLY_STATUSES.includes(status)) {
     res.status(403).json({ error: 'Solo un administrador puede marcar ese estado' });
@@ -2564,7 +2592,23 @@ api.post('/prospects/search-maps', authMiddleware, requireRole('admin'), asyncHa
       api_key: SERPAPI_KEY,
     });
 
-    const serpRes = await fetch(`https://serpapi.com/search.json?${params.toString()}`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    let serpRes: Awaited<ReturnType<typeof fetch>>;
+    try {
+      serpRes = await fetch(`https://serpapi.com/search.json?${params.toString()}`, {
+        signal: controller.signal,
+      });
+    } catch (fetchErr: any) {
+      clearTimeout(timeout);
+      if (fetchErr.name === 'AbortError') {
+        logger.error('SerpAPI timeout: la petición excedió 10s');
+        res.status(504).json({ error: 'Tiempo de espera agotado al buscar en Google Maps' });
+        return;
+      }
+      throw fetchErr;
+    }
+    clearTimeout(timeout);
     if (!serpRes.ok) {
       const errText = await serpRes.text();
       logger.error(`SerpAPI error ${serpRes.status}: ${errText}`);
