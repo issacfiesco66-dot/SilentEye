@@ -1,6 +1,10 @@
 import nodemailer from 'nodemailer';
 import { logger } from '../utils/logger.js';
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
 const SMTP_USER = process.env.SMTP_USER || '';
@@ -69,7 +73,7 @@ export async function sendHelperRespondingEmail(
       </div>
       <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 20px;">
         <p style="font-size: 16px; font-weight: 600; color: #065f46; margin: 0 0 8px;">Ayuda en camino</p>
-        <p style="font-size: 14px; color: #047857; margin: 0;"><strong>${helperName}</strong> está respondiendo a tu alerta.</p>
+        <p style="font-size: 14px; color: #047857; margin: 0;"><strong>${escapeHtml(helperName)}</strong> está respondiendo a tu alerta.</p>
       </div>
       <p style="font-size: 13px; color: #71717a; text-align: center; margin: 0;">
         Mantén la calma. Recibirás más actualizaciones por correo.<br/>
@@ -125,7 +129,7 @@ export async function sendWitnessRequestEmail(
       <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 24px; margin-bottom: 20px;">
         <p style="font-size: 15px; font-weight: 600; color: #1e40af; margin: 0 0 12px; text-align: center;">Solicitud de testigo</p>
         <p style="font-size: 14px; color: #1e3a5f; margin: 0 0 16px;">
-          Hola <strong>${responderName}</strong>,<br/><br/>
+          Hola <strong>${escapeHtml(responderName)}</strong>,<br/><br/>
           Participaste en la atención del incidente <code>${incidentId.slice(0, 8)}</code>.
           El administrador ha solicitado voluntarios como testigos en caso de que se requiera una declaración futura.
         </p>

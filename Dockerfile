@@ -34,6 +34,11 @@ ENV NODE_ENV=production
 ENV TCP_PORT=5000
 ENV PORT=8080
 
+# Run as non-root user for security
+RUN addgroup -S app && adduser -S app -G app
+RUN chown -R app:app /app
+USER app
+
 EXPOSE 8080 5000
 
 # Wrapper: auto-restart node on crash + ngrok if configured

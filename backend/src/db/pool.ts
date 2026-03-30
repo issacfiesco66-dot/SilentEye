@@ -15,7 +15,7 @@ export const pool = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
   ...(isProd && connString && !connString.includes('sslmode=disable')
-    ? { ssl: { rejectUnauthorized: false } }
+    ? { ssl: { rejectUnauthorized: true, ca: process.env.DATABASE_CA_CERT || undefined } }
     : {}),
 });
 

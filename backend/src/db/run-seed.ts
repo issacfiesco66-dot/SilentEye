@@ -9,16 +9,19 @@ export async function runSeed(): Promise<{ ok: boolean; message: string }> {
     }
     const adminPasswordHash = await bcrypt.hash(adminPwd, 12);
 
+    const adminPhone = process.env.ADMIN_SEED_PHONE || '+525500000000';
+    const adminEmail = process.env.ADMIN_SEED_EMAIL || 'admin@silenteye.mx';
+
     await pool.query(`
       INSERT INTO users (phone, name, role, email, password_hash) VALUES
-      ('+525610669353', 'Admin', 'admin', 'djonny319@gmail.com', $1),
+      ($2, 'Admin', 'admin', $3, $1),
       ('+51999999998', 'Helper 1', 'helper', NULL, NULL),
       ('+51999999997', 'Conductor 1', 'driver', NULL, NULL)
       ON CONFLICT (phone) DO UPDATE SET
         email = EXCLUDED.email,
         password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash),
         role = EXCLUDED.role
-    `, [adminPasswordHash]);
+    `, [adminPasswordHash, adminPhone, adminEmail]);
 
     await pool.query(
       `INSERT INTO vehicles (plate, name, imei) VALUES

@@ -18,7 +18,8 @@ import { logger } from './utils/logger.js';
 
 // ── Global crash guards ──
 process.on('uncaughtException', (err) => {
-  logger.error('UNCAUGHT EXCEPTION (process kept alive):', err);
+  logger.error('UNCAUGHT EXCEPTION — shutting down:', err);
+  process.exit(1);
 });
 process.on('unhandledRejection', (reason) => {
   logger.error('UNHANDLED REJECTION (process kept alive):', reason);

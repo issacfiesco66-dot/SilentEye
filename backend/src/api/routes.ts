@@ -199,22 +199,27 @@ api.post('/setup/cleanup', asyncHandler(async (req, res) => {
     res.status(403).json({ error: 'Secret inválido.' });
     return;
   }
-  const tables = [
+  const allowedTables = new Set([
     'geofence_alerts', 'gps_logs', 'alerts', 'incident_followers', 'incidents',
     'helper_locations', 'push_subscriptions', 'otp_codes', 'geofences', 'vehicles',
-  ];
-  for (const t of tables) {
+  ]);
+  for (const t of allowedTables) {
+    if (!/^[a-z_]+$/.test(t)) throw new Error(`Invalid table name: ${t}`);
     await pool.query(`TRUNCATE TABLE ${t} CASCADE`);
   }
   const del = await pool.query(`DELETE FROM users WHERE role != 'admin'`);
   res.json({
     ok: true,
-    message: `Limpieza completada. Tablas truncadas: ${tables.join(', ')}. Usuarios eliminados (no-admin): ${del.rowCount}`,
+    message: `Limpieza completada. Tablas truncadas: ${[...allowedTables].join(', ')}. Usuarios eliminados (no-admin): ${del.rowCount}`,
   });
 }));
 
-// Crear OTP y devolverlo (para primer login en prod cuando no hay SMS)
+// Crear OTP (only in development — disabled in production for security)
 api.post('/setup/otp', asyncHandler(async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
   if (!checkSetupSecret(req)) {
     res.status(403).json({ error: 'Secret inválido.' });
     return;
@@ -261,8 +266,7 @@ function requireRole(...roles: string[]) {
 api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
   try {
     const { imei, phone, email, mode } = req.body;
-    // SECURITY: Never return OTP code in production responses
-    const showCode = process.env.NODE_ENV !== 'production';
+    // SECURITY: OTP codes are logged via Winston for debugging — never returned in responses
 
     if (imei && typeof imei === 'string') {
       if (!isValidImeiInput(imei)) {
@@ -309,7 +313,7 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
 
-      res.json(showCode ? { success: true, code } : { success: true });
+      res.json({ success: true });
       return;
     }
 
@@ -413,9 +417,6 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       } else if (smsOk) {
         result.smsSent = true;
       }
-      // Only include code in dev mode (never in production)
-      if (showCode) result.code = code;
-
       res.json(result);
       return;
     }
