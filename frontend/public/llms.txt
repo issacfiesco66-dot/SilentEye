@@ -35,6 +35,9 @@ SilentEye es una plataforma web mexicana de seguridad vehicular que transforma c
 - [GPS para empresas de transporte](https://silenteye.mx/blog/gps-para-empresas-transporte-logistica): Solucion GPS completa para transporte y logistica.
 - [Robo de autos en Mexico 2026](https://silenteye.mx/blog/robo-de-autos-mexico-estadisticas-prevencion): Estadisticas, estados mas peligrosos y como prevenirlo con GPS.
 - [GPS tracker sin renta mensual](https://silenteye.mx/blog/gps-tracker-sin-renta-mensual-mexico): La verdad sobre los costos de rastreo GPS en Mexico.
+- [Chip GPS para auto: que es y como funciona](https://silenteye.mx/blog/chip-gps-para-auto-como-funciona): Que es un chip GPS, cuanto cuesta, donde comprarlo y como instalarlo en Mexico.
+- [Como rastrear un auto robado con GPS](https://silenteye.mx/blog/como-rastrear-auto-robado-gps): Guia paso a paso para rastrear y recuperar un auto robado con GPS.
+- [APN para GPS tracker: Telcel, AT&T, Movistar](https://silenteye.mx/blog/apn-gps-tracker-telcel-att-movistar): Comandos SMS para configurar el APN en Coban, Sinotrack, Concox y Teltonika.
 
 ## Producto
 
