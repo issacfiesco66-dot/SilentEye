@@ -7,7 +7,7 @@
 import Link from 'next/link';
 import AuthRedirect from '@/components/AuthRedirect';
 import SecretAdminTrigger from '@/components/SecretAdminTrigger';
-import JsonLd, { organizationJsonLd, softwareJsonLd, faqJsonLd, getBreadcrumbJsonLd } from '@/components/JsonLd';
+import JsonLd, { organizationJsonLd, softwareJsonLd, faqJsonLd, howToJsonLd, serviceJsonLd, webSiteJsonLd, getBreadcrumbJsonLd } from '@/components/JsonLd';
 
 export default function Home() {
   return (
@@ -16,6 +16,9 @@ export default function Home() {
       <JsonLd data={organizationJsonLd} />
       <JsonLd data={softwareJsonLd} />
       <JsonLd data={faqJsonLd} />
+      <JsonLd data={howToJsonLd} />
+      <JsonLd data={serviceJsonLd} />
+      <JsonLd data={webSiteJsonLd} />
       <JsonLd data={getBreadcrumbJsonLd([
         { name: 'Inicio', url: 'https://silenteye.mx' },
       ])} />
@@ -37,6 +40,7 @@ export default function Home() {
             <a href="#dispositivos" className="hover:text-zinc-900 transition-colors">GPS compatibles</a>
             <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
             <Link href="/blog" className="hover:text-zinc-900 transition-colors">Blog</Link>
+            <Link href="/precios" className="hover:text-zinc-900 transition-colors">Precios</Link>
           </div>
 
           <div className="flex items-center gap-3">
@@ -811,30 +815,73 @@ export default function Home() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-zinc-100 px-6 py-10">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <SecretAdminTrigger>
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 bg-zinc-900 rounded-md flex items-center justify-center">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
-              </div>
-              <span className="text-sm font-bold tracking-tight">SilentEye</span>
+      <footer className="border-t border-zinc-100 px-6 py-16">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-12">
+            {/* Brand */}
+            <div className="col-span-2 md:col-span-1">
+              <SecretAdminTrigger>
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className="w-7 h-7 bg-zinc-900 rounded-md flex items-center justify-center">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </div>
+                  <span className="text-sm font-bold tracking-tight">SilentEye</span>
+                </div>
+              </SecretAdminTrigger>
+              <p className="text-[13px] text-zinc-400 leading-relaxed mb-3">
+                Plataforma GPS de seguridad vehicular con rastreo en tiempo real y alertas automáticas. México.
+              </p>
+              <p className="text-[12px] text-zinc-400">
+                contacto@silenteye.mx
+              </p>
             </div>
-          </SecretAdminTrigger>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-zinc-400">
-            <a href="#problema" className="hover:text-zinc-900 transition-colors">Problema</a>
-            <a href="#producto" className="hover:text-zinc-900 transition-colors">Plataforma</a>
-            <a href="#vehiculos" className="hover:text-zinc-900 transition-colors">Vehículos</a>
-            <a href="#dispositivos" className="hover:text-zinc-900 transition-colors">GPS compatibles</a>
-            <a href="#faq" className="hover:text-zinc-900 transition-colors">FAQ</a>
-            <Link href="/blog" className="hover:text-zinc-900 transition-colors">Blog</Link>
-            <Link href="/login" className="hover:text-zinc-900 transition-colors">Acceder</Link>
+
+            {/* Plataforma */}
+            <div>
+              <h4 className="text-[13px] font-bold text-zinc-900 mb-4">Plataforma</h4>
+              <div className="space-y-2.5 text-[13px] text-zinc-400">
+                <a href="#producto" className="block hover:text-zinc-900 transition-colors">Características</a>
+                <a href="#vehiculos" className="block hover:text-zinc-900 transition-colors">GPS por vehículo</a>
+                <a href="#dispositivos" className="block hover:text-zinc-900 transition-colors">GPS compatibles</a>
+                <a href="#recuperacion" className="block hover:text-zinc-900 transition-colors">Recuperación vehicular</a>
+                <Link href="/sos" className="block hover:text-zinc-900 transition-colors">Emergencia SOS</Link>
+                <Link href="/precios" className="block hover:text-zinc-900 transition-colors">Precios</Link>
+              </div>
+            </div>
+
+            {/* Blog popular */}
+            <div>
+              <h4 className="text-[13px] font-bold text-zinc-900 mb-4">Guías GPS</h4>
+              <div className="space-y-2.5 text-[13px] text-zinc-400">
+                <Link href="/blog/mejor-gps-para-auto-mexico" className="block hover:text-zinc-900 transition-colors">Mejor GPS para auto</Link>
+                <Link href="/blog/gps-para-trailers-camiones-carga" className="block hover:text-zinc-900 transition-colors">GPS para trailers</Link>
+                <Link href="/blog/gps-para-motos-antirrobo" className="block hover:text-zinc-900 transition-colors">GPS para motos</Link>
+                <Link href="/blog/gps-para-flotillas-gestion-vehiculos" className="block hover:text-zinc-900 transition-colors">GPS para flotillas</Link>
+                <Link href="/blog/como-instalar-gps-en-auto" className="block hover:text-zinc-900 transition-colors">Cómo instalar GPS</Link>
+                <Link href="/blog" className="block hover:text-zinc-900 transition-colors font-medium">Ver todo el blog →</Link>
+              </div>
+            </div>
+
+            {/* Legal */}
+            <div>
+              <h4 className="text-[13px] font-bold text-zinc-900 mb-4">Legal</h4>
+              <div className="space-y-2.5 text-[13px] text-zinc-400">
+                <Link href="/privacidad" className="block hover:text-zinc-900 transition-colors">Política de privacidad</Link>
+                <Link href="/cookies" className="block hover:text-zinc-900 transition-colors">Política de cookies</Link>
+                <Link href="/terminos" className="block hover:text-zinc-900 transition-colors">Términos de servicio</Link>
+                <Link href="/login" className="block hover:text-zinc-900 transition-colors">Acceder a la plataforma</Link>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <Link href="/privacidad" className="text-[12px] text-zinc-400 hover:text-zinc-600 transition-colors">Privacidad</Link>
-            <Link href="/cookies" className="text-[12px] text-zinc-400 hover:text-zinc-600 transition-colors">Cookies</Link>
-            <Link href="/terminos" className="text-[12px] text-zinc-400 hover:text-zinc-600 transition-colors">Términos</Link>
-            <span className="text-[12px] text-zinc-300">SilentEye &copy; {new Date().getFullYear()}</span>
+
+          {/* Bottom bar */}
+          <div className="border-t border-zinc-100 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
+            <span className="text-[12px] text-zinc-300">SilentEye &copy; {new Date().getFullYear()} — Plataforma de rastreo GPS vehicular en México</span>
+            <div className="flex items-center gap-4 text-[12px] text-zinc-400">
+              <a href="#faq" className="hover:text-zinc-600 transition-colors">FAQ</a>
+              <Link href="/blog" className="hover:text-zinc-600 transition-colors">Blog</Link>
+              <Link href="/sos" className="hover:text-zinc-600 transition-colors">SOS</Link>
+            </div>
           </div>
         </div>
       </footer>

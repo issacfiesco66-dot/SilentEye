@@ -27,6 +27,16 @@ export const organizationJsonLd = {
     'Plataforma GPS de seguridad vehicular con rastreo en tiempo real, alertas automáticas y botón de pánico. Compatible con GPS Teltonika, Queclink, Concox, Cobán y Sinotrack.',
   foundingDate: '2026',
   sameAs: [],
+  knowsAbout: [
+    'Rastreo GPS vehicular',
+    'Seguridad vehicular México',
+    'Gestión de flotillas GPS',
+    'Recuperación vehicular',
+    'GPS Teltonika',
+    'GPS Cobán',
+    'GPS Sinotrack',
+    'Botón de pánico vehicular',
+  ],
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: 'customer service',
@@ -179,6 +189,184 @@ export const faqJsonLd = {
     },
   ],
 };
+
+// ── HowTo: Proceso de recuperación vehicular ──
+export const howToJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'HowTo',
+  name: 'Cómo funciona la recuperación vehicular con GPS y SilentEye',
+  description:
+    'Proceso paso a paso de cómo SilentEye detecta una emergencia vehicular, distribuye alertas automáticas y coordina la recuperación del vehículo en menos de 3 segundos.',
+  totalTime: 'PT3S',
+  tool: [
+    { '@type': 'HowToTool', name: 'Dispositivo GPS compatible (Teltonika, Queclink, Concox, Cobán o Sinotrack)' },
+    { '@type': 'HowToTool', name: 'Plataforma SilentEye (acceso desde navegador web)' },
+  ],
+  step: [
+    {
+      '@type': 'HowToStep',
+      position: 1,
+      name: 'Emergencia detectada',
+      text: 'El conductor presiona el botón de pánico en el GPS o desde su celular. La señal se envía al instante a la plataforma SilentEye.',
+    },
+    {
+      '@type': 'HowToStep',
+      position: 2,
+      name: 'Plataforma analiza',
+      text: 'SilentEye identifica el tipo de emergencia, valida la ubicación GPS y prepara la distribución de alertas en menos de 1 segundo.',
+    },
+    {
+      '@type': 'HowToStep',
+      position: 3,
+      name: 'Alerta distribuida',
+      text: 'En menos de 3 segundos, administradores, helpers y conductores cercanos dentro de un radio de 2 km reciben la alerta con ubicación en vivo.',
+    },
+    {
+      '@type': 'HowToStep',
+      position: 4,
+      name: 'Coordinación en vivo',
+      text: 'La red de apoyo ve la ubicación del vehículo en tiempo real sobre el mapa. Helpers confirman que van en camino y se coordinan.',
+    },
+    {
+      '@type': 'HowToStep',
+      position: 5,
+      name: 'Recuperación y reporte',
+      text: 'El incidente queda documentado con testigos digitales, responders y reporte PDF automático para seguimiento legal.',
+    },
+  ],
+};
+
+// ── Service: Plataforma GPS ──
+export const serviceJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Service',
+  name: 'Plataforma de Rastreo GPS Vehicular SilentEye',
+  description:
+    'Servicio de rastreo GPS vehicular en tiempo real con alertas automáticas, botón de pánico, gestión de flotillas y coordinación de recuperación vehicular. Compatible con GPS Teltonika, Queclink, Concox, Cobán y Sinotrack.',
+  provider: {
+    '@type': 'Organization',
+    name: 'SilentEye',
+    url: 'https://silenteye.mx',
+  },
+  serviceType: 'Rastreo GPS Vehicular',
+  areaServed: {
+    '@type': 'Country',
+    name: 'México',
+  },
+  availableChannel: {
+    '@type': 'ServiceChannel',
+    serviceUrl: 'https://silenteye.mx',
+    servicePlatform: 'Web',
+  },
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'MXN',
+    description: 'Botón de emergencia SOS gratuito. Planes accesibles de rastreo GPS según cantidad de vehículos.',
+    availability: 'https://schema.org/InStock',
+  },
+  hasOfferCatalog: {
+    '@type': 'OfferCatalog',
+    name: 'Servicios GPS SilentEye',
+    itemListElement: [
+      {
+        '@type': 'Offer',
+        itemOffered: {
+          '@type': 'Service',
+          name: 'Botón de Emergencia SOS Ciudadano',
+          description: 'Alerta de emergencia gratuita desde el navegador. Sin GPS, sin app, sin costo.',
+        },
+      },
+      {
+        '@type': 'Offer',
+        itemOffered: {
+          '@type': 'Service',
+          name: 'Rastreo GPS para Autos',
+          description: 'Monitoreo GPS en tiempo real para autos particulares con alertas de robo y geocercas.',
+        },
+      },
+      {
+        '@type': 'Offer',
+        itemOffered: {
+          '@type': 'Service',
+          name: 'Rastreo GPS para Flotillas',
+          description: 'Gestión completa de flotillas GPS con panel multi-vehículo, asignación de conductores y alertas de velocidad.',
+        },
+      },
+      {
+        '@type': 'Offer',
+        itemOffered: {
+          '@type': 'Service',
+          name: 'Rastreo GPS para Camiones y Trailers',
+          description: 'Rastreo GPS industrial para transporte de carga con monitoreo en carretera 24/7 y botón de pánico.',
+        },
+      },
+      {
+        '@type': 'Offer',
+        itemOffered: {
+          '@type': 'Service',
+          name: 'Rastreo GPS para Motos',
+          description: 'GPS compacto para motos con alerta de vibración, movimiento no autorizado y recuperación vehicular.',
+        },
+      },
+    ],
+  },
+};
+
+// ── WebSite (for sitelinks search box in Google) ──
+export const webSiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'SilentEye',
+  url: 'https://silenteye.mx',
+  description: 'Plataforma GPS de seguridad vehicular con rastreo en tiempo real, alertas automáticas y botón de pánico.',
+  inLanguage: 'es-MX',
+  publisher: {
+    '@type': 'Organization',
+    name: 'SilentEye',
+    url: 'https://silenteye.mx',
+  },
+};
+
+// ── Article (for blog posts) ──
+export function getArticleJsonLd(opts: {
+  title: string;
+  description: string;
+  url: string;
+  datePublished: string;
+  dateModified?: string;
+  image?: string;
+}) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: opts.title,
+    description: opts.description,
+    url: opts.url,
+    datePublished: opts.datePublished,
+    dateModified: opts.dateModified || opts.datePublished,
+    image: opts.image || 'https://silenteye.mx/og-image.png',
+    author: {
+      '@type': 'Organization',
+      name: 'SilentEye',
+      url: 'https://silenteye.mx',
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'SilentEye',
+      url: 'https://silenteye.mx',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://silenteye.mx/icon-512.png',
+      },
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': opts.url,
+    },
+    inLanguage: 'es-MX',
+  };
+}
 
 // ── BreadcrumbList ──
 export function getBreadcrumbJsonLd(items: { name: string; url: string }[]) {

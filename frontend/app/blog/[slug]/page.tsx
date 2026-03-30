@@ -188,6 +188,9 @@ export default function BlogPostPage({ params }: Props) {
     headline: post.title,
     description: post.description,
     datePublished: post.date,
+    dateModified: post.date,
+    image: 'https://silenteye.mx/og-image.png',
+    inLanguage: 'es-MX',
     author: { '@type': 'Organization', name: 'SilentEye', url: 'https://silenteye.mx' },
     publisher: {
       '@type': 'Organization',
@@ -195,8 +198,9 @@ export default function BlogPostPage({ params }: Props) {
       url: 'https://silenteye.mx',
       logo: { '@type': 'ImageObject', url: 'https://silenteye.mx/icon-512.png' },
     },
-    mainEntityOfPage: `https://silenteye.mx/blog/${post.slug}`,
-    keywords: [post.keyword, 'GPS', 'rastreo vehicular', 'rastreo GPS', 'seguridad vehicular', 'plataforma GPS'],
+    mainEntityOfPage: { '@type': 'WebPage', '@id': `https://silenteye.mx/blog/${post.slug}` },
+    keywords: [post.keyword, 'GPS', 'rastreo vehicular', 'rastreo GPS', 'seguridad vehicular', 'plataforma GPS', 'GPS México'],
+    isPartOf: { '@type': 'WebSite', name: 'SilentEye', url: 'https://silenteye.mx' },
   };
 
   const breadcrumbJsonLd = {

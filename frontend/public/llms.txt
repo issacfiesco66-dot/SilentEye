@@ -1,130 +1,68 @@
 # SilentEye
 
-> Plataforma GPS de seguridad vehicular con rastreo en tiempo real, alertas automáticas y botón de pánico. Respuesta en menos de 3 segundos.
+> Plataforma GPS de seguridad vehicular con rastreo en tiempo real, alertas automaticas y boton de panico. Respuesta en menos de 3 segundos. Mexico.
 
-SilentEye es una plataforma web mexicana de seguridad vehicular que transforma cualquier rastreador GPS en un sistema de respuesta inmediata ante emergencias. A diferencia de los sistemas GPS tradicionales que solo rastrean, SilentEye detecta, alerta y coordina la respuesta de forma automática.
+SilentEye es una plataforma web mexicana de seguridad vehicular que transforma cualquier rastreador GPS en un sistema de respuesta inmediata ante emergencias. A diferencia de los sistemas GPS tradicionales que solo rastrean, SilentEye detecta, alerta y coordina la respuesta de forma automatica.
 
-## Sitio web
+## Links
 
-- URL: https://silenteye.mx
-- Idioma: Español (es-MX)
-- Tipo: Aplicación web SaaS (Software as a Service)
-- Sector: Seguridad vehicular, rastreo GPS, gestión de flotillas
+- [Inicio](https://silenteye.mx): Landing page con informacion del producto, comparativa, casos de uso y FAQ.
+- [Login](https://silenteye.mx/login): Acceso para administradores, ciudadanos, GPS y operadores.
+- [SOS](https://silenteye.mx/sos): Boton de emergencia ciudadano accesible sin registro previo. Gratuito.
+- [Precios](https://silenteye.mx/precios): Planes y precios de rastreo GPS. Boton SOS gratuito. Desde $99 MXN/mes.
+- [Blog](https://silenteye.mx/blog): Guias y articulos sobre GPS y seguridad vehicular.
+- [Privacidad](https://silenteye.mx/privacidad): Politica de privacidad. Cumplimiento LFPDPPP.
+- [Cookies](https://silenteye.mx/cookies): Politica de cookies. Solo cookies esenciales.
+- [Terminos](https://silenteye.mx/terminos): Condiciones de uso.
 
-## Problema que resuelve
+## Blog
 
-En México, un asalto vehicular dura entre 30 y 90 segundos. Los sistemas GPS tradicionales dependen de centrales de monitoreo con tiempos de reacción de 8 a 25 minutos. SilentEye elimina la dependencia humana distribuyendo alertas automáticamente en menos de 3 segundos a toda la red de personas cercanas con ubicación GPS en tiempo real.
+- [Mejor GPS para auto en Mexico 2026](https://silenteye.mx/blog/mejor-gps-para-auto-mexico): Comparativa de Coban TK103, Sinotrack ST-901 y Teltonika FMB920. Precios, instalacion y funciones.
+- [GPS para trailers y camiones de carga](https://silenteye.mx/blog/gps-para-trailers-camiones-carga): Teltonika FMC130, Queclink GV500, monitoreo en carretera 24/7 y boton de panico.
+- [GPS para motos: Como evitar el robo](https://silenteye.mx/blog/gps-para-motos-antirrobo): Sinotrack ST-901, Concox WeTrack2. Instalacion discreta y alertas automaticas.
+- [Que es una plataforma GPS?](https://silenteye.mx/blog/plataforma-gps-que-es-como-funciona): Explicacion de como funciona el rastreo vehicular en tiempo real.
+- [Como instalar un GPS en tu auto](https://silenteye.mx/blog/como-instalar-gps-en-auto): Guia paso a paso de instalacion de rastreador GPS.
+- [Coban TK103 vs Sinotrack ST-901](https://silenteye.mx/blog/gps-coban-tk103-vs-sinotrack-st901): Comparativa de los dos GPS mas populares en Mexico.
+- [GPS para flotillas](https://silenteye.mx/blog/gps-para-flotillas-gestion-vehiculos): Gestion de multiples vehiculos desde un solo panel.
+- [GPS para conductores de Uber y Didi](https://silenteye.mx/blog/gps-uber-didi-conductor-seguridad): Boton de panico para conductores de plataformas.
+- [Como funciona el rastreo GPS en tiempo real](https://silenteye.mx/blog/como-funciona-rastreo-gps-tiempo-real): Satelites, dispositivos, red celular y plataformas.
+- [Geocercas GPS: Que son y como configurarlas](https://silenteye.mx/blog/geocercas-gps-que-son-como-configurar): Zonas virtuales para proteger tu vehiculo.
+- [Teltonika FMB920: Configuracion con SilentEye](https://silenteye.mx/blog/teltonika-fmb920-configuracion-silenteye): Tutorial paso a paso para GPS Teltonika.
+- [Recuperacion vehicular con GPS](https://silenteye.mx/blog/recuperacion-vehicular-gps-como-funciona): Por que los primeros minutos importan.
+- [GPS para camionetas pickup y SUV](https://silenteye.mx/blog/gps-para-camioneta-pickup-suv): Proteccion para los vehiculos mas robados en Mexico.
+- [Localizador GPS vehicular: Guia completa](https://silenteye.mx/blog/localizador-gps-vehicular-guia-completa): Todo sobre localizadores GPS. Mejores marcas, precios y como elegir.
+- [Rastreo satelital vehicular en Mexico](https://silenteye.mx/blog/rastreo-satelital-vehicular-mexico): Como funciona el rastreo satelital y cual plataforma elegir.
+- [GPS para empresas de transporte](https://silenteye.mx/blog/gps-para-empresas-transporte-logistica): Solucion GPS completa para transporte y logistica.
+- [Robo de autos en Mexico 2026](https://silenteye.mx/blog/robo-de-autos-mexico-estadisticas-prevencion): Estadisticas, estados mas peligrosos y como prevenirlo con GPS.
+- [GPS tracker sin renta mensual](https://silenteye.mx/blog/gps-tracker-sin-renta-mensual-mexico): La verdad sobre los costos de rastreo GPS en Mexico.
 
 ## Producto
 
-SilentEye es una plataforma web (sin apps que instalar) que ofrece:
-
-- **Rastreo GPS en tiempo real**: Monitoreo 24/7 de vehículos con ubicación en vivo sobre mapa interactivo.
-- **Alertas automáticas**: Detección de movimiento no autorizado, corte de corriente, exceso de velocidad, violación de geocercas y botón de pánico.
-- **Distribución de emergencias**: Ante una alerta de pánico, la plataforma distribuye la emergencia a administradores, helpers (voluntarios) y conductores cercanos (radio de 2 km) en menos de 3 segundos.
-- **Botón de emergencia ciudadano (SOS)**: Cualquier persona puede enviar una alerta de emergencia desde el navegador sin necesidad de instalar una aplicación. Gratis y anónimo.
-- **Coordinación de recuperación vehicular**: Helpers confirman asistencia, se coordinan en mapa en vivo y se genera reporte con testigos digitales.
-- **Gestión de flotillas**: Panel para dueños de flotillas con monitoreo de todos sus vehículos, geocercas y alertas de velocidad.
-- **Panel de administración**: Gestión de usuarios, vehículos, incidentes, alertas, actividad GPS y mapa general.
+SilentEye ofrece:
+- Rastreo GPS en tiempo real con monitoreo 24/7
+- Alertas automaticas de robo, movimiento no autorizado, corte de corriente, exceso de velocidad y geocercas
+- Boton de panico con distribucion automatica de alertas en menos de 3 segundos
+- Boton de emergencia ciudadano SOS gratuito (sin GPS, sin app)
+- Gestion de flotillas GPS con panel multi-vehiculo
+- Coordinacion de recuperacion vehicular con testigos digitales
 
 ## GPS compatibles
 
-SilentEye es compatible con 5 marcas de dispositivos GPS industriales:
+SilentEye es compatible con 5 marcas de dispositivos GPS:
+- Teltonika (Lituania): FMB920, FMC920, FMC130 - Protocolo Codec 8/8E
+- Queclink (China): GV500, GL300, GV75 - Protocolo propietario
+- Concox (China): GT06N, WeTrack2, X3 - Protocolo GT06
+- Coban (China): TK103, GPS103, TK303 - Protocolo GPRS
+- Sinotrack (China): ST-901, ST-906, ST-907 - Protocolo GT06
 
-- **Teltonika** (Lituania): FMB920, FMC920, FMC130 — Protocolo Codec 8/8E. Grado industrial para flotillas y trailers.
-- **Queclink** (China): GV500, GL300, GV75 — Protocolo propietario. Alta precisión para transporte de carga.
-- **Concox** (China): GT06N, WeTrack2, X3 — Protocolo GT06. Económicos y confiables para uso general.
-- **Cobán** (China): TK103, GPS103, TK303 — Protocolo GPRS. Los más usados en México por su precio.
-- **Sinotrack** (China): ST-901, ST-906, ST-907 — Protocolo compatible GT06. Ultracompactos y asequibles.
-
-## Métricas clave
+## Metricas
 
 - Monitoreo: 24/7 continuo
 - Tiempo de alerta: < 3 segundos
 - Radio de respuesta: 2 km
 - Apps que instalar: 0 (funciona desde el navegador)
 
-## GPS por tipo de vehículo
-
-### GPS para autos
-Protege tu auto particular con rastreo GPS en tiempo real. Detecta movimiento no autorizado, corte de corriente y activa alertas automáticas si tu carro es robado. Compatible con GPS Cobán TK103, Sinotrack ST-901 y Teltonika FMB920. Incluye geocercas para estacionamientos e historial de recorridos.
-
-### GPS para camiones y trailers
-Rastreo GPS industrial para camiones de carga, trailers y transporte pesado. Monitoreo de rutas en carretera, alertas de desvío, control de velocidad y botón de pánico para el conductor. Ideal con GPS Teltonika FMC130 y Queclink GV500. Monitoreo en carretera 24/7.
-
-### GPS para motos
-Las motos son el vehículo más robado en México. Con un GPS Sinotrack ST-901 o Concox WeTrack2, tu moto queda protegida con rastreo en tiempo real y alerta instantánea si se mueve sin autorización. GPS compacto y ultracompacto, instalación discreta. Alerta de vibración y movimiento.
-
-### GPS para flotillas
-Gestión completa de flotillas GPS desde un solo panel. Monitorea todos tus vehículos en tiempo real, asigna conductores, establece geocercas y recibe alertas de velocidad. Ideal para empresas de transporte y logística. Panel multi-vehículo con asignación de conductores.
-
-### GPS para Uber, Didi y taxis
-Conductores de plataformas como Uber, Didi e InDriver suben pasajeros desconocidos cada día. Con un GPS con botón de pánico, una alerta silenciosa llega a toda la red de apoyo sin que el pasajero lo note. Protección real en cada viaje.
-
-### GPS para camionetas y SUV
-Camionetas pickup y SUV son un blanco frecuente de robo vehicular en México. Con GPS industrial y SilentEye, tu camioneta queda monitoreada con rastreo en tiempo real, alertas de ignición y coordinación automática ante robo.
-
-## Casos de uso
-
-- **Conductores de apps** (Uber, Didi, InDriver): Botón de pánico discreto que alerta sin que nadie lo note.
-- **Flotillas y trailers**: GPS industrial con alertas automáticas a toda la flota y coordinación de recuperación.
-- **Vehículos particulares**: Ubicación en tiempo real y alertas familiares ante emergencias.
-
-## Proceso de recuperación vehicular
-
-1. **Emergencia detectada**: El conductor presiona el botón de pánico en el GPS o desde el celular.
-2. **Plataforma analiza**: SilentEye identifica el tipo de emergencia y valida la ubicación en menos de 1 segundo.
-3. **Alerta distribuida**: En menos de 3 segundos, admins, helpers y conductores cercanos reciben la alerta con ubicación en vivo.
-4. **Coordinación en vivo**: La red de apoyo ve la ubicación del vehículo en tiempo real. Helpers confirman que van en camino.
-5. **Recuperación y reporte**: Incidente documentado con testigos digitales y reporte automático para seguimiento legal.
-
-## Diferencias con GPS tradicional
-
-| Aspecto | GPS Tradicional | SilentEye |
-|---|---|---|
-| Al oprimir botón de pánico | Se genera un evento en el servidor para revisión posterior | Alerta instantánea a todas las personas cercanas con ubicación en vivo |
-| Tiempo de reacción | 8–25 minutos (depende de la central) | < 3 segundos (automático) |
-| Depende de una llamada | Sí | No, la distribución es automática |
-| Quién recibe la alerta | Solo la central de monitoreo | Admins + conductores + helpers + ciudadanos cercanos |
-| Ubicación en tiempo real | Solo para quien accede al portal | Todos los notificados ven la ubicación en vivo |
-| Enfoque | Pasivo: registrar y revisar | Activo: distribuir y reaccionar |
-| Funciona sin app | No, requiere app o portal | Sí, SOS desde el navegador |
-
-## Tecnología
-
-- Frontend: Next.js 14, React, Tailwind CSS (aplicación web progresiva)
-- Backend: Node.js, Express, TypeScript, PostgreSQL con PostGIS
-- Comunicación: WebSockets para tiempo real, notificaciones push
-- Protocolos GPS: Codec 8/8E (Teltonika), GT06 (Concox/Sinotrack/Cobán), Queclink nativo
-- Autenticación: OTP por email/SMS + email y contraseña para administradores
-
-## Páginas del sitio
-
-- [Inicio](https://silenteye.mx): Landing page con información del producto, comparativa, casos de uso y FAQ.
-- [Login](https://silenteye.mx/login): Acceso para administradores (email+contraseña), ciudadanos (email+OTP), GPS (IMEI) y operadores (teléfono).
-- [SOS](https://silenteye.mx/sos): Botón de emergencia ciudadano accesible sin registro previo.
-- [Política de Privacidad](https://silenteye.mx/privacidad): Cumplimiento LFPDPPP (Ley Federal de Protección de Datos Personales en Posesión de los Particulares).
-- [Política de Cookies](https://silenteye.mx/cookies): Solo cookies esenciales, sin rastreo de terceros.
-- [Términos de Servicio](https://silenteye.mx/terminos): Condiciones de uso de la plataforma.
-
-## Blog — Guías y artículos sobre GPS y seguridad vehicular
-
-- [Mejor GPS para auto en México 2026](https://silenteye.mx/blog/mejor-gps-para-auto-mexico): Comparativa de Cobán TK103, Sinotrack ST-901 y Teltonika FMB920. Precios, instalación y funciones.
-- [GPS para trailers y camiones de carga](https://silenteye.mx/blog/gps-para-trailers-camiones-carga): Teltonika FMC130, Queclink GV500, monitoreo en carretera 24/7 y botón de pánico.
-- [GPS para motos: Cómo evitar el robo](https://silenteye.mx/blog/gps-para-motos-antirrobo): Sinotrack ST-901, Concox WeTrack2. Instalación discreta y alertas automáticas.
-- [¿Qué es una plataforma GPS?](https://silenteye.mx/blog/plataforma-gps-que-es-como-funciona): Explicación de cómo funciona el rastreo vehicular en tiempo real.
-- [Cómo instalar un GPS en tu auto](https://silenteye.mx/blog/como-instalar-gps-en-auto): Guía paso a paso de instalación de rastreador GPS.
-- [Cobán TK103 vs Sinotrack ST-901](https://silenteye.mx/blog/gps-coban-tk103-vs-sinotrack-st901): Comparativa de los dos GPS más populares en México.
-- [GPS para flotillas](https://silenteye.mx/blog/gps-para-flotillas-gestion-vehiculos): Gestión de múltiples vehículos desde un solo panel.
-- [GPS para conductores de Uber y Didi](https://silenteye.mx/blog/gps-uber-didi-conductor-seguridad): Botón de pánico para conductores de plataformas.
-- [Cómo funciona el rastreo GPS en tiempo real](https://silenteye.mx/blog/como-funciona-rastreo-gps-tiempo-real): Satélites, dispositivos, red celular y plataformas.
-- [Geocercas GPS: Qué son y cómo configurarlas](https://silenteye.mx/blog/geocercas-gps-que-son-como-configurar): Zonas virtuales para proteger tu vehículo.
-- [Teltonika FMB920: Configuración con SilentEye](https://silenteye.mx/blog/teltonika-fmb920-configuracion-silenteye): Tutorial paso a paso para GPS Teltonika.
-- [Recuperación vehicular con GPS](https://silenteye.mx/blog/recuperacion-vehicular-gps-como-funciona): Por qué los primeros minutos importan.
-- [GPS para camionetas pickup y SUV](https://silenteye.mx/blog/gps-para-camioneta-pickup-suv): Protección para los vehículos más robados en México.
-
 ## Contacto
 
 - Sitio web: https://silenteye.mx
-- País: México
-- Creador: Christian Fiesco
+- Pais: Mexico
