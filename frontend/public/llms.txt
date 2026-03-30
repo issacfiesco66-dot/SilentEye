@@ -58,6 +58,23 @@ SilentEye es compatible con 5 marcas de dispositivos GPS:
 - Coban (China): TK103, GPS103, TK303 - Protocolo GPRS
 - Sinotrack (China): ST-901, ST-906, ST-907 - Protocolo GT06
 
+## Precios
+
+- SOS Ciudadano: Gratis para siempre. Boton de emergencia sin GPS, sin app, sin registro.
+- Personal: $99 MXN/mes por vehiculo. Rastreo GPS en tiempo real, alertas, geocercas, historial.
+- Flotillas: $79 MXN/mes por vehiculo (minimo 5). Panel multi-vehiculo, asignacion de conductores.
+
+## Preguntas frecuentes
+
+- Que es SilentEye? Plataforma GPS de seguridad vehicular que convierte tu rastreador GPS en un sistema de respuesta inmediata con alertas automaticas en menos de 3 segundos.
+- Necesito instalar una app? No. SilentEye funciona directo en el navegador de cualquier celular o computadora.
+- Que GPS son compatibles? Teltonika (FMB920, FMC130), Queclink (GL300, GV500), Concox (GT06N, WeTrack2), Coban (TK103), Sinotrack (ST-901, ST-906).
+- Cuanto cuesta? El boton SOS es gratis. El rastreo GPS cuesta desde $99 MXN/mes por vehiculo. Flotillas desde $79 MXN/mes.
+- Como funciona el boton de panico? El conductor presiona el boton y en menos de 3 segundos todos los helpers y conductores en un radio de 2 km reciben la alerta con ubicacion en vivo.
+- Funciona para flotillas? Si. Panel multi-vehiculo con gestion de conductores, geocercas por vehiculo y alertas independientes.
+- Que pasa si me roban el auto? SilentEye detecta movimiento no autorizado, corte de corriente o geocerca violada y envia alerta automatica con ubicacion en tiempo real.
+- Necesito comprar GPS nuevo? No necesariamente. Si ya tienes un GPS Teltonika, Queclink, Concox, Coban o Sinotrack, solo apuntas el servidor a SilentEye.
+
 ## Metricas
 
 - Monitoreo: 24/7 continuo
