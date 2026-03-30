@@ -22,11 +22,18 @@ export const organizationJsonLd = {
   '@type': 'Organization',
   name: 'SilentEye',
   url: 'https://silenteye.mx',
-  logo: 'https://silenteye.mx/icon-512.png',
+  logo: {
+    '@type': 'ImageObject',
+    url: 'https://silenteye.mx/icon-512.png',
+    width: 512,
+    height: 512,
+  },
   description:
     'Plataforma GPS de seguridad vehicular con rastreo en tiempo real, alertas automáticas y botón de pánico. Compatible con GPS Teltonika, Queclink, Concox, Cobán y Sinotrack.',
-  foundingDate: '2026',
-  sameAs: [],
+  foundingDate: '2026-01-01',
+  sameAs: [
+    'https://github.com/issacfiesco66-dot/SilentEye',
+  ],
   knowsAbout: [
     'Rastreo GPS vehicular',
     'Seguridad vehicular México',
@@ -36,10 +43,14 @@ export const organizationJsonLd = {
     'GPS Cobán',
     'GPS Sinotrack',
     'Botón de pánico vehicular',
+    'GPS vehicle tracking',
+    'Fleet management',
+    'Emergency response systems',
   ],
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: 'customer service',
+    email: 'contacto@silenteye.mx',
     url: 'https://silenteye.mx',
     availableLanguage: ['Spanish'],
   },
@@ -56,11 +67,14 @@ export const softwareJsonLd = {
   name: 'SilentEye — Plataforma GPS de Seguridad Vehicular',
   url: 'https://silenteye.mx',
   applicationCategory: 'SecurityApplication',
-  operatingSystem: 'Web',
+  operatingSystem: 'All',
+  image: 'https://silenteye.mx/og-image.png',
   offers: {
     '@type': 'Offer',
     price: '0',
     priceCurrency: 'MXN',
+    availability: 'https://schema.org/InStock',
+    url: 'https://silenteye.mx/precios',
     description: 'Botón de emergencia SOS gratuito. Plataforma GPS con planes accesibles.',
   },
   description:
@@ -328,7 +342,7 @@ export const webSiteJsonLd = {
   },
 };
 
-// ── Article (for blog posts) ──
+// ── BlogPosting (for blog posts) ──
 export function getArticleJsonLd(opts: {
   title: string;
   description: string;
@@ -336,10 +350,13 @@ export function getArticleJsonLd(opts: {
   datePublished: string;
   dateModified?: string;
   image?: string;
+  category?: string;
+  wordCount?: number;
+  keyword?: string;
 }) {
   return {
     '@context': 'https://schema.org',
-    '@type': 'Article',
+    '@type': 'BlogPosting',
     headline: opts.title,
     description: opts.description,
     url: opts.url,
@@ -365,6 +382,13 @@ export function getArticleJsonLd(opts: {
       '@id': opts.url,
     },
     inLanguage: 'es-MX',
+    ...(opts.category && { articleSection: opts.category }),
+    ...(opts.wordCount && { wordCount: opts.wordCount }),
+    ...(opts.keyword && { keywords: [opts.keyword, 'GPS', 'rastreo vehicular', 'seguridad vehicular', 'GPS México'] }),
+    speakable: {
+      '@type': 'SpeakableSpecification',
+      cssSelector: ['article h1', 'article > div > p:first-of-type'],
+    },
   };
 }
 

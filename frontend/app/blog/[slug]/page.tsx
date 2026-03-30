@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { blogPosts, getPostBySlug, getAllSlugs } from '@/lib/blog-posts';
-import JsonLd from '@/components/JsonLd';
+import JsonLd, { getArticleJsonLd } from '@/components/JsonLd';
 
 interface Props {
   params: { slug: string };
@@ -182,26 +182,17 @@ export default function BlogPostPage({ params }: Props) {
   const currentIndex = blogPosts.findIndex(p => p.slug === post.slug);
   const related = blogPosts.filter((_, i) => i !== currentIndex).slice(0, 3);
 
-  const articleJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Article',
-    headline: post.title,
+  const wordCount = post.content.split(/\s+/).length;
+  const articleJsonLd = getArticleJsonLd({
+    title: post.title,
     description: post.description,
+    url: `https://silenteye.mx/blog/${post.slug}`,
     datePublished: post.date,
     dateModified: post.date,
-    image: 'https://silenteye.mx/og-image.png',
-    inLanguage: 'es-MX',
-    author: { '@type': 'Organization', name: 'SilentEye', url: 'https://silenteye.mx' },
-    publisher: {
-      '@type': 'Organization',
-      name: 'SilentEye',
-      url: 'https://silenteye.mx',
-      logo: { '@type': 'ImageObject', url: 'https://silenteye.mx/icon-512.png' },
-    },
-    mainEntityOfPage: { '@type': 'WebPage', '@id': `https://silenteye.mx/blog/${post.slug}` },
-    keywords: [post.keyword, 'GPS', 'rastreo vehicular', 'rastreo GPS', 'seguridad vehicular', 'plataforma GPS', 'GPS México'],
-    isPartOf: { '@type': 'WebSite', name: 'SilentEye', url: 'https://silenteye.mx' },
-  };
+    category: post.category,
+    wordCount,
+    keyword: post.keyword,
+  });
 
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
