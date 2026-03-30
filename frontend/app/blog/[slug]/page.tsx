@@ -25,13 +25,16 @@ export function generateMetadata({ params }: Props): Metadata {
       description: post.description,
       url: `https://silenteye.mx/blog/${post.slug}`,
       publishedTime: post.date,
+      modifiedTime: post.date,
       authors: ['SilentEye'],
       tags: [post.keyword, 'GPS', 'rastreo vehicular', 'seguridad'],
+      images: [{ url: 'https://silenteye.mx/og-image.png', width: 1200, height: 630, alt: post.title }],
     },
     twitter: {
       card: 'summary_large_image',
       title: post.title,
       description: post.description,
+      images: ['https://silenteye.mx/og-image.png'],
     },
   };
 }

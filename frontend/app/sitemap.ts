@@ -3,54 +3,56 @@ import { blogPosts } from '@/lib/blog-posts';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://silenteye.mx';
-  const now = new Date().toISOString();
+
+  // Use the most recent blog post date as the "last updated" for dynamic pages
+  const latestBlogDate = blogPosts.reduce((latest, p) => p.date > latest ? p.date : latest, '2026-01-01');
 
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
-      lastModified: now,
+      lastModified: latestBlogDate,
       changeFrequency: 'weekly',
       priority: 1.0,
     },
     {
       url: `${baseUrl}/blog`,
-      lastModified: now,
+      lastModified: latestBlogDate,
       changeFrequency: 'weekly',
       priority: 0.9,
     },
     {
       url: `${baseUrl}/precios`,
-      lastModified: now,
+      lastModified: '2026-03-20',
       changeFrequency: 'monthly',
       priority: 0.9,
     },
     {
       url: `${baseUrl}/login`,
-      lastModified: now,
+      lastModified: '2026-03-01',
       changeFrequency: 'monthly',
       priority: 0.8,
     },
     {
       url: `${baseUrl}/sos`,
-      lastModified: now,
+      lastModified: '2026-03-01',
       changeFrequency: 'monthly',
       priority: 0.9,
     },
     {
       url: `${baseUrl}/privacidad`,
-      lastModified: now,
+      lastModified: '2026-03-01',
       changeFrequency: 'yearly',
       priority: 0.3,
     },
     {
       url: `${baseUrl}/cookies`,
-      lastModified: now,
+      lastModified: '2026-03-01',
       changeFrequency: 'yearly',
       priority: 0.2,
     },
     {
       url: `${baseUrl}/terminos`,
-      lastModified: now,
+      lastModified: '2026-03-01',
       changeFrequency: 'yearly',
       priority: 0.3,
     },
