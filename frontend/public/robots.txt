@@ -52,6 +52,12 @@ Allow: /
 User-agent: YouBot
 Allow: /
 
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /
+
 # Sitemap & LLMs
 Sitemap: https://silenteye.mx/sitemap.xml
 LLMsTxt: https://silenteye.mx/llms.txt
