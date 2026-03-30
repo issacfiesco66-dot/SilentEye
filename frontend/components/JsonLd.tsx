@@ -68,7 +68,7 @@ export const softwareJsonLd = {
   url: 'https://silenteye.mx',
   applicationCategory: 'SecurityApplication',
   operatingSystem: 'All',
-  image: 'https://silenteye.mx/og-image.png',
+  image: 'https://silenteye.mx/opengraph-image',
   offers: {
     '@type': 'Offer',
     price: '0',
@@ -93,7 +93,7 @@ export const softwareJsonLd = {
     'Notificaciones push',
     'Sin app — funciona desde el navegador',
   ],
-  screenshot: 'https://silenteye.mx/og-image.png',
+  screenshot: 'https://silenteye.mx/opengraph-image',
   author: {
     '@type': 'Organization',
     name: 'SilentEye',
@@ -362,7 +362,7 @@ export function getArticleJsonLd(opts: {
     url: opts.url,
     datePublished: opts.datePublished,
     dateModified: opts.dateModified || opts.datePublished,
-    image: opts.image || 'https://silenteye.mx/og-image.png',
+    image: opts.image || 'https://silenteye.mx/opengraph-image',
     author: {
       '@type': 'Organization',
       name: 'SilentEye',

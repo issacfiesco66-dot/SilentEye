@@ -145,7 +145,7 @@ export const metadata: Metadata = {
       'GPS para autos, camiones, trailers, motos y flotillas. Rastreo en tiempo real, alertas automáticas y botón de pánico. Compatible con Teltonika, Queclink, Concox, Cobán y Sinotrack. La mejor plataforma GPS de México.',
     images: [
       {
-        url: '/og-image.png',
+        url: '/opengraph-image',
         width: 1200,
         height: 630,
         alt: 'SilentEye — Plataforma GPS de Seguridad Vehicular con rastreo en tiempo real',
@@ -158,7 +158,7 @@ export const metadata: Metadata = {
     title: 'SilentEye — GPS para Autos, Camiones, Trailers, Motos y Flotillas',
     description:
       'Plataforma GPS con rastreo en tiempo real para autos, camiones, trailers y motos. Alertas automáticas, botón de pánico y monitoreo 24/7. Compatible con 5 marcas de GPS en México.',
-    images: ['/og-image.png'],
+    images: ['/opengraph-image'],
   },
   alternates: {
     canonical: SITE_URL,
