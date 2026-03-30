@@ -48,9 +48,28 @@ export default function Home() {
               <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
               SOS
             </Link>
-            <Link href="/login" className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors">
+            <Link href="/login" className="hidden sm:inline-flex px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors">
               Acceder
             </Link>
+            {/* Mobile menu */}
+            <div className="md:hidden relative group/menu">
+              <input type="checkbox" id="mobile-menu" className="sr-only peer" aria-label="Abrir menú de navegación" />
+              <label htmlFor="mobile-menu" className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-zinc-100 cursor-pointer transition-colors">
+                <svg className="peer-checked:group-[]/menu:hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+              </label>
+              <div className="hidden peer-checked:block absolute right-0 top-12 w-56 bg-white rounded-xl shadow-lg border border-zinc-200 py-3 z-50">
+                <a href="#problema" className="block px-5 py-2.5 text-[14px] text-zinc-600 hover:bg-zinc-50">Problema</a>
+                <a href="#producto" className="block px-5 py-2.5 text-[14px] text-zinc-600 hover:bg-zinc-50">Plataforma</a>
+                <a href="#vehiculos" className="block px-5 py-2.5 text-[14px] text-zinc-600 hover:bg-zinc-50">Vehículos</a>
+                <a href="#dispositivos" className="block px-5 py-2.5 text-[14px] text-zinc-600 hover:bg-zinc-50">GPS compatibles</a>
+                <a href="#faq" className="block px-5 py-2.5 text-[14px] text-zinc-600 hover:bg-zinc-50">FAQ</a>
+                <Link href="/blog" className="block px-5 py-2.5 text-[14px] text-zinc-600 hover:bg-zinc-50">Blog</Link>
+                <Link href="/precios" className="block px-5 py-2.5 text-[14px] text-zinc-600 hover:bg-zinc-50">Precios</Link>
+                <div className="border-t border-zinc-100 my-2" />
+                <Link href="/sos" className="block px-5 py-2.5 text-[14px] font-semibold text-red-600 hover:bg-red-50">Emergencia SOS</Link>
+                <Link href="/login" className="block px-5 py-2.5 text-[14px] font-semibold text-zinc-900 hover:bg-zinc-50">Acceder</Link>
+              </div>
+            </div>
           </div>
         </div>
       </nav>
@@ -467,11 +486,12 @@ export default function Home() {
               <p className="text-[14px] text-zinc-500 leading-relaxed mb-4">
                 Protege tu auto particular con rastreo GPS en tiempo real. Detecta movimiento no autorizado, corte de corriente y activa alertas automáticas si tu carro es robado. Compatible con GPS Cobán TK103, Sinotrack ST-901 y Teltonika FMB920.
               </p>
-              <ul className="space-y-1.5 text-[13px] text-zinc-500">
+              <ul className="space-y-1.5 text-[13px] text-zinc-500 mb-4">
                 <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Alerta de robo en menos de 3 segundos</li>
                 <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Geocercas para estacionamientos</li>
                 <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Historial de recorridos completo</li>
               </ul>
+              <Link href="/blog/mejor-gps-para-auto-mexico" className="text-[13px] font-semibold text-blue-600 hover:text-blue-700">Ver guía completa →</Link>
             </div>
 
             {/* GPS para camiones y trailers */}
@@ -483,11 +503,12 @@ export default function Home() {
               <p className="text-[14px] text-zinc-500 leading-relaxed mb-4">
                 Rastreo GPS industrial para camiones de carga, trailers y transporte pesado. Monitoreo de rutas en carretera, alertas de desvío, control de velocidad y botón de pánico para el conductor. Ideal con GPS Teltonika FMC130 y Queclink GV500.
               </p>
-              <ul className="space-y-1.5 text-[13px] text-zinc-500">
+              <ul className="space-y-1.5 text-[13px] text-zinc-500 mb-4">
                 <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Monitoreo en carretera 24/7</li>
                 <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Alertas de desvío de ruta</li>
                 <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Botón de pánico discreto para conductor</li>
               </ul>
+              <Link href="/blog/gps-para-trailers-camiones-carga" className="text-[13px] font-semibold text-amber-600 hover:text-amber-700">Ver guía completa →</Link>
             </div>
 
             {/* GPS para motos */}
@@ -504,6 +525,7 @@ export default function Home() {
                 <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Alerta de vibración y movimiento</li>
                 <li className="flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>Localización precisa para recuperación</li>
               </ul>
+              <Link href="/blog/gps-para-motos-antirrobo" className="mt-4 text-[13px] font-semibold text-red-600 hover:text-red-700 block">Ver guía completa →</Link>
             </div>
 
             {/* GPS para flotillas */}
