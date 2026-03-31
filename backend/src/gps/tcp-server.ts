@@ -29,9 +29,13 @@ const MAX_CONNECTION_BUFFER = 1024 * 1024; // 1 MB
 const IMEI_LOGIN_TIMEOUT_MS = 30000;   // 30s para recibir IMEI
 const AVL_IDLE_TIMEOUT_MS = 600000;    // 10 min sin datos AVL → desconectar
 
-// Aceptar cualquier IMEI cuando TELTONIKA_SKIP_WHITELIST=true/1/yes (o no definido)
+// En producción la whitelist SIEMPRE está activa (seguridad obligatoria).
+// En desarrollo se puede desactivar con TELTONIKA_SKIP_WHITELIST=true/1/yes.
+const isProd = process.env.NODE_ENV === 'production';
 const _skip = (process.env.TELTONIKA_SKIP_WHITELIST || '').toLowerCase();
-const SKIP_WHITELIST = _skip !== 'false' && _skip !== '0' && _skip !== 'no';
+const SKIP_WHITELIST = isProd
+  ? false
+  : _skip !== 'false' && _skip !== '0' && _skip !== 'no';
 
 type ConnectionState = 'imei' | 'validating' | 'avl';
 type ProtocolType = 'unknown' | 'teltonika' | 'queclink' | 'concox';
@@ -58,8 +62,9 @@ async function isImeiWhitelisted(imei: string): Promise<boolean> {
     const r = await pool.query('SELECT 1 FROM vehicles WHERE imei = $1 LIMIT 1', [imei]);
     return r.rowCount !== null && r.rowCount > 0;
   } catch (err) {
-    logger.warn('Error verificando whitelist IMEI, aceptando conexión:', err);
-    return SKIP_WHITELIST;
+    // En producción rechazar si no se puede verificar; en desarrollo aceptar
+    logger.warn(`Error verificando whitelist IMEI (${isProd ? 'rechazando' : 'aceptando'}):`, err);
+    return !isProd;
   }
 }
 
@@ -491,7 +496,7 @@ export function createTeltonikaTcpServer(port: number, onData?: (imei: string, r
   });
 
   server.listen(port, '0.0.0.0', () => {
-    logger.info(`[TCP] Servidor GPS multi-protocolo en 0.0.0.0:${port} | Teltonika+Queclink+Concox | accept_all_imei=${SKIP_WHITELIST}`);
+    logger.info(`[TCP] Servidor GPS multi-protocolo en 0.0.0.0:${port} | Teltonika+Queclink+Concox | accept_all_imei=${SKIP_WHITELIST} | env=${isProd ? 'production' : 'development'}`);
   });
 
   return server;

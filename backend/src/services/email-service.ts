@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { logger } from '../utils/logger.js';
+import { CircuitBreaker } from '../utils/circuit-breaker.js';
 
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -28,6 +29,8 @@ if (SMTP_USER && SMTP_PASS) {
   logger.warn('Email SMTP no configurado — verificación por email deshabilitada');
 }
 
+const emailCircuitBreaker = new CircuitBreaker('smtp-email', 3, 60_000);
+
 export function isEmailEnabled(): boolean {
   return transporter !== null;
 }
@@ -35,6 +38,7 @@ export function isEmailEnabled(): boolean {
 /**
  * Send an email via SMTP.
  * Returns true if sent successfully, false otherwise.
+ * Protected by CircuitBreaker: 3 failures → 60s cooldown.
  */
 export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   if (!transporter) {
@@ -42,8 +46,8 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     return false;
   }
 
-  try {
-    const info = await transporter.sendMail({
+  return emailCircuitBreaker.tryExecute(async () => {
+    const info = await transporter!.sendMail({
       from: `"SilentEye" <${SMTP_FROM}>`,
       to,
       subject,
@@ -51,10 +55,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     });
     logger.info(`Email enviado: messageId=${info.messageId} to=${to}`);
     return true;
-  } catch (err: any) {
-    logger.error(`Email error: to=${to} message=${err.message}`);
-    return false;
-  }
+  }, false);
 }
 
 /**
