@@ -11,11 +11,11 @@ const SITE_URL = 'https://silenteye.mx';
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'SilentEye — Plataforma GPS de Seguridad Vehicular | Rastreo GPS en Tiempo Real',
-    template: '%s | SilentEye — Plataforma GPS',
+    default: 'SilentEye — Alerta de Robo Vehicular en 3 Segundos | Recuperación GPS México',
+    template: '%s | SilentEye — Recuperación Vehicular GPS',
   },
   description:
-    'Plataforma GPS de seguridad vehicular con rastreo en tiempo real, alertas automáticas y botón de pánico. GPS para autos, camiones, trailers, motos y flotillas. Compatible con Teltonika, Queclink, Concox, Cobán y Sinotrack. Monitoreo GPS 24/7 México.',
+    'Te roban el auto y en 3 segundos todos los conductores en 2 km reciben la alerta con tu ubicación GPS en vivo. Sin llamadas, sin centrales. Plataforma GPS para autos, motos, camiones, trailers y flotillas. Compatible con Teltonika, Queclink, Concox, Cobán y Sinotrack.',
   keywords: [
     'plataforma GPS',
     'rastreo GPS',
@@ -141,24 +141,24 @@ export const metadata: Metadata = {
     locale: 'es_MX',
     url: SITE_URL,
     siteName: 'SilentEye',
-    title: 'SilentEye — Plataforma GPS para Autos, Camiones, Trailers y Motos | Rastreo en Tiempo Real',
+    title: 'SilentEye — Alerta de Robo Vehicular en 3 Segundos | Recuperación GPS México',
     description:
-      'GPS para autos, camiones, trailers, motos y flotillas. Rastreo en tiempo real, alertas automáticas y botón de pánico. Compatible con Teltonika, Queclink, Concox, Cobán y Sinotrack. La mejor plataforma GPS de México.',
+      'Te roban el auto y en 3 segundos todos los conductores en 2 km reciben la alerta con tu ubicación GPS en vivo. Plataforma GPS para autos, motos, camiones, trailers y flotillas. México.',
     images: [
       {
         url: '/opengraph-image',
         width: 1200,
         height: 630,
-        alt: 'SilentEye — Plataforma GPS de Seguridad Vehicular con rastreo en tiempo real',
+        alt: 'SilentEye — Alerta de robo vehicular en 3 segundos a conductores cercanos',
         type: 'image/png',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'SilentEye — GPS para Autos, Camiones, Trailers, Motos y Flotillas',
+    title: 'SilentEye — Alerta de Robo Vehicular en 3 Segundos | GPS México',
     description:
-      'Plataforma GPS con rastreo en tiempo real para autos, camiones, trailers y motos. Alertas automáticas, botón de pánico y monitoreo 24/7. Compatible con 5 marcas de GPS en México.',
+      'Oprimes un botón y en 3 segundos todos los conductores en 2 km reciben la alerta con tu ubicación en vivo. Recuperación vehicular automática para autos, motos, camiones y flotillas.',
     images: ['/opengraph-image'],
   },
   alternates: {

@@ -29,7 +29,7 @@ export const organizationJsonLd = {
     height: 512,
   },
   description:
-    'Plataforma GPS de seguridad vehicular con rastreo en tiempo real, alertas automáticas y botón de pánico. Compatible con GPS Teltonika, Queclink, Concox, Cobán y Sinotrack.',
+    'Alerta de robo vehicular en 3 segundos a conductores cercanos. Plataforma GPS con rastreo en tiempo real, alertas automáticas y recuperación vehicular. Compatible con GPS Teltonika, Queclink, Concox, Cobán y Sinotrack.',
   foundingDate: '2026-01-01',
   sameAs: [
     'https://github.com/issacfiesco66-dot/SilentEye',
@@ -333,7 +333,7 @@ export const webSiteJsonLd = {
   '@type': 'WebSite',
   name: 'SilentEye',
   url: 'https://silenteye.mx',
-  description: 'Plataforma GPS de seguridad vehicular con rastreo en tiempo real, alertas automáticas y botón de pánico.',
+  description: 'Alerta de robo vehicular en 3 segundos. Plataforma GPS con recuperación vehicular automática para autos, motos, camiones y flotillas en México.',
   inLanguage: 'es-MX',
   publisher: {
     '@type': 'Organization',
