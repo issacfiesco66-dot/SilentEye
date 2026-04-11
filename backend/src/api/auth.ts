@@ -42,7 +42,7 @@ export async function createOtp(phone: string): Promise<string> {
   return code;
 }
 
-export async function verifyOtp(phone: string, code: string): Promise<{ valid: boolean; user: { id: string; phone: string; name: string; role: string } | null; error?: string }> {
+export async function verifyOtp(phone: string, code: string): Promise<{ valid: boolean; user: { id: string; phone: string; name: string; role: string; email: string | null; plan: string } | null; error?: string }> {
   // Brute-force protection (graceful: skip if 'attempts' column doesn't exist yet)
   let hasAttemptsCol = true;
   try {
@@ -87,12 +87,12 @@ export async function verifyOtp(phone: string, code: string): Promise<{ valid: b
 
   // Look up user by phone OR by email (for citizen email login)
   let userResult = await pool.query(
-    'SELECT id, phone, name, role, is_active FROM users WHERE phone = $1',
+    'SELECT id, phone, name, role, email, COALESCE(plan, \'free\') as plan, is_active FROM users WHERE phone = $1',
     [phone]
   );
   if (userResult.rows.length === 0 && phone.includes('@')) {
     userResult = await pool.query(
-      'SELECT id, phone, name, role, is_active FROM users WHERE email = $1',
+      'SELECT id, phone, name, role, email, COALESCE(plan, \'free\') as plan, is_active FROM users WHERE email = $1',
       [phone]
     );
   }
@@ -101,7 +101,7 @@ export async function verifyOtp(phone: string, code: string): Promise<{ valid: b
     logger.warn(`Login bloqueado: usuario desactivado ***${phone.slice(-4)}`);
     return { valid: false, user: null, error: 'Cuenta desactivada. Contacta al administrador.' };
   }
-  return { valid: true, user: user ? { id: user.id, phone: user.phone, name: user.name, role: user.role } : null };
+  return { valid: true, user: user ? { id: user.id, phone: user.phone, name: user.name, role: user.role, email: user.email, plan: user.plan } : null };
 }
 
 // Cleanup expired OTPs periodically (every 30 min)
@@ -119,14 +119,14 @@ export function startOtpCleanup(): void {
   }, 30 * 60 * 1000);
 }
 
-export async function findOrCreateUser(phone: string, name?: string, role?: string, email?: string): Promise<{ id: string; phone: string; name: string; role: string }> {
+export async function findOrCreateUser(phone: string, name?: string, role?: string, email?: string): Promise<{ id: string; phone: string; name: string; role: string; email: string | null; plan: string }> {
   // Look up by phone first, then by email if provided
-  const existing = await pool.query('SELECT id, phone, name, role FROM users WHERE phone = $1', [phone]);
+  const existing = await pool.query('SELECT id, phone, name, role, email, COALESCE(plan, \'free\') as plan FROM users WHERE phone = $1', [phone]);
   if (existing.rows[0]) {
     return existing.rows[0];
   }
   if (email) {
-    const byEmail = await pool.query('SELECT id, phone, name, role FROM users WHERE email = $1', [email]);
+    const byEmail = await pool.query('SELECT id, phone, name, role, email, COALESCE(plan, \'free\') as plan FROM users WHERE email = $1', [email]);
     if (byEmail.rows[0]) {
       return byEmail.rows[0];
     }
@@ -135,7 +135,7 @@ export async function findOrCreateUser(phone: string, name?: string, role?: stri
   const finalRole = role && validRoles.includes(role) ? role : 'driver';
   const insert = await pool.query(
     `INSERT INTO users (phone, name, role, email) VALUES ($1, $2, $3, $4)
-     RETURNING id, phone, name, role`,
+     RETURNING id, phone, name, role, email, COALESCE(plan, 'free') as plan`,
     [phone, name || phone, finalRole, email || null]
   );
   return insert.rows[0];
