@@ -7,7 +7,7 @@ import { saveSession } from '@/lib/session';
 const API = '';
 
 /** Login method — based on input type, NOT user role */
-type LoginMethod = 'admin' | 'email' | 'imei' | 'phone';
+type LoginMethod = 'gps' | 'email' | 'imei' | 'phone';
 
 export default function LoginPage() {
   return (
@@ -19,7 +19,7 @@ export default function LoginPage() {
 
 function LoginContent() {
   const router = useRouter();
-  const [method, setMethod] = useState<LoginMethod>('email');
+  const [method, setMethod] = useState<LoginMethod>('gps');
   const [step, setStep] = useState<'input' | 'otp'>('input');
   const [imei, setImei] = useState('');
   const [phone, setPhone] = useState('');
@@ -31,7 +31,8 @@ function LoginContent() {
   const [error, setError] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [emailHint, setEmailHint] = useState('');
-  const [isCitizenFlow, setIsCitizenFlow] = useState(false);
+
+  const isEmailFlow = method === 'gps' || method === 'email';
 
   const loginWithPassword = async () => {
     const cleanEmail = email.trim().toLowerCase();
@@ -64,27 +65,26 @@ function LoginContent() {
       let body: Record<string, string | undefined>;
       if (method === 'imei') {
         body = { imei: imei.trim() };
+      } else if (method === 'gps') {
+        body = { email: email.trim().toLowerCase(), mode: 'gps' };
       } else if (method === 'email') {
         body = { email: email.trim().toLowerCase(), mode: 'citizen' };
       } else {
         body = { phone: phone.trim() };
       }
-      const identifier = method === 'imei' ? imei.trim() : method === 'email' ? email.trim() : phone.trim();
+      const identifier = method === 'imei' ? imei.trim() : isEmailFlow ? email.trim() : phone.trim();
       if (!identifier) {
-        setError(method === 'imei' ? 'Ingresa el número de GPS (IMEI)' : method === 'email' ? 'Ingresa tu correo electrónico' : 'Ingresa tu teléfono');
+        setError(method === 'imei' ? 'Ingresa el número de GPS (IMEI)' : isEmailFlow ? 'Ingresa tu correo electrónico' : 'Ingresa tu teléfono');
         setLoading(false);
         return;
       }
-      if (method === 'email') {
+      if (isEmailFlow) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email.trim())) {
           setError('Ingresa un correo electrónico válido');
           setLoading(false);
           return;
         }
-        setIsCitizenFlow(true);
-      } else {
-        setIsCitizenFlow(false);
       }
       const res = await fetch(`${API}/api/auth/otp/request`, {
         method: 'POST',
@@ -94,7 +94,7 @@ function LoginContent() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al solicitar OTP');
       setStep('otp');
-      if (data.code && method !== 'email') {
+      if (data.code && !isEmailFlow) {
         setCode(data.code);
       }
       if (data.emailSent) setEmailSent(true);
@@ -111,11 +111,11 @@ function LoginContent() {
       setError('Ingresa el código');
       return;
     }
-    if (isCitizenFlow && !name.trim()) {
+    if (isEmailFlow && !name.trim()) {
       setError('Tu nombre es requerido para registrarte');
       return;
     }
-    if (isCitizenFlow && name.trim().length < 2) {
+    if (isEmailFlow && name.trim().length < 2) {
       setError('Nombre muy corto (mínimo 2 caracteres)');
       return;
     }
@@ -125,6 +125,8 @@ function LoginContent() {
       let body: Record<string, string | undefined>;
       if (method === 'imei') {
         body = { imei: imei.trim(), code: code.trim() };
+      } else if (method === 'gps') {
+        body = { email: email.trim().toLowerCase(), code: code.trim(), name: name.trim() || undefined, mode: 'gps' };
       } else if (method === 'email') {
         body = { email: email.trim().toLowerCase(), code: code.trim(), name: name.trim() || undefined, mode: 'citizen' };
       } else {
@@ -138,9 +140,16 @@ function LoginContent() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Código inválido');
       saveSession(data.token, data.user);
-      // Route based on backend-provided permissions
+
+      // GPS self-service: redirect to onboarding setup
+      if (method === 'gps') {
+        router.replace('/setup');
+        return;
+      }
+
+      // Other methods: route based on backend-provided permissions
       const dashType = data.user?.permissions?.dashboardType;
-      router.replace(dashType === 'sos' ? '/sos' : '/dashboard');
+      router.replace(dashType === 'sos' ? '/sos' : dashType === 'admin' ? '/admin' : '/dashboard');
     } catch (e: unknown) {
       setError((e as Error).message);
     } finally {
@@ -171,10 +180,16 @@ function LoginContent() {
             <span className="text-lg font-bold tracking-tight">SilentEye</span>
           </div>
           <h2 className="text-3xl font-extrabold tracking-tight leading-tight mb-4">
-            Seguridad vehicular<br />en tiempo real
+            {method === 'gps'
+              ? <>Conecta tu GPS.<br />Tu primer vehículo es gratis.</>
+              : <>Seguridad vehicular<br />en tiempo real</>
+            }
           </h2>
           <p className="text-zinc-400 text-[15px] leading-relaxed max-w-sm">
-            Monitoreo GPS, botón de pánico y red de apoyo ciudadana. Todo desde tu navegador.
+            {method === 'gps'
+              ? 'Regístrate, conecta tu GPS y ve tu vehículo en el mapa en minutos. Sin contratos, sin apps.'
+              : 'Monitoreo GPS, botón de pánico y red de apoyo ciudadana. Todo desde tu navegador.'
+            }
           </p>
         </div>
 
@@ -206,11 +221,21 @@ function LoginContent() {
             <span className="text-lg font-bold tracking-tight text-zinc-900">SilentEye</span>
           </div>
 
-          <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 mb-1">Iniciar sesión</h1>
-          <p className="text-[15px] text-zinc-400 mb-8">Elige tu método de acceso</p>
+          <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 mb-1">
+            {method === 'gps' ? 'Conecta tu GPS gratis' : 'Iniciar sesión'}
+          </h1>
+          <p className="text-[15px] text-zinc-400 mb-8">
+            {method === 'gps' ? 'Registra tu correo y conecta tu primer vehículo' : 'Elige tu método de acceso'}
+          </p>
 
           {/* Method tabs */}
           <div className="flex gap-1 mb-6 p-1 bg-zinc-100 rounded-lg">
+            <button
+              onClick={() => { setMethod('gps'); resetForm(); }}
+              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'gps' ? 'bg-white text-blue-600 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+            >
+              Conectar GPS
+            </button>
             <button
               onClick={() => { setMethod('email'); resetForm(); }}
               className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'email' ? 'bg-white text-red-600 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
@@ -221,13 +246,13 @@ function LoginContent() {
               onClick={() => { setMethod('imei'); resetForm(); }}
               className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'imei' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
             >
-              GPS
+              IMEI
             </button>
             <button
               onClick={() => { setMethod('phone'); resetForm(); }}
               className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'phone' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
             >
-              Teléfono
+              Tel
             </button>
           </div>
 
@@ -235,6 +260,15 @@ function LoginContent() {
           <div>
             {step === 'input' ? (
               <>
+                {method === 'gps' && (
+                  <div className="space-y-2 mb-5">
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-lg">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m10-10h-4M6 12H2"/></svg>
+                      <span className="text-[13px] text-blue-600 font-medium">Tu primer vehículo es gratis</span>
+                    </div>
+                    <p className="text-[12px] text-zinc-400 px-1">Ingresa tu correo. Después conectarás tu GPS en 2 minutos.</p>
+                  </div>
+                )}
                 {method === 'email' && (
                   <div className="space-y-2 mb-5">
                     <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-lg">
@@ -250,13 +284,13 @@ function LoginContent() {
                   </div>
                 )}
                 <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">
-                  {method === 'imei' ? 'Número de GPS (IMEI)' : method === 'email' ? 'Correo electrónico' : 'Número de teléfono'}
+                  {method === 'imei' ? 'Número de GPS (IMEI)' : isEmailFlow ? 'Correo electrónico' : 'Número de teléfono'}
                 </label>
                 <input
-                  type={method === 'imei' ? 'text' : method === 'email' ? 'email' : 'tel'}
-                  value={method === 'imei' ? imei : method === 'email' ? email : phone}
-                  onChange={(e) => method === 'imei' ? setImei(e.target.value) : method === 'email' ? setEmail(e.target.value) : setPhone(e.target.value)}
-                  placeholder={method === 'imei' ? 'Ej: 123456789012345' : method === 'email' ? 'tu@correo.com' : '+52 222 123 4567'}
+                  type={method === 'imei' ? 'text' : isEmailFlow ? 'email' : 'tel'}
+                  value={method === 'imei' ? imei : isEmailFlow ? email : phone}
+                  onChange={(e) => method === 'imei' ? setImei(e.target.value) : isEmailFlow ? setEmail(e.target.value) : setPhone(e.target.value)}
+                  placeholder={method === 'imei' ? 'Ej: 123456789012345' : isEmailFlow ? 'tu@correo.com' : '+52 222 123 4567'}
                   className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all mb-1.5"
                 />
                 {method === 'imei' && (
@@ -268,15 +302,15 @@ function LoginContent() {
                 <button
                   onClick={requestOtp}
                   disabled={loading}
-                  className="w-full py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-semibold disabled:opacity-40 transition-colors"
+                  className={`w-full py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-40 transition-colors ${method === 'gps' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-zinc-900 hover:bg-zinc-800'}`}
                 >
-                  {loading ? 'Enviando...' : 'Enviar código de verificación'}
+                  {loading ? 'Enviando...' : method === 'gps' ? 'Registrarme gratis' : 'Enviar código de verificación'}
                 </button>
               </>
             ) : (
               <>
                 <p className="text-zinc-500 text-[13px] mb-4">
-                  {method === 'email'
+                  {isEmailFlow
                     ? <>Ingresa el código de verificación enviado a <span className="font-semibold text-zinc-700">{email}</span></>
                     : emailHint
                     ? <>Código enviado al correo <span className="font-semibold text-zinc-700">{emailHint}</span></>
@@ -289,7 +323,7 @@ function LoginContent() {
                     <span className="text-[13px] text-blue-700 font-medium">Código enviado a tu correo &mdash; revisa tu bandeja de entrada</span>
                   </div>
                 )}
-                {code && method !== 'email' && (
+                {code && !isEmailFlow && (
                   <div className="flex items-center gap-2 px-3 py-2.5 mb-4 bg-emerald-50 border border-emerald-100 rounded-lg">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
                     <span className="text-[13px] text-emerald-700 font-medium">Código generado &mdash; válido 10 min</span>
@@ -304,7 +338,7 @@ function LoginContent() {
                   maxLength={6}
                   className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] font-mono tracking-widest focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all mb-4"
                 />
-                {isCitizenFlow && (
+                {isEmailFlow && (
                   <>
                     <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Nombre <span className="text-red-500">*</span></label>
                     <input
@@ -319,15 +353,15 @@ function LoginContent() {
                 <button
                   onClick={verifyOtp}
                   disabled={loading}
-                  className="w-full py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-semibold disabled:opacity-40 transition-colors mb-3"
+                  className={`w-full py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-40 transition-colors mb-3 ${method === 'gps' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-zinc-900 hover:bg-zinc-800'}`}
                 >
-                  {loading ? 'Verificando...' : 'Verificar código'}
+                  {loading ? 'Verificando...' : method === 'gps' ? 'Crear cuenta y conectar GPS' : 'Verificar código'}
                 </button>
                 <button
                   onClick={resetForm}
                   className="w-full text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
                 >
-                  ← Cambiar {method === 'imei' ? 'IMEI' : method === 'email' ? 'correo' : 'teléfono'}
+                  ← Cambiar {method === 'imei' ? 'IMEI' : isEmailFlow ? 'correo' : 'teléfono'}
                 </button>
               </>
             )}
@@ -341,7 +375,7 @@ function LoginContent() {
           </div>
 
           <p className="text-zinc-300 text-[12px] text-center mt-8">
-            SOS: correo &middot; GPS: IMEI &middot; Operadores: teléfono
+            Conectar GPS: nuevo usuario &middot; SOS: emergencia &middot; IMEI: conductor &middot; Tel: operadores
           </p>
         </div>
       </div>

@@ -317,8 +317,8 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       return;
     }
 
-    // Citizen mode: email-based OTP
-    if (mode === 'citizen' && email && typeof email === 'string') {
+    // Citizen or GPS self-service mode: email-based OTP
+    if ((mode === 'citizen' || mode === 'gps') && email && typeof email === 'string') {
       const cleanEmail = email.trim().toLowerCase();
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(cleanEmail)) {
@@ -465,8 +465,8 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
       return;
     }
 
-    // Citizen: verify by email
-    if (mode === 'citizen' && email && typeof email === 'string') {
+    // Citizen or GPS self-service: verify by email
+    if ((mode === 'citizen' || mode === 'gps') && email && typeof email === 'string') {
       const cleanEmail = email.trim().toLowerCase();
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(cleanEmail)) {
@@ -480,7 +480,7 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
 
-      // For new citizen accounts: require a real name
+      // For new accounts: require a real name
       if (!existingUser) {
         if (!name || typeof name !== 'string' || name.trim().length < 2) {
           res.status(400).json({ error: 'Tu nombre es requerido para registrarte (mín. 2 caracteres)' });
@@ -488,10 +488,19 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
         }
       }
 
-      // Use email as the phone field key (citizens identify by email)
-      const user = existingUser ?? await findOrCreateUser(cleanEmail, name?.trim(), 'citizen', cleanEmail);
+      // GPS mode creates driver role (can add vehicles); citizen mode creates citizen role (SOS only)
+      const assignedRole = mode === 'gps' ? 'driver' : 'citizen';
+
+      // If existing user is a citizen upgrading to GPS, update their role
+      let user = existingUser;
+      if (user && mode === 'gps' && user.role === 'citizen') {
+        await pool.query('UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2', ['driver', user.id]);
+        user = { ...user, role: 'driver' };
+      }
+
+      user = user ?? await findOrCreateUser(cleanEmail, name?.trim(), assignedRole, cleanEmail);
       const token = signToken({ userId: user.id, role: user.role });
-      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role, permissions: getPermissions(user.role) } });
+      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role, email: user.email, plan: user.plan || 'free', permissions: getPermissions(user.role) } });
       return;
     }
 
@@ -813,6 +822,9 @@ api.get('/vehicles/:id', authMiddleware, asyncHandler(async (req, res) => {
   res.json(v);
 }));
 
+// Plan vehicle limits
+const PLAN_LIMITS: Record<string, number> = { free: 1, personal: 3, flotillas: 999 };
+
 api.post('/vehicles', authMiddleware, requireRole('admin', 'driver', 'fleet_owner'), asyncHandler(async (req, res) => {
   const { userId, role } = (req as any).user;
   const { plate, name, imei, driver_id } = req.body;
@@ -831,6 +843,27 @@ api.post('/vehicles', authMiddleware, requireRole('admin', 'driver', 'fleet_owne
   if (name && (typeof name !== 'string' || name.trim().length > 100)) {
     res.status(400).json({ error: 'Nombre máximo 100 caracteres' });
     return;
+  }
+
+  // Enforce vehicle limit by plan (skip for admin)
+  if (role !== 'admin') {
+    const planResult = await pool.query('SELECT plan FROM users WHERE id = $1', [userId]);
+    const userPlan = planResult.rows[0]?.plan || 'free';
+    const maxVehicles = PLAN_LIMITS[userPlan] ?? 1;
+
+    const countResult = await pool.query('SELECT COUNT(*) FROM vehicles WHERE owner_id = $1', [userId]);
+    const currentCount = parseInt(countResult.rows[0].count, 10);
+
+    if (currentCount >= maxVehicles) {
+      res.status(403).json({
+        error: 'plan_limit',
+        message: `Tu plan ${userPlan} permite máximo ${maxVehicles} vehículo${maxVehicles > 1 ? 's' : ''}. Mejora tu plan para agregar más.`,
+        plan: userPlan,
+        limit: maxVehicles,
+        current: currentCount,
+      });
+      return;
+    }
   }
 
   // Determine owner_id and driver_id based on role
@@ -1213,6 +1246,17 @@ api.get('/me/speed-limit', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const r = await pool.query('SELECT speed_limit FROM users WHERE id = $1', [userId]);
   res.json({ speed_limit: r.rows[0]?.speed_limit || 0 });
+}));
+
+// ── Plan info + vehicle usage ──
+api.get('/me/plan', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const userResult = await pool.query('SELECT plan FROM users WHERE id = $1', [userId]);
+  const plan = userResult.rows[0]?.plan || 'free';
+  const limit = PLAN_LIMITS[plan] ?? 1;
+  const countResult = await pool.query('SELECT COUNT(*) FROM vehicles WHERE owner_id = $1', [userId]);
+  const current = parseInt(countResult.rows[0].count, 10);
+  res.json({ plan, limit, current, canAdd: current < limit });
 }));
 
 api.get('/incidents', authMiddleware, asyncHandler(async (req, res) => {

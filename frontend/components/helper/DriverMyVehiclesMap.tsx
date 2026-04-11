@@ -142,6 +142,9 @@ export default function DriverMyVehiclesMap() {
     }
   };
 
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallInfo, setPaywallInfo] = useState<{ plan: string; limit: number; current: number } | null>(null);
+
   const handleAddVehicle = async () => {
     const token = localStorage.getItem('token');
     if (!token || !addPlate.trim() || !addImei.trim()) return;
@@ -158,7 +161,13 @@ export default function DriverMyVehiclesMap() {
         fetchVehicles();
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Error al agregar vehículo');
+        if (data.error === 'plan_limit') {
+          setShowPaywall(true);
+          setPaywallInfo({ plan: data.plan, limit: data.limit, current: data.current });
+          setShowAddForm(false);
+        } else {
+          setError(data.error || 'Error al agregar vehículo');
+        }
       }
     } catch {
       setError('Error de conexión');
@@ -247,6 +256,52 @@ export default function DriverMyVehiclesMap() {
               className="px-4 py-2 rounded-lg text-zinc-500 text-[12px] font-semibold hover:bg-zinc-100 transition-all"
             >
               Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Paywall modal */}
+      {showPaywall && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
+            <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-4">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <h3 className="text-lg font-extrabold text-zinc-900 text-center mb-2">Mejora tu plan</h3>
+            <p className="text-[14px] text-zinc-500 text-center mb-4">
+              Tu plan {paywallInfo?.plan || 'gratuito'} permite {paywallInfo?.limit || 1} vehículo{(paywallInfo?.limit || 1) > 1 ? 's' : ''}.
+              Para agregar más vehículos, elige un plan de pago.
+            </p>
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center justify-between px-4 py-3 rounded-lg border-2 border-blue-500 bg-blue-50">
+                <div>
+                  <p className="text-sm font-bold text-zinc-900">Personal</p>
+                  <p className="text-[12px] text-zinc-500">Hasta 3 vehículos</p>
+                </div>
+                <span className="text-lg font-extrabold text-zinc-900">$99<span className="text-[12px] text-zinc-400 font-normal">/mes</span></span>
+              </div>
+              <div className="flex items-center justify-between px-4 py-3 rounded-lg border border-zinc-200">
+                <div>
+                  <p className="text-sm font-bold text-zinc-900">Flotillas</p>
+                  <p className="text-[12px] text-zinc-500">Vehículos ilimitados</p>
+                </div>
+                <span className="text-lg font-extrabold text-zinc-900">$79<span className="text-[12px] text-zinc-400 font-normal">/mes c/u</span></span>
+              </div>
+            </div>
+            <a
+              href="https://wa.me/525610669353?text=Hola%2C%20quiero%20mejorar%20mi%20plan%20de%20SilentEye"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full text-center py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors mb-2"
+            >
+              Contactar por WhatsApp
+            </a>
+            <button
+              onClick={() => setShowPaywall(false)}
+              className="w-full text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors py-2"
+            >
+              Cerrar
             </button>
           </div>
         </div>

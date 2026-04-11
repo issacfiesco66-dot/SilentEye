@@ -123,6 +123,9 @@ export default function FleetDashboard() {
     return () => clearInterval(interval);
   }, [fetchPositions]);
 
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallInfo, setPaywallInfo] = useState<{ plan: string; limit: number; current: number } | null>(null);
+
   const handleAddVehicle = async () => {
     if (!token || !addPlate.trim() || !addImei.trim()) return;
     setAdding(true);
@@ -139,7 +142,13 @@ export default function FleetDashboard() {
         fetchPositions();
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Error al agregar vehículo');
+        if (data.error === 'plan_limit') {
+          setShowPaywall(true);
+          setPaywallInfo({ plan: data.plan, limit: data.limit, current: data.current });
+          setShowAddForm(false);
+        } else {
+          setError(data.error || 'Error al agregar vehículo');
+        }
       }
     } catch {
       setError('Error de conexión');
@@ -259,6 +268,33 @@ export default function FleetDashboard() {
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 flex flex-col">
+      {/* Paywall modal */}
+      {showPaywall && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-lg font-extrabold text-zinc-900 text-center mb-2">Mejora tu plan</h3>
+            <p className="text-[14px] text-zinc-500 text-center mb-4">
+              Tu plan {paywallInfo?.plan || 'gratuito'} permite {paywallInfo?.limit || 1} vehículo{(paywallInfo?.limit || 1) > 1 ? 's' : ''}.
+              Para agregar más, elige un plan superior.
+            </p>
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center justify-between px-4 py-3 rounded-lg border-2 border-blue-500 bg-blue-50">
+                <div><p className="text-sm font-bold text-zinc-900">Personal</p><p className="text-[12px] text-zinc-500">Hasta 3 vehículos</p></div>
+                <span className="text-lg font-extrabold text-zinc-900">$99<span className="text-[12px] text-zinc-400 font-normal">/mes</span></span>
+              </div>
+              <div className="flex items-center justify-between px-4 py-3 rounded-lg border border-zinc-200">
+                <div><p className="text-sm font-bold text-zinc-900">Flotillas</p><p className="text-[12px] text-zinc-500">Vehículos ilimitados</p></div>
+                <span className="text-lg font-extrabold text-zinc-900">$79<span className="text-[12px] text-zinc-400 font-normal">/mes c/u</span></span>
+              </div>
+            </div>
+            <a href="https://wa.me/525610669353?text=Hola%2C%20quiero%20mejorar%20mi%20plan%20de%20SilentEye" target="_blank" rel="noopener noreferrer"
+              className="block w-full text-center py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors mb-2">
+              Contactar por WhatsApp
+            </a>
+            <button onClick={() => setShowPaywall(false)} className="w-full text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors py-2">Cerrar</button>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-lg border-b border-zinc-100 px-6 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
