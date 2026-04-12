@@ -377,10 +377,10 @@ export default function SOSPage() {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
           {dashType === 'sos' ? t.common.back : 'Dashboard'}
         </Link>
-        <div className="flex items-center gap-1.5">
+        <a href="/" className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
           <span className="text-xs font-bold tracking-tight text-zinc-700">SilentEye SOS</span>
-        </div>
+        </a>
         <button onClick={handleLogout} className="text-zinc-400 hover:text-zinc-600 text-xs font-medium transition-colors">
           {t.common.logout}
         </button>

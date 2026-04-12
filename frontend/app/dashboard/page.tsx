@@ -166,12 +166,12 @@ export default function DashboardPage() {
       </a>
 
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-lg border-b border-zinc-100 px-6 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
+        <a href="/" className="flex items-center gap-2.5">
           <div className="w-7 h-7 bg-zinc-900 rounded-md flex items-center justify-center">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
           </div>
           <span className="text-sm font-bold tracking-tight">SilentEye</span>
-        </div>
+        </a>
         <div className="flex items-center gap-4">
           <Link href="/perfil" className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors">
             {user.name || t.dashboard.profile}

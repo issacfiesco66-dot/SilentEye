@@ -31,12 +31,12 @@ export default function HelperHeader({ status, onLogout, userName }: HelperHeade
   return (
     <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-lg border-b border-zinc-200/60 px-4 h-12 flex items-center justify-between">
       <div className="flex items-center gap-2.5">
-        <div className="flex items-center gap-1.5">
+        <a href="/" className="flex items-center gap-1.5">
           <div className="w-5 h-5 bg-zinc-900 rounded flex items-center justify-center">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
           </div>
           <span className="text-xs font-bold tracking-tight text-zinc-800">SilentEye</span>
-        </div>
+        </a>
         {userName && (
           <span className="hidden sm:inline text-[11px] text-zinc-400 font-medium truncate max-w-[120px]">
             {userName}

@@ -170,12 +170,12 @@ function LoginContent() {
       <div className="hidden lg:flex lg:w-[45%] bg-zinc-900 text-white flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-[0.03] bg-[linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] bg-[size:32px_32px]" />
         <div className="relative">
-          <div className="flex items-center gap-2.5 mb-16">
+          <a href="/" className="flex items-center gap-2.5 mb-16">
             <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#18181b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
             </div>
             <span className="text-lg font-bold tracking-tight">SilentEye</span>
-          </div>
+          </a>
           <h2 className="text-3xl font-extrabold tracking-tight leading-tight mb-4">
             {method === 'gps'
               ? <>{t.login.leftPanel.gpsTitle.split('\n')[0]}<br />{t.login.leftPanel.gpsTitle.split('\n')[1]}</>
@@ -211,12 +211,12 @@ function LoginContent() {
         <div className="w-full max-w-sm">
 
           {/* Mobile logo */}
-          <div className="flex items-center gap-2.5 mb-10 lg:hidden">
+          <a href="/" className="flex items-center gap-2.5 mb-10 lg:hidden">
             <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
             </div>
             <span className="text-lg font-bold tracking-tight text-zinc-900">SilentEye</span>
-          </div>
+          </a>
 
           <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 mb-1">
             {method === 'gps' ? t.login.titleGps : t.login.title}
