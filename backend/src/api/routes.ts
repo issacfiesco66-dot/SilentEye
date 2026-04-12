@@ -203,6 +203,10 @@ api.post('/setup/seed', asyncHandler(async (req, res) => {
 }));
 
 api.post('/setup/cleanup', asyncHandler(async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    res.status(403).json({ error: 'Endpoint deshabilitado en producción. Usa fly ssh console.' });
+    return;
+  }
   if (!checkSetupSecret(req)) {
     res.status(403).json({ error: 'Secret inválido.' });
     return;
@@ -1187,8 +1191,8 @@ api.post('/geofences', authMiddleware, requireRole('admin', 'fleet_owner', 'driv
   const { userId } = (req as any).user;
   const { name, latitude, longitude, radius_m, alert_on_exit, alert_on_enter } = req.body;
 
-  if (!name || typeof name !== 'string' || name.trim().length < 1) {
-    res.status(400).json({ error: 'Nombre requerido' }); return;
+  if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 100) {
+    res.status(400).json({ error: 'Nombre requerido (máx. 100 caracteres)' }); return;
   }
   if (typeof latitude !== 'number' || typeof longitude !== 'number') {
     res.status(400).json({ error: 'Coordenadas requeridas' }); return;
