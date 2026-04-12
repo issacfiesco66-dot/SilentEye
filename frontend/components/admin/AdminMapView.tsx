@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { useLocale } from '@/hooks/useLocale';
 import IncidentDetail from './IncidentDetail';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { playAlarmSound, initAudioOnInteraction } from '@/lib/alarm';
@@ -19,7 +20,7 @@ const LeafletMap = dynamic(() => import('../LeafletMap'), {
   ssr: false,
   loading: () => (
     <div className="w-full h-full flex items-center justify-center bg-zinc-50 text-zinc-400">
-      Cargando mapa…
+      {/* Loading map */}
     </div>
   ),
 });
@@ -43,6 +44,7 @@ interface Incident {
 
 export default function AdminMapView() {
   const router = useRouter();
+  const { t } = useLocale();
   const [liveVehicles, setLiveVehicles] = useState<Record<string, VehicleLocation>>({});
   const [activeIncidents, setActiveIncidents] = useState<Incident[]>([]);
   const [vehicles, setVehicles] = useState<{ id: string; plate: string }[]>([]);
@@ -235,7 +237,7 @@ export default function AdminMapView() {
       </div>
 
       <p className="text-zinc-400 text-xs">
-        Vehículos en vivo: {Object.keys(liveVehicles).length} · Incidentes activos: {activeIncidents.length}
+        {t.common.vehicles}: {Object.keys(liveVehicles).length} · {t.admin.tabs.incidents}: {activeIncidents.length}
       </p>
 
       {selectedIncidentId && (

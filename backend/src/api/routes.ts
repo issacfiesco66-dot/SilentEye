@@ -24,6 +24,7 @@ import { sendPushToUsers, saveSubscription, removeSubscription, getVapidPublicKe
 import { sendEmail, sendOtpEmail, isEmailEnabled, sendHelperRespondingEmail, sendIncidentResolvedEmail, sendWitnessRequestEmail } from '../services/email-service.js';
 import { sendOtpSms, isSmsEnabled } from '../services/sms-service.js';
 import { logger } from '../utils/logger.js';
+import { t } from '../i18n.js';
 import { runMigrate } from '../db/run-migrate.js';
 import { runSeed } from '../db/run-seed.js';
 
@@ -178,11 +179,11 @@ function checkSetupSecret(req: import('express').Request): boolean {
 
 api.post('/setup/migrate', asyncHandler(async (req, res) => {
   if (process.env.NODE_ENV === 'production') {
-    res.status(403).json({ error: 'Endpoint deshabilitado en producción. Usa fly ssh console.' });
+    res.status(403).json({ error: t(req, 'setupDisabled') });
     return;
   }
   if (!checkSetupSecret(req)) {
-    res.status(403).json({ error: 'Secret inválido. Define MIGRATE_SECRET en Fly Secrets.' });
+    res.status(403).json({ error: t(req, 'secretInvalid') });
     return;
   }
   const result = await runMigrate();
@@ -191,11 +192,11 @@ api.post('/setup/migrate', asyncHandler(async (req, res) => {
 
 api.post('/setup/seed', asyncHandler(async (req, res) => {
   if (process.env.NODE_ENV === 'production') {
-    res.status(403).json({ error: 'Endpoint deshabilitado en producción. Usa fly ssh console.' });
+    res.status(403).json({ error: t(req, 'setupDisabled') });
     return;
   }
   if (!checkSetupSecret(req)) {
-    res.status(403).json({ error: 'Secret inválido. Define MIGRATE_SECRET en Fly Secrets.' });
+    res.status(403).json({ error: t(req, 'secretInvalid') });
     return;
   }
   const result = await runSeed();
@@ -204,11 +205,11 @@ api.post('/setup/seed', asyncHandler(async (req, res) => {
 
 api.post('/setup/cleanup', asyncHandler(async (req, res) => {
   if (process.env.NODE_ENV === 'production') {
-    res.status(403).json({ error: 'Endpoint deshabilitado en producción. Usa fly ssh console.' });
+    res.status(403).json({ error: t(req, 'setupDisabled') });
     return;
   }
   if (!checkSetupSecret(req)) {
-    res.status(403).json({ error: 'Secret inválido.' });
+    res.status(403).json({ error: t(req, 'secretInvalidShort') });
     return;
   }
   const allowedTables = new Set([
@@ -233,12 +234,12 @@ api.post('/setup/otp', asyncHandler(async (req, res) => {
     return;
   }
   if (!checkSetupSecret(req)) {
-    res.status(403).json({ error: 'Secret inválido.' });
+    res.status(403).json({ error: t(req, 'secretInvalidShort') });
     return;
   }
   const phone = req.body?.phone || req.query.phone;
   if (!phone || typeof phone !== 'string' || !isValidPhone(phone)) {
-    res.status(400).json({ error: 'phone requerido (formato válido, máx 20 caracteres)' });
+    res.status(400).json({ error: t(req, 'phoneRequired') });
     return;
   }
   try {
@@ -247,7 +248,7 @@ api.post('/setup/otp', asyncHandler(async (req, res) => {
     res.json({ ok: true, phone: phone.trim(), code });
   } catch (err) {
     logger.error('setup/otp error:', err);
-    res.status(500).json({ ok: false, error: 'Error interno' });
+    res.status(500).json({ ok: false, error: t(req, 'internalError') });
   }
 }));
 
@@ -256,7 +257,7 @@ function authMiddleware(req: import('express').Request, res: import('express').R
   const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
   const payload = token ? verifyToken(token) : null;
   if (!payload) {
-    res.status(401).json({ error: 'No autorizado' });
+    res.status(401).json({ error: t(req, 'unauthorized') });
     return;
   }
   (req as any).user = payload;
@@ -267,7 +268,7 @@ function requireRole(...roles: string[]) {
   return (req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) => {
     const user = (req as any).user;
     if (!user || !roles.includes(user.role)) {
-      res.status(403).json({ error: 'Acceso denegado' });
+      res.status(403).json({ error: t(req, 'accessDenied') });
       return;
     }
     next();
@@ -282,7 +283,7 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
 
     if (imei && typeof imei === 'string') {
       if (!isValidImeiInput(imei)) {
-        res.status(400).json({ error: 'IMEI inválido. Debe ser 15 dígitos numéricos.' });
+        res.status(400).json({ error: t(req, 'invalidImeiFormat') });
         return;
       }
       // Conductor: ingresa con número de GPS (IMEI). El GPS debe estar registrado por admin.
@@ -292,11 +293,11 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       );
       const row = vRow.rows[0];
       if (!row) {
-        res.status(400).json({ error: 'GPS no registrado. Contacta al administrador.' });
+        res.status(400).json({ error: t(req, 'gpsNotRegistered') });
         return;
       }
       if (!row.driver_id || !row.phone) {
-        res.status(400).json({ error: 'GPS sin conductor asignado. Contacta al administrador.' });
+        res.status(400).json({ error: t(req, 'gpsNoDriver') });
         return;
       }
 
@@ -308,7 +309,7 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       if (row.email && isEmailEnabled()) {
         const sent = await sendOtpEmail(row.email, code);
         if (!sent) {
-          res.status(500).json({ error: 'No se pudo enviar el correo. Verifica el email del conductor.' });
+          res.status(500).json({ error: t(req, 'emailSendFail') });
           return;
         }
         res.json({ success: true, emailSent: true, emailHint: row.email.replace(/(.{2})(.*)(@.*)/, '$1***$3') });
@@ -334,7 +335,7 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       const cleanEmail = email.trim().toLowerCase();
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(cleanEmail)) {
-        res.status(400).json({ error: 'Email inválido. Ingresa un correo real, ej: tu@correo.com' });
+        res.status(400).json({ error: t(req, 'invalidEmailFormat') });
         return;
       }
 
@@ -348,7 +349,7 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       // Per-email hourly limit (5)
       const withinLimit = await checkPhoneHourlyLimit(cleanEmail, 5);
       if (!withinLimit) {
-        res.status(429).json({ error: 'Demasiados códigos solicitados. Intenta en 1 hora.' });
+        res.status(429).json({ error: t(req, 'tooManyOtp') });
         return;
       }
 
@@ -358,20 +359,20 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       if (isEmailEnabled()) {
         const sent = await sendOtpEmail(cleanEmail, code);
         if (!sent) {
-          res.status(500).json({ error: 'No se pudo enviar el correo. Verifica tu email e intenta de nuevo.' });
+          res.status(500).json({ error: t(req, 'emailSendFail2') });
           return;
         }
         res.json({ success: true, emailSent: true });
       } else {
         logger.warn(`OTP citizen sin email: ${cleanEmail}`);
-        res.status(503).json({ error: 'Servicio de verificación por email no disponible. Intenta más tarde.' });
+        res.status(503).json({ error: t(req, 'emailNotConfigured') });
       }
       return;
     }
 
     if (phone && typeof phone === 'string') {
       if (!isValidPhone(phone)) {
-        res.status(400).json({ error: 'Teléfono inválido. Usa formato: +52 222 123 4567' });
+        res.status(400).json({ error: t(req, 'invalidPhoneFormat') });
         return;
       }
 
@@ -387,7 +388,7 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       // Per-phone hourly limit (10 for admin/helper)
       const withinLimit = await checkPhoneHourlyLimit(cleanPhone, 10);
       if (!withinLimit) {
-        res.status(429).json({ error: 'Demasiados códigos solicitados. Intenta en 1 hora.' });
+        res.status(429).json({ error: t(req, 'tooManyOtp') });
         return;
       }
 
@@ -398,11 +399,11 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
         [cleanPhone]
       );
       if (!userCheck.rows[0]) {
-        res.status(403).json({ error: 'Número no registrado. Solo usuarios registrados por el administrador pueden ingresar.' });
+        res.status(403).json({ error: t(req, 'phoneNotRegistered') });
         return;
       }
       if (userCheck.rows[0].is_active === false) {
-        res.status(403).json({ error: 'Cuenta desactivada. Contacta al administrador.' });
+        res.status(403).json({ error: t(req, 'accountDisabled') });
         return;
       }
 
@@ -433,10 +434,10 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       return;
     }
 
-    res.status(400).json({ error: 'Ingresa el número de GPS (IMEI), teléfono o email' });
+    res.status(400).json({ error: t(req, 'identifierRequired') });
   } catch (err: unknown) {
     logger.error('OTP request error:', err);
-    res.status(500).json({ error: 'Error al generar OTP' });
+    res.status(500).json({ error: t(req, 'otpGenError') });
   }
 }));
 
@@ -444,7 +445,7 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
   try {
     const { imei, phone, email, code, name, mode } = req.body;
     if (!code) {
-      res.status(400).json({ error: 'Código requerido' });
+      res.status(400).json({ error: t(req, 'codeRequired') });
       return;
     }
 
@@ -456,20 +457,20 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
       );
       const row = vRow.rows[0];
       if (!row || !row.driver_id) {
-        res.status(400).json({ error: 'GPS no registrado o sin conductor' });
+        res.status(400).json({ error: t(req, 'gpsNotRegOrDriver') });
         return;
       }
       const uRow = await pool.query('SELECT id, phone, name, role, email FROM users WHERE id = $1', [row.driver_id]);
       const user = uRow.rows[0];
       if (!user) {
-        res.status(400).json({ error: 'Usuario no encontrado' });
+        res.status(400).json({ error: t(req, 'userNotFound') });
         return;
       }
       // OTP was created with email if available, otherwise phone
       const otpIdentifier = user.email || user.phone;
       const { valid, error: otpError } = await verifyOtp(otpIdentifier, code);
       if (!valid) {
-        res.status(401).json({ error: otpError || 'Código inválido o expirado' });
+        res.status(401).json({ error: otpError || t(req, 'invalidCode') });
         return;
       }
       const token = signToken({ userId: user.id, role: user.role });
@@ -482,20 +483,20 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
       const cleanEmail = email.trim().toLowerCase();
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(cleanEmail)) {
-        res.status(400).json({ error: 'Email inválido' });
+        res.status(400).json({ error: t(req, 'invalidEmail') });
         return;
       }
 
       const { valid, user: existingUser, error: otpError } = await verifyOtp(cleanEmail, code);
       if (!valid) {
-        res.status(401).json({ error: otpError || 'Código inválido o expirado' });
+        res.status(401).json({ error: otpError || t(req, 'invalidCode') });
         return;
       }
 
       // For new accounts: require a real name
       if (!existingUser) {
         if (!name || typeof name !== 'string' || name.trim().length < 2) {
-          res.status(400).json({ error: 'Tu nombre es requerido para registrarte (mín. 2 caracteres)' });
+          res.status(400).json({ error: t(req, 'nameRequired') });
           return;
         }
       }
@@ -519,18 +520,18 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
     // Admin/helper: verify by phone
     if (phone && typeof phone === 'string') {
       if (!isValidPhone(phone)) {
-        res.status(400).json({ error: 'Teléfono inválido' });
+        res.status(400).json({ error: t(req, 'invalidPhone') });
         return;
       }
 
       const { valid, user: existingUser, error: otpError } = await verifyOtp(phone.trim(), code);
       if (!valid) {
-        res.status(401).json({ error: otpError || 'Código inválido o expirado' });
+        res.status(401).json({ error: otpError || t(req, 'invalidCode') });
         return;
       }
 
       if (!existingUser) {
-        res.status(403).json({ error: 'Número no registrado. Contacta al administrador.' });
+        res.status(403).json({ error: t(req, 'phoneNotRegContact') });
         return;
       }
       const token = signToken({ userId: existingUser.id, role: existingUser.role });
@@ -538,10 +539,10 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
       return;
     }
 
-    res.status(400).json({ error: 'Ingresa IMEI, teléfono o email' });
+    res.status(400).json({ error: t(req, 'verifyIdentifier') });
   } catch (err: unknown) {
     logger.error('OTP verify error:', err);
-    res.status(500).json({ error: 'Error al verificar OTP' });
+    res.status(500).json({ error: t(req, 'otpVerifyError') });
   }
 }));
 
@@ -550,7 +551,7 @@ api.post('/auth/login', authRateLimit, asyncHandler(async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || typeof email !== 'string' || !password || typeof password !== 'string') {
-      res.status(400).json({ error: 'Email y contraseña requeridos' });
+      res.status(400).json({ error: t(req, 'emailPassRequired') });
       return;
     }
     const cleanEmail = email.trim().toLowerCase();
@@ -560,16 +561,16 @@ api.post('/auth/login', authRateLimit, asyncHandler(async (req, res) => {
     );
     const user = userResult.rows[0];
     if (!user || !user.password_hash) {
-      res.status(401).json({ error: 'Email o contraseña incorrectos' });
+      res.status(401).json({ error: t(req, 'wrongCredentials') });
       return;
     }
     if (user.is_active === false) {
-      res.status(403).json({ error: 'Cuenta desactivada. Contacta al administrador.' });
+      res.status(403).json({ error: t(req, 'accountDisabled') });
       return;
     }
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
-      res.status(401).json({ error: 'Email o contraseña incorrectos' });
+      res.status(401).json({ error: t(req, 'wrongCredentials') });
       return;
     }
     const token = signToken({ userId: user.id, role: user.role });
@@ -586,7 +587,7 @@ api.post('/auth/login', authRateLimit, asyncHandler(async (req, res) => {
     });
   } catch (err) {
     logger.error('Login error:', err);
-    res.status(500).json({ error: 'Error al iniciar sesión' });
+    res.status(500).json({ error: t(req, 'loginError') });
   }
 }));
 
@@ -600,7 +601,7 @@ api.get('/me', authMiddleware, asyncHandler(async (req, res) => {
     [userId]
   );
   if (!r.rows[0]) {
-    res.status(404).json({ error: 'Usuario no encontrado' });
+    res.status(404).json({ error: t(req, 'userNotFound') });
     return;
   }
   const u = r.rows[0];
@@ -619,7 +620,7 @@ api.put('/me/profile', authMiddleware, asyncHandler(async (req, res) => {
 
   if (name != null && typeof name === 'string' && name.trim().length >= 2) {
     if (name.trim().length > 100) {
-      res.status(400).json({ error: 'Nombre máximo 100 caracteres' });
+      res.status(400).json({ error: t(req, 'nameMax') });
       return;
     }
     updates.push(`name = $${p++}`);
@@ -630,7 +631,7 @@ api.put('/me/profile', authMiddleware, asyncHandler(async (req, res) => {
       const cleanEmail = email.trim().toLowerCase();
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(cleanEmail)) {
-        res.status(400).json({ error: 'Email inválido' });
+        res.status(400).json({ error: t(req, 'invalidEmail') });
         return;
       }
       const dup = await pool.query('SELECT id FROM users WHERE email = $1 AND id != $2', [cleanEmail, userId]);
@@ -655,7 +656,7 @@ api.put('/me/profile', authMiddleware, asyncHandler(async (req, res) => {
     params
   );
   if (!r.rows[0]) {
-    res.status(404).json({ error: 'Usuario no encontrado' });
+    res.status(404).json({ error: t(req, 'userNotFound') });
     return;
   }
   res.json({ ...r.rows[0], permissions: getPermissions(r.rows[0].role) });
@@ -675,7 +676,7 @@ api.put('/me/password', authMiddleware, asyncHandler(async (req, res) => {
   const userResult = await pool.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
   const user = userResult.rows[0];
   if (!user) {
-    res.status(404).json({ error: 'Usuario no encontrado' });
+    res.status(404).json({ error: t(req, 'userNotFound') });
     return;
   }
   if (user.password_hash) {
@@ -699,7 +700,7 @@ api.put('/me/location', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const { latitude, longitude } = req.body;
   if (!isValidCoords(latitude, longitude)) {
-    res.status(400).json({ error: 'Latitud (-90..90) y longitud (-180..180) requeridas' });
+    res.status(400).json({ error: t(req, 'latLonRequired') });
     return;
   }
   const pg = await hasPostGis();
@@ -716,7 +717,7 @@ api.post('/helpers/location', authMiddleware, requireRole('helper', 'driver'), a
   const { userId } = (req as any).user;
   const { latitude, longitude } = req.body;
   if (!isValidCoords(latitude, longitude)) {
-    res.status(400).json({ error: 'latitude (-90..90) y longitude (-180..180) requeridos' });
+    res.status(400).json({ error: t(req, 'latLonRequired2') });
     return;
   }
   const pg = await hasPostGis();
@@ -824,11 +825,11 @@ api.get('/vehicles/:id', authMiddleware, asyncHandler(async (req, res) => {
   );
   const v = r.rows[0];
   if (!v) {
-    res.status(404).json({ error: 'Vehículo no encontrado' });
+    res.status(404).json({ error: t(req, 'vehicleNotFound') });
     return;
   }
   if (role !== 'admin' && v.driver_id !== userId && v.owner_id !== userId) {
-    res.status(403).json({ error: 'Acceso denegado' });
+    res.status(403).json({ error: t(req, 'accessDenied') });
     return;
   }
   res.json(v);
@@ -841,19 +842,19 @@ api.post('/vehicles', authMiddleware, requireRole('admin', 'driver', 'fleet_owne
   const { userId, role } = (req as any).user;
   const { plate, name, imei, driver_id } = req.body;
   if (!plate || !imei) {
-    res.status(400).json({ error: 'Placa e IMEI requeridos' });
+    res.status(400).json({ error: t(req, 'plateImeiRequired') });
     return;
   }
   if (typeof plate !== 'string' || plate.trim().length > 20) {
-    res.status(400).json({ error: 'Placa máximo 20 caracteres' });
+    res.status(400).json({ error: t(req, 'plateMax') });
     return;
   }
   if (typeof imei !== 'string' || !IMEI_REGEX.test(imei.trim())) {
-    res.status(400).json({ error: 'IMEI inválido (15 dígitos)' });
+    res.status(400).json({ error: t(req, 'invalidImei') });
     return;
   }
   if (name && (typeof name !== 'string' || name.trim().length > 100)) {
-    res.status(400).json({ error: 'Nombre máximo 100 caracteres' });
+    res.status(400).json({ error: t(req, 'nameMax') });
     return;
   }
 
@@ -900,7 +901,7 @@ api.post('/vehicles', authMiddleware, requireRole('admin', 'driver', 'fleet_owne
   } catch (err: unknown) {
     const e = err as { code?: string };
     if (e?.code === '23505') {
-      res.status(409).json({ error: 'Ese IMEI o placa ya existe. Usa otro.' });
+      res.status(409).json({ error: t(req, 'imeiOrPlateExists') });
       return;
     }
     throw err;
@@ -916,7 +917,7 @@ api.put('/vehicles/:id', authMiddleware, requireRole('admin', 'fleet_owner'), as
   if (role === 'fleet_owner') {
     const check = await pool.query('SELECT owner_id FROM vehicles WHERE id = $1', [id]);
     if (!check.rows[0] || check.rows[0].owner_id !== userId) {
-      res.status(403).json({ error: 'Solo puedes editar tus propios vehículos' });
+      res.status(403).json({ error: t(req, 'onlyOwnVehiclesEdit') });
       return;
     }
   }
@@ -932,7 +933,7 @@ api.put('/vehicles/:id', authMiddleware, requireRole('admin', 'fleet_owner'), as
   } catch (err: unknown) {
     const e = err as { code?: string };
     if (e?.code === '23505') {
-      res.status(409).json({ error: 'Ese IMEI o placa ya existe. Usa otro.' });
+      res.status(409).json({ error: t(req, 'imeiOrPlateExists') });
       return;
     }
     throw err;
@@ -943,7 +944,7 @@ api.put('/vehicles/:id', authMiddleware, requireRole('admin', 'fleet_owner'), as
     [id]
   );
   if (!r.rows[0]) {
-    res.status(404).json({ error: 'Vehículo no encontrado' });
+    res.status(404).json({ error: t(req, 'vehicleNotFound') });
     return;
   }
   res.json(r.rows[0]);
@@ -956,14 +957,14 @@ api.delete('/vehicles/:id', authMiddleware, requireRole('admin', 'fleet_owner'),
   if (role === 'fleet_owner') {
     const check = await pool.query('SELECT owner_id FROM vehicles WHERE id = $1', [id]);
     if (!check.rows[0] || check.rows[0].owner_id !== userId) {
-      res.status(403).json({ error: 'Solo puedes eliminar tus propios vehículos' });
+      res.status(403).json({ error: t(req, 'onlyOwnVehiclesDel') });
       return;
     }
   }
 
   const r = await pool.query('DELETE FROM vehicles WHERE id = $1 RETURNING id', [id]);
   if (!r.rows[0]) {
-    res.status(404).json({ error: 'Vehículo no encontrado' });
+    res.status(404).json({ error: t(req, 'vehicleNotFound') });
     return;
   }
   res.json({ success: true });
@@ -988,11 +989,11 @@ api.get('/fleet/drivers', authMiddleware, requireRole('fleet_owner'), asyncHandl
 api.post('/fleet/drivers', authMiddleware, requireRole('fleet_owner'), asyncHandler(async (req, res) => {
   const { phone, name, email } = req.body;
   if (!phone || typeof phone !== 'string' || !name || typeof name !== 'string') {
-    res.status(400).json({ error: 'Teléfono y nombre requeridos' });
+    res.status(400).json({ error: t(req, 'phoneAndNameReq') });
     return;
   }
   if (!isValidPhone(phone)) {
-    res.status(400).json({ error: 'Teléfono inválido' });
+    res.status(400).json({ error: t(req, 'invalidPhone') });
     return;
   }
   // Check if user already exists
@@ -1019,7 +1020,7 @@ api.put('/fleet/vehicles/:id/driver', authMiddleware, requireRole('fleet_owner')
   // Verify vehicle ownership
   const check = await pool.query('SELECT id, owner_id FROM vehicles WHERE id = $1', [id]);
   if (!check.rows[0] || check.rows[0].owner_id !== userId) {
-    res.status(403).json({ error: 'Solo puedes gestionar tus propios vehículos' });
+    res.status(403).json({ error: t(req, 'onlyOwnVehiclesMgr') });
     return;
   }
 
@@ -1042,11 +1043,11 @@ api.post('/vehicles/:id/park', authMiddleware, asyncHandler(async (req, res) => 
   // Verify ownership or admin
   const v = await pool.query('SELECT id, driver_id, owner_id, plate, parked_at FROM vehicles WHERE id = $1', [id]);
   if (!v.rows[0]) {
-    res.status(404).json({ error: 'Vehículo no encontrado' });
+    res.status(404).json({ error: t(req, 'vehicleNotFound') });
     return;
   }
   if (role !== 'admin' && v.rows[0].driver_id !== userId && v.rows[0].owner_id !== userId) {
-    res.status(403).json({ error: 'Solo el conductor asignado, el dueño o un admin puede estacionar este vehículo' });
+    res.status(403).json({ error: t(req, 'onlyDriverOwnerPark') });
     return;
   }
   if (v.rows[0].parked_at) {
@@ -1078,11 +1079,11 @@ api.post('/vehicles/:id/unpark', authMiddleware, asyncHandler(async (req, res) =
 
   const v = await pool.query('SELECT id, driver_id, owner_id, plate, parked_at FROM vehicles WHERE id = $1', [id]);
   if (!v.rows[0]) {
-    res.status(404).json({ error: 'Vehículo no encontrado' });
+    res.status(404).json({ error: t(req, 'vehicleNotFound') });
     return;
   }
   if (role !== 'admin' && v.rows[0].driver_id !== userId && v.rows[0].owner_id !== userId) {
-    res.status(403).json({ error: 'Solo el conductor asignado, el dueño o un admin puede desestacionar este vehículo' });
+    res.status(403).json({ error: t(req, 'onlyDriverOwnerUnpark') });
     return;
   }
   if (!v.rows[0].parked_at) {
@@ -1107,9 +1108,9 @@ api.get('/vehicles/:id/history', authMiddleware, requireRole('admin', 'helper', 
 
   // Verify access
   const v = await pool.query('SELECT id, driver_id, owner_id FROM vehicles WHERE id = $1', [id]);
-  if (!v.rows[0]) { res.status(404).json({ error: 'Vehículo no encontrado' }); return; }
+  if (!v.rows[0]) { res.status(404).json({ error: t(req, 'vehicleNotFound') }); return; }
   if (role !== 'admin' && role !== 'helper' && v.rows[0].driver_id !== userId && v.rows[0].owner_id !== userId) {
-    res.status(403).json({ error: 'Acceso denegado' }); return;
+    res.status(403).json({ error: t(req, 'accessDenied') }); return;
   }
 
   const date = String(req.query.date || '');
@@ -1192,10 +1193,10 @@ api.post('/geofences', authMiddleware, requireRole('admin', 'fleet_owner', 'driv
   const { name, latitude, longitude, radius_m, alert_on_exit, alert_on_enter } = req.body;
 
   if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 100) {
-    res.status(400).json({ error: 'Nombre requerido (máx. 100 caracteres)' }); return;
+    res.status(400).json({ error: t(req, 'nameReqMax') }); return;
   }
   if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-    res.status(400).json({ error: 'Coordenadas requeridas' }); return;
+    res.status(400).json({ error: t(req, 'coordsRequired') }); return;
   }
   const radius = Math.min(Math.max(parseInt(String(radius_m || 500), 10) || 500, 50), 50000);
 
@@ -1213,8 +1214,8 @@ api.put('/geofences/:id', authMiddleware, requireRole('admin', 'fleet_owner', 'd
   const { userId, role } = (req as any).user;
 
   const check = await pool.query('SELECT user_id FROM geofences WHERE id = $1', [id]);
-  if (!check.rows[0]) { res.status(404).json({ error: 'Geocerca no encontrada' }); return; }
-  if (role !== 'admin' && check.rows[0].user_id !== userId) { res.status(403).json({ error: 'Acceso denegado' }); return; }
+  if (!check.rows[0]) { res.status(404).json({ error: t(req, 'geofenceNotFound') }); return; }
+  if (role !== 'admin' && check.rows[0].user_id !== userId) { res.status(403).json({ error: t(req, 'accessDenied') }); return; }
 
   const { name, latitude, longitude, radius_m, alert_on_exit, alert_on_enter, is_active } = req.body;
   const r = await pool.query(
@@ -1238,8 +1239,8 @@ api.delete('/geofences/:id', authMiddleware, requireRole('admin', 'fleet_owner',
   const { userId, role } = (req as any).user;
 
   const check = await pool.query('SELECT user_id FROM geofences WHERE id = $1', [id]);
-  if (!check.rows[0]) { res.status(404).json({ error: 'Geocerca no encontrada' }); return; }
-  if (role !== 'admin' && check.rows[0].user_id !== userId) { res.status(403).json({ error: 'Acceso denegado' }); return; }
+  if (!check.rows[0]) { res.status(404).json({ error: t(req, 'geofenceNotFound') }); return; }
+  if (role !== 'admin' && check.rows[0].user_id !== userId) { res.status(403).json({ error: t(req, 'accessDenied') }); return; }
 
   await pool.query('DELETE FROM geofences WHERE id = $1', [id]);
   res.json({ success: true });
@@ -1320,7 +1321,7 @@ api.get('/incidents/:id', authMiddleware, asyncHandler(async (req, res) => {
   const r = await pool.query(query, params);
   const inc = r.rows[0];
   if (!inc) {
-    res.status(404).json({ error: 'Incidente no encontrado' });
+    res.status(404).json({ error: t(req, 'incidentNotFound') });
     return;
   }
   const followers = await pool.query(
@@ -1335,7 +1336,7 @@ api.delete('/incidents/:id', authMiddleware, requireRole('admin'), asyncHandler(
   const { id } = req.params;
   const r = await pool.query('DELETE FROM incidents WHERE id = $1 RETURNING id', [id]);
   if (!r.rows[0]) {
-    res.status(404).json({ error: 'Incidente no encontrado' });
+    res.status(404).json({ error: t(req, 'incidentNotFound') });
     return;
   }
   res.json({ success: true });
@@ -1357,7 +1358,7 @@ api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper', 
   }
   // Solo admin puede marcar resolved
   if ((role === 'helper' || role === 'driver') && ADMIN_ONLY_STATUSES.includes(status)) {
-    res.status(403).json({ error: 'Solo un administrador puede marcar ese estado' });
+    res.status(403).json({ error: t(req, 'adminOnlyStatus') });
     return;
   }
 
@@ -1386,7 +1387,7 @@ api.put('/incidents/:id/status', authMiddleware, requireRole('admin', 'helper', 
 
   const r = await pool.query(updateQuery, params);
   if (!r.rows[0]) {
-    res.status(404).json({ error: 'Incidente no encontrado' });
+    res.status(404).json({ error: t(req, 'incidentNotFound') });
     return;
   }
 
@@ -1496,7 +1497,7 @@ api.get('/incidents/:id/report.pdf', authMiddleware, requireRole('admin'), async
   );
   const incident = incResult.rows[0];
   if (!incident) {
-    res.status(404).json({ error: 'Incidente no encontrado' });
+    res.status(404).json({ error: t(req, 'incidentNotFound') });
     return;
   }
 
@@ -1628,7 +1629,7 @@ api.post('/incidents/:id/witness-request', authMiddleware, requireRole('admin'),
   const { id } = req.params;
 
   if (!isEmailEnabled()) {
-    res.status(503).json({ error: 'Servicio de email no configurado' });
+    res.status(503).json({ error: t(req, 'emailServiceDown') });
     return;
   }
 
@@ -1742,7 +1743,7 @@ api.delete('/alerts/:id', authMiddleware, requireRole('admin'), asyncHandler(asy
   const { id } = req.params;
   const r = await pool.query('DELETE FROM alerts WHERE id = $1 RETURNING id', [id]);
   if (!r.rows[0]) {
-    res.status(404).json({ error: 'Alerta no encontrada' });
+    res.status(404).json({ error: t(req, 'alertNotFound') });
     return;
   }
   res.json({ success: true, deleted: 1 });
@@ -1868,7 +1869,7 @@ api.get('/gps/logs', authMiddleware, asyncHandler(async (req, res) => {
   const { userId, role } = (req as any).user;
 
   if (!vehicle_id || typeof vehicle_id !== 'string') {
-    res.status(400).json({ error: 'vehicle_id requerido' });
+    res.status(400).json({ error: t(req, 'vehicleIdRequired') });
     return;
   }
 
@@ -1880,7 +1881,7 @@ api.get('/gps/logs', authMiddleware, asyncHandler(async (req, res) => {
       [vehicle_id, userId]
     );
     if (vCheck.rowCount === 0) {
-      res.status(403).json({ error: 'Acceso denegado a logs de este vehículo' });
+      res.status(403).json({ error: t(req, 'logsAccessDenied') });
       return;
     }
   } else if (role === 'helper') {
@@ -1891,11 +1892,11 @@ api.get('/gps/logs', authMiddleware, asyncHandler(async (req, res) => {
       [vehicle_id, userId]
     );
     if (vCheck.rowCount === 0) {
-      res.status(403).json({ error: 'Acceso denegado: solo puede ver logs de vehículos en incidentes que sigue' });
+      res.status(403).json({ error: t(req, 'logsAccessIncident') });
       return;
     }
   } else {
-    res.status(403).json({ error: 'Acceso denegado' });
+    res.status(403).json({ error: t(req, 'accessDenied') });
     return;
   }
 
@@ -1961,38 +1962,38 @@ api.get('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (
       [id]
     );
     if (!r.rows[0]) {
-      res.status(404).json({ error: 'Usuario no encontrado' });
+      res.status(404).json({ error: t(req, 'userNotFound') });
       return;
     }
     res.json(r.rows[0]);
   } catch (err) {
     logger.error('GET /users/:id error:', err);
-    res.status(500).json({ error: 'Error al obtener usuario' });
+    res.status(500).json({ error: t(req, 'userFetchError') });
   }
 }));
 
 api.post('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { phone, name, role, email } = req.body;
   if (!phone || typeof phone !== 'string' || !name || typeof name !== 'string') {
-    res.status(400).json({ error: 'Teléfono y nombre requeridos' });
+    res.status(400).json({ error: t(req, 'phoneAndNameReq') });
     return;
   }
   if (name.trim().length > 100) {
-    res.status(400).json({ error: 'Nombre máximo 100 caracteres' });
+    res.status(400).json({ error: t(req, 'nameMax') });
     return;
   }
   if (!isValidPhone(phone)) {
-    res.status(400).json({ error: 'Teléfono inválido (máx 20 caracteres)' });
+    res.status(400).json({ error: t(req, 'invalidPhoneMax') });
     return;
   }
   if (email && (typeof email !== 'string' || email.trim().length > 255)) {
-    res.status(400).json({ error: 'Email máximo 255 caracteres' });
+    res.status(400).json({ error: t(req, 'emailMax') });
     return;
   }
   const finalRole = ['driver', 'helper', 'admin', 'citizen', 'fleet_owner'].includes(role) ? role : 'driver';
   const existing = await pool.query('SELECT id FROM users WHERE phone = $1', [phone]);
   if (existing.rows[0]) {
-    res.status(409).json({ error: 'Ya existe un usuario con ese teléfono' });
+    res.status(409).json({ error: t(req, 'phoneDuplicate') });
     return;
   }
   const cleanEmail = email && typeof email === 'string' ? email.trim().toLowerCase() : null;
@@ -2016,7 +2017,7 @@ api.put('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (
   if (phone != null && typeof phone === 'string') {
     const existing = await pool.query('SELECT id FROM users WHERE phone = $1 AND id != $2', [phone.trim(), id]);
     if (existing.rows[0]) {
-      res.status(409).json({ error: 'Ya existe otro usuario con ese teléfono' });
+      res.status(409).json({ error: t(req, 'phoneDuplicate2') });
       return;
     }
     updates.push(`phone = $${p++}`);
@@ -2028,7 +2029,7 @@ api.put('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (
     params.push(cleanEmail);
   }
   if (updates.length === 0) {
-    res.status(400).json({ error: 'Indica name, phone o email para actualizar' });
+    res.status(400).json({ error: t(req, 'updateFieldRequired') });
     return;
   }
   params.push(id);
@@ -2037,7 +2038,7 @@ api.put('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (
     params
   );
   if (!r.rows[0]) {
-    res.status(404).json({ error: 'Usuario no encontrado' });
+    res.status(404).json({ error: t(req, 'userNotFound') });
     return;
   }
   res.json(r.rows[0]);
@@ -2047,7 +2048,7 @@ api.put('/users/:id/role', authMiddleware, requireRole('admin'), asyncHandler(as
   const { id } = req.params;
   const { role } = req.body;
   if (!['driver', 'helper', 'admin', 'citizen', 'fleet_owner'].includes(role)) {
-    res.status(400).json({ error: 'Rol inválido' });
+    res.status(400).json({ error: t(req, 'invalidRole') });
     return;
   }
   const r = await pool.query(
@@ -2055,7 +2056,7 @@ api.put('/users/:id/role', authMiddleware, requireRole('admin'), asyncHandler(as
     [id, role]
   );
   if (!r.rows[0]) {
-    res.status(404).json({ error: 'Usuario no encontrado' });
+    res.status(404).json({ error: t(req, 'userNotFound') });
     return;
   }
   res.json(r.rows[0]);
@@ -2065,7 +2066,7 @@ api.put('/users/:id/block', authMiddleware, requireRole('admin'), asyncHandler(a
   const { id } = req.params;
   const { userId } = (req as any).user;
   if (id === userId) {
-    res.status(400).json({ error: 'No puedes bloquearte a ti mismo' });
+    res.status(400).json({ error: t(req, 'cannotBlockSelf') });
     return;
   }
   // Prevent blocking the last active admin
@@ -2075,7 +2076,7 @@ api.put('/users/:id/block', authMiddleware, requireRole('admin'), asyncHandler(a
   );
   const target = await pool.query('SELECT role FROM users WHERE id = $1', [id]);
   if (target.rows[0]?.role === 'admin' && (adminCount.rows[0]?.cnt ?? 0) === 0) {
-    res.status(400).json({ error: 'No puedes bloquear al único administrador activo' });
+    res.status(400).json({ error: t(req, 'cannotBlockLastAdmin') });
     return;
   }
   const r = await pool.query(
@@ -2083,7 +2084,7 @@ api.put('/users/:id/block', authMiddleware, requireRole('admin'), asyncHandler(a
     [id]
   );
   if (!r.rows[0]) {
-    res.status(404).json({ error: 'Usuario no encontrado' });
+    res.status(404).json({ error: t(req, 'userNotFound') });
     return;
   }
   res.json(r.rows[0]);
@@ -2104,7 +2105,7 @@ api.post('/panic', authMiddleware, panicRateLimit, asyncHandler(async (req, res)
   const { latitude, longitude } = req.body;
 
   if (!isValidCoords(latitude, longitude)) {
-    res.status(400).json({ error: 'Ubicación GPS requerida (latitude, longitude)' });
+    res.status(400).json({ error: t(req, 'gpsLocRequired') });
     return;
   }
 
@@ -2119,7 +2120,7 @@ api.post('/panic', authMiddleware, panicRateLimit, asyncHandler(async (req, res)
     );
     const user = userResult.rows[0];
     if (!user) {
-      res.status(404).json({ error: 'Usuario no encontrado' });
+      res.status(404).json({ error: t(req, 'userNotFound') });
       return;
     }
 
@@ -2260,7 +2261,7 @@ api.post('/location', authMiddleware, locationRateLimit, asyncHandler(async (req
   const { latitude, longitude } = req.body;
 
   if (!isValidCoords(latitude, longitude)) {
-    res.status(400).json({ error: 'Ubicación GPS requerida (latitude, longitude)' });
+    res.status(400).json({ error: t(req, 'gpsLocRequired') });
     return;
   }
 
@@ -2321,7 +2322,7 @@ api.post('/location', authMiddleware, locationRateLimit, asyncHandler(async (req
 api.get('/push/vapid-key', (_req, res) => {
   const key = getVapidPublicKey();
   if (!key) {
-    res.status(503).json({ error: 'Push notifications no configuradas' });
+    res.status(503).json({ error: t(_req, 'pushNotConfigured') });
     return;
   }
   res.json({ publicKey: key });
@@ -2331,7 +2332,7 @@ api.post('/push/subscribe', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const { subscription } = req.body;
   if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
-    res.status(400).json({ error: 'Subscription inválida' });
+    res.status(400).json({ error: t(req, 'invalidSubscription') });
     return;
   }
   try {
@@ -2339,7 +2340,7 @@ api.post('/push/subscribe', authMiddleware, asyncHandler(async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     logger.error('POST /push/subscribe error:', err);
-    res.status(500).json({ error: 'Error al guardar subscription' });
+    res.status(500).json({ error: t(req, 'savePushError') });
   }
 }));
 
@@ -2347,7 +2348,7 @@ api.post('/push/unsubscribe', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const { endpoint } = req.body;
   if (!endpoint) {
-    res.status(400).json({ error: 'Endpoint requerido' });
+    res.status(400).json({ error: t(req, 'endpointRequired') });
     return;
   }
   try {
@@ -2355,7 +2356,7 @@ api.post('/push/unsubscribe', authMiddleware, asyncHandler(async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     logger.error('POST /push/unsubscribe error:', err);
-    res.status(500).json({ error: 'Error al eliminar subscription' });
+    res.status(500).json({ error: t(req, 'removePushError') });
   }
 }));
 
@@ -2365,7 +2366,7 @@ api.delete('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(asyn
   const { id } = req.params;
   const { userId } = (req as any).user;
   if (id === userId) {
-    res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
+    res.status(400).json({ error: t(req, 'cannotDeleteSelf') });
     return;
   }
   try {
@@ -2373,13 +2374,13 @@ api.delete('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(asyn
     await pool.query('UPDATE vehicles SET driver_id = NULL WHERE driver_id = $1', [id]);
     const r = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [id]);
     if (!r.rows[0]) {
-      res.status(404).json({ error: 'Usuario no encontrado' });
+      res.status(404).json({ error: t(req, 'userNotFound') });
       return;
     }
     res.json({ success: true });
   } catch (err) {
     logger.error('DELETE /users/:id error:', err);
-    res.status(500).json({ error: 'Error al eliminar usuario' });
+    res.status(500).json({ error: t(req, 'deleteUserError') });
   }
 }));
 
@@ -2420,17 +2421,17 @@ api.post('/ingest-prospects', ingestRateLimit, asyncHandler(async (req, res) => 
   const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
   if (!INGEST_TOKEN || INGEST_TOKEN.length < 16) {
     logger.error('SILENTEYE_SECRET_TOKEN no configurado o muy corto');
-    res.status(503).json({ error: 'Servicio no configurado' });
+    res.status(503).json({ error: t(req, 'serviceNotConfigured') });
     return;
   }
   if (!token || token.length !== INGEST_TOKEN.length || !timingSafeEqual(Buffer.from(token), Buffer.from(INGEST_TOKEN))) {
-    res.status(401).json({ error: 'Token inválido' });
+    res.status(401).json({ error: t(req, 'invalidToken') });
     return;
   }
 
   const { razonSocial, telefono, ubicacion, tipoTransporte, latitud, longitud } = req.body;
   if (!razonSocial || typeof razonSocial !== 'string' || razonSocial.trim().length < 2) {
-    res.status(400).json({ error: 'razonSocial requerida (mín. 2 caracteres)' });
+    res.status(400).json({ error: t(req, 'razonSocialRequired') });
     return;
   }
 
@@ -2468,7 +2469,7 @@ api.post('/ingest-prospects', ingestRateLimit, asyncHandler(async (req, res) => 
     });
   } catch (err) {
     logger.error('POST /ingest-prospects error:', err);
-    res.status(500).json({ error: 'Error al registrar prospecto' });
+    res.status(500).json({ error: t(req, 'prospectRegError') });
   }
 }));
 
@@ -2476,7 +2477,7 @@ api.post('/ingest-prospects', ingestRateLimit, asyncHandler(async (req, res) => 
 api.get('/prospects/demo/:slug', asyncHandler(async (req, res) => {
   const { slug } = req.params;
   if (!slug || typeof slug !== 'string' || slug.length > 120) {
-    res.status(400).json({ error: 'Slug inválido' });
+    res.status(400).json({ error: t(req, 'slugInvalid') });
     return;
   }
 
@@ -2488,7 +2489,7 @@ api.get('/prospects/demo/:slug', asyncHandler(async (req, res) => {
       [slug]
     );
     if (!r.rows[0]) {
-      res.status(404).json({ error: 'Prospecto no encontrado' });
+      res.status(404).json({ error: t(req, 'prospectNotFound') });
       return;
     }
     const p = r.rows[0];
@@ -2538,7 +2539,7 @@ api.get('/prospects/demo/:slug', asyncHandler(async (req, res) => {
     });
   } catch (err) {
     logger.error('GET /prospects/demo/:slug error:', err);
-    res.status(500).json({ error: 'Error interno' });
+    res.status(500).json({ error: t(req, 'internalError') });
   }
 }));
 
@@ -2553,7 +2554,7 @@ api.get('/prospects', authMiddleware, requireRole('admin'), asyncHandler(async (
     res.json(r.rows);
   } catch (err) {
     logger.error('GET /prospects error:', err);
-    res.status(500).json({ error: 'Error al obtener prospectos' });
+    res.status(500).json({ error: t(req, 'prospectFetchError') });
   }
 }));
 
@@ -2579,7 +2580,7 @@ api.put('/prospects/:id', authMiddleware, requireRole('admin'), asyncHandler(asy
     params.push(typeof notas === 'string' ? notas.trim() : null);
   }
   if (updates.length === 0) {
-    res.status(400).json({ error: 'Indica statusSeguridad o notas para actualizar' });
+    res.status(400).json({ error: t(req, 'prospectUpdateReq') });
     return;
   }
   params.push(id);
@@ -2589,13 +2590,13 @@ api.put('/prospects/:id', authMiddleware, requireRole('admin'), asyncHandler(asy
       params
     );
     if (!r.rows[0]) {
-      res.status(404).json({ error: 'Prospecto no encontrado' });
+      res.status(404).json({ error: t(req, 'prospectNotFound') });
       return;
     }
     res.json(r.rows[0]);
   } catch (err) {
     logger.error('PUT /prospects/:id error:', err);
-    res.status(500).json({ error: 'Error al actualizar prospecto' });
+    res.status(500).json({ error: t(req, 'prospectUpdateError') });
   }
 }));
 
@@ -2605,13 +2606,13 @@ api.delete('/prospects/:id', authMiddleware, requireRole('admin'), asyncHandler(
   try {
     const r = await pool.query('DELETE FROM fleet_prospects WHERE id = $1 RETURNING id', [id]);
     if (!r.rows[0]) {
-      res.status(404).json({ error: 'Prospecto no encontrado' });
+      res.status(404).json({ error: t(req, 'prospectNotFound') });
       return;
     }
     res.json({ success: true });
   } catch (err) {
     logger.error('DELETE /prospects/:id error:', err);
-    res.status(500).json({ error: 'Error al eliminar prospecto' });
+    res.status(500).json({ error: t(req, 'prospectDeleteError') });
   }
 }));
 
@@ -2621,11 +2622,11 @@ const SERPAPI_KEY = process.env.SERPAPI_KEY || '';
 api.post('/prospects/search-maps', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { query } = req.body;
   if (!query || typeof query !== 'string' || query.trim().length < 3) {
-    res.status(400).json({ error: 'Proporciona una búsqueda válida (mín. 3 caracteres)' });
+    res.status(400).json({ error: t(req, 'searchMinChars') });
     return;
   }
   if (!SERPAPI_KEY) {
-    res.status(503).json({ error: 'SERPAPI_KEY no configurado. Configúralo en las variables de entorno.' });
+    res.status(503).json({ error: t(req, 'serpApiNotConfigured') });
     return;
   }
 
@@ -2641,7 +2642,7 @@ api.post('/prospects/search-maps', authMiddleware, requireRole('admin'), asyncHa
     if (!serpRes.ok) {
       const errText = await serpRes.text();
       logger.error(`SerpAPI error ${serpRes.status}: ${errText}`);
-      res.status(502).json({ error: 'Error al buscar en Google Maps' });
+      res.status(502).json({ error: t(req, 'googleMapsError') });
       return;
     }
 
@@ -2675,7 +2676,7 @@ api.post('/prospects/search-maps', authMiddleware, requireRole('admin'), asyncHa
     res.json({ query: query.trim(), count: results.length, results });
   } catch (err) {
     logger.error('POST /prospects/search-maps error:', err);
-    res.status(500).json({ error: 'Error interno al buscar' });
+    res.status(500).json({ error: t(req, 'internalSearchError') });
   }
 }));
 
@@ -2683,11 +2684,11 @@ api.post('/prospects/search-maps', authMiddleware, requireRole('admin'), asyncHa
 api.post('/prospects/bulk-ingest', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { prospects } = req.body;
   if (!Array.isArray(prospects) || prospects.length === 0) {
-    res.status(400).json({ error: 'Envía un array de prospectos' });
+    res.status(400).json({ error: t(req, 'prospectArrayReq') });
     return;
   }
   if (prospects.length > 50) {
-    res.status(400).json({ error: 'Máximo 50 prospectos por lote' });
+    res.status(400).json({ error: t(req, 'prospectMaxBatch') });
     return;
   }
 
@@ -2735,6 +2736,6 @@ api.post('/prospects/bulk-ingest', authMiddleware, requireRole('admin'), asyncHa
     res.json({ ok: true, ingested: results.length, results });
   } catch (err) {
     logger.error('POST /prospects/bulk-ingest error:', err);
-    res.status(500).json({ error: 'Error al ingestar prospectos' });
+    res.status(500).json({ error: t(req, 'prospectIngestError') });
   }
 }));

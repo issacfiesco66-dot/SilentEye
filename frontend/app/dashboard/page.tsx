@@ -14,6 +14,7 @@ import FleetDashboard from '@/components/fleet/FleetDashboard';
 import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useLocale } from '@/hooks/useLocale';
 
 const API = '';
 
@@ -44,6 +45,7 @@ interface Location {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { t } = useLocale();
   const { token, user: sessionUser, permissions, ready: authReady, logout } = useSession();
   const user = sessionUser as User | null;
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -137,14 +139,14 @@ export default function DashboardPage() {
 
   const handleLogout = logout;
 
-  if (!authReady || !user) return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">Cargando...</div>;
+  if (!authReady || !user) return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">{t.dashboard.loading}</div>;
 
   const dashType = permissions?.dashboardType;
   if (dashType === 'sos') {
     const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const incidentParam = params?.get('incident');
     router.replace(incidentParam ? `/sos?incident=${incidentParam}` : '/sos');
-    return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">Redirigiendo a SOS...</div>;
+    return <div className="min-h-screen bg-white flex items-center justify-center text-zinc-400">{t.dashboard.redirectingSos}</div>;
   }
   if (dashType === 'fleet') {
     return <FleetDashboard />;
@@ -172,13 +174,13 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-4">
           <Link href="/perfil" className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors">
-            {user.name || 'Usuario'}
+            {user.name || t.dashboard.profile}
           </Link>
           <button
             onClick={handleLogout}
             className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
           >
-            Salir
+            {t.common.logout}
           </button>
         </div>
       </header>
@@ -197,10 +199,10 @@ export default function DashboardPage() {
 
         <div className="space-y-4">
           <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4">
-            <h2 className="font-semibold text-[15px] mb-3">Incidentes activos</h2>
+            <h2 className="font-semibold text-[15px] mb-3">{t.dashboard.activeIncidents}</h2>
             <ul className="space-y-2 max-h-60 overflow-y-auto">
               {incidents.filter((i) => i.status === 'active' || i.status === 'attending').length === 0 && (
-                <li className="text-zinc-400 text-sm">Sin incidentes activos</li>
+                <li className="text-zinc-400 text-sm">{t.dashboard.noActiveIncidents}</li>
               )}
               {incidents
                 .filter((i) => i.status === 'active' || i.status === 'attending')
@@ -212,7 +214,7 @@ export default function DashboardPage() {
                       selectedIncident === inc.id ? 'bg-red-50 border border-red-200' : 'bg-white border border-zinc-200 hover:border-zinc-300'
                     }`}
                   >
-                    <span className="font-semibold text-red-600 text-sm">● {inc.plate || 'Sin placa'}</span>
+                    <span className="font-semibold text-red-600 text-sm">● {inc.plate || t.helper.noPlate}</span>
                     <p className="text-zinc-500 text-[13px]">{inc.driver_name}</p>
                   </li>
                 ))}
@@ -225,7 +227,7 @@ export default function DashboardPage() {
                 href="/admin"
                 className="flex items-center justify-between py-1 text-[13px] font-semibold text-zinc-900 hover:text-blue-600 transition-colors"
               >
-                Panel de administración
+                {t.dashboard.adminPanel}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
               </Link>
             </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale } from '@/hooks/useLocale';
 
 const API = '';
 
@@ -30,15 +31,7 @@ interface Responder {
   witness_responded_at: string | null;
 }
 
-const STATUS_OPTIONS = [
-  { value: 'active', label: 'Activo' },
-  { value: 'attending', label: 'En camino' },
-  { value: 'localizado', label: 'Localizado' },
-  { value: 'recuperado', label: 'Recuperado' },
-  { value: 'resolved', label: 'Resuelto' },
-  { value: 'falsa_alarma', label: 'Falsa alarma' },
-  { value: 'cancelled', label: 'Cancelado' },
-] as const;
+// STATUS_OPTIONS moved inside component to access translations
 
 export default function IncidentDetail({
   incidentId,
@@ -50,6 +43,16 @@ export default function IncidentDetail({
   onStatusChange: () => void;
 }) {
   const router = useRouter();
+  const { t } = useLocale();
+  const STATUS_OPTIONS = [
+    { value: 'active', label: t.admin.incidents.statuses.active },
+    { value: 'attending', label: t.admin.incidents.statuses.attending },
+    { value: 'localizado', label: t.admin.incidents.statuses.localizado },
+    { value: 'recuperado', label: t.admin.incidents.statuses.recuperado },
+    { value: 'resolved', label: t.admin.incidents.statuses.resolved },
+    { value: 'falsa_alarma', label: t.admin.incidents.statuses.falsa_alarma },
+    { value: 'cancelled', label: t.admin.incidents.statuses.cancelled },
+  ] as const;
   const [incident, setIncident] = useState<IncidentDetailData | null>(null);
   const [responders, setResponders] = useState<Responder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,12 +184,12 @@ export default function IncidentDetail({
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl p-6 max-w-xl w-full border border-zinc-200 shadow-lg max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-zinc-900">Detalle del incidente</h3>
+          <h3 className="text-lg font-bold text-zinc-900">{t.admin.incidents.detail}</h3>
           <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 transition-colors">✕</button>
         </div>
 
         {loading ? (
-          <div className="py-8 text-zinc-400 text-center">Cargando...</div>
+          <div className="py-8 text-zinc-400 text-center">{t.common.loading}</div>
         ) : incident ? (
           <div className="space-y-4">
             {error && (
@@ -195,15 +198,15 @@ export default function IncidentDetail({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-zinc-400 text-[13px] font-medium">Estado</p>
+                <p className="text-zinc-400 text-[13px] font-medium">{t.admin.incidents.status}</p>
                 <p className="font-semibold text-zinc-900 capitalize">{incident.status}</p>
               </div>
               <div>
-                <p className="text-zinc-400 text-[13px] font-medium">Placa</p>
+                <p className="text-zinc-400 text-[13px] font-medium">{t.common.plate}</p>
                 <p className="font-semibold text-zinc-900">{incident.plate || 'Sin placa'}</p>
               </div>
               <div>
-                <p className="text-zinc-400 text-[13px] font-medium">Conductor / Reportero</p>
+                <p className="text-zinc-400 text-[13px] font-medium">{t.common.driver}</p>
                 <p className="font-semibold text-zinc-900">{incident.driver_name || 'Sin asignar'}</p>
               </div>
               <div>
@@ -223,7 +226,7 @@ export default function IncidentDetail({
             {/* Responders section */}
             <div className="pt-3 border-t border-zinc-100">
               <p className="text-zinc-700 text-sm font-semibold mb-2">
-                Personas que respondieron ({responders.length})
+                {t.admin.incidents.responders} ({responders.length})
               </p>
               {responders.length === 0 ? (
                 <p className="text-zinc-400 text-[13px]">No hay responders registrados</p>
@@ -251,7 +254,7 @@ export default function IncidentDetail({
 
             {/* Actions: status change */}
             <div>
-              <p className="text-zinc-400 text-[13px] font-medium mb-2">Cambiar estado</p>
+              <p className="text-zinc-400 text-[13px] font-medium mb-2">{t.admin.incidents.status}</p>
               <div className="flex flex-wrap gap-2">
                 {STATUS_OPTIONS.map((opt) => (
                   <button
@@ -278,7 +281,7 @@ export default function IncidentDetail({
                   className="px-4 py-2 text-[13px] font-medium text-zinc-700 bg-zinc-100 border border-zinc-200 rounded-lg hover:bg-zinc-200 transition-colors flex items-center gap-1.5"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-                  Descargar PDF
+                  {t.admin.incidents.downloadPdf}
                 </button>
                 {responders.length > 0 && (
                   <button
@@ -287,7 +290,7 @@ export default function IncidentDetail({
                     className="px-4 py-2 text-[13px] font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors flex items-center gap-1.5"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-                    {sendingWitness ? 'Enviando...' : 'Solicitar testigos'}
+                    {sendingWitness ? t.common.loading : t.admin.incidents.requestWitness}
                   </button>
                 )}
               </div>
@@ -299,12 +302,12 @@ export default function IncidentDetail({
                 disabled={deleting}
                 className="px-4 py-2 text-[13px] font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
               >
-                {deleting ? 'Eliminando...' : 'Eliminar incidente'}
+                {deleting ? t.common.loading : t.common.delete}
               </button>
             </div>
           </div>
         ) : (
-          <div className="py-8 text-zinc-400 text-center">No se encontró el incidente</div>
+          <div className="py-8 text-zinc-400 text-center">{t.common.noData}</div>
         )}
       </div>
     </div>

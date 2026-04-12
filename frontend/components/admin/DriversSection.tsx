@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale } from '@/hooks/useLocale';
 import UserRoleSelect from './UserRoleSelect';
 
 const API = '';
@@ -30,6 +31,7 @@ interface Vehicle {
 
 export default function DriversSection({ currentUserId }: DriversSectionProps) {
   const router = useRouter();
+  const { t } = useLocale();
   const [users, setUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -198,19 +200,19 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
     vehicles.find((v) => v.driver_id === driverId)?.plate;
 
   if (loading) {
-    return <div className="p-6 text-zinc-400">Cargando conductores...</div>;
+    return <div className="p-6 text-zinc-400">{t.common.loading}</div>;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-bold text-zinc-900">Conductores</h2>
+        <h2 className="text-lg font-bold text-zinc-900">{t.admin.tabs.drivers}</h2>
         <button
           type="button"
           onClick={() => { setShowForm(true); setError(''); }}
           className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors"
         >
-          Nuevo conductor
+          {t.admin.users.addUser}
         </button>
       </div>
 
@@ -224,24 +226,24 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[10000]">
           <div className="bg-white rounded-xl p-6 max-w-md w-full border border-zinc-200 shadow-lg">
-            <h3 className="text-lg font-bold text-zinc-900 mb-4">Nuevo conductor</h3>
+            <h3 className="text-lg font-bold text-zinc-900 mb-4">{t.admin.users.addUser}</h3>
             <form onSubmit={createDriver} className="space-y-3">
               <input
                 required
-                placeholder="Nombre completo"
+                placeholder={t.common.name}
                 value={driverForm.name}
                 onChange={(e) => setDriverForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
               <input
                 required
-                placeholder="Teléfono (ej. +51999999999)"
+                placeholder={t.common.phone}
                 value={driverForm.phone}
                 onChange={(e) => setDriverForm((f) => ({ ...f, phone: e.target.value }))}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
               <input
-                placeholder="Email del conductor (para recibir OTP)"
+                placeholder={t.common.email}
                 type="email"
                 value={driverForm.email}
                 onChange={(e) => setDriverForm((f) => ({ ...f, email: e.target.value }))}
@@ -249,8 +251,8 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
               />
               <p className="text-zinc-400 text-xs">El conductor ingresará su IMEI y recibirá el OTP por email (gratis) o SMS.</p>
               <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={saving} className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 transition-colors">{saving ? 'Creando...' : 'Crear conductor'}</button>
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">Cancelar</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 transition-colors">{saving ? t.common.loading : t.common.save}</button>
+                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">{t.common.cancel}</button>
               </div>
             </form>
           </div>
@@ -258,7 +260,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
       )}
 
       {drivers.length === 0 && !showForm ? (
-        <p className="py-8 text-zinc-400 text-center text-sm">No hay conductores. Añade uno para asignar a vehículos.</p>
+        <p className="py-8 text-zinc-400 text-center text-sm">{t.common.noData}</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {drivers.map((d) => {
@@ -302,7 +304,7 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
 
       {users.filter((u) => u.role !== 'driver').length > 0 && (
         <div className="mt-6">
-          <h3 className="text-[13px] font-semibold text-zinc-400 mb-2">Otros usuarios</h3>
+          <h3 className="text-[13px] font-semibold text-zinc-400 mb-2">{t.admin.users.title}</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             {users
               .filter((u) => u.role !== 'driver')
@@ -341,32 +343,32 @@ export default function DriversSection({ currentUserId }: DriversSectionProps) {
       {editingUser && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[10000]">
           <div className="bg-white rounded-xl p-6 max-w-md w-full border border-zinc-200 shadow-lg">
-            <h3 className="text-lg font-bold text-zinc-900 mb-4">Editar usuario</h3>
+            <h3 className="text-lg font-bold text-zinc-900 mb-4">{t.admin.users.editUser}</h3>
             <form onSubmit={updateUser} className="space-y-3">
               <input
                 required
-                placeholder="Nombre"
+                placeholder={t.common.name}
                 value={editForm.name}
                 onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
               <input
                 required
-                placeholder="Teléfono"
+                placeholder={t.common.phone}
                 value={editForm.phone}
                 onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
               <input
-                placeholder="Email (para OTP)"
+                placeholder={t.common.email}
                 type="email"
                 value={editForm.email}
                 onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
               <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={saving} className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 transition-colors">{saving ? 'Guardando...' : 'Guardar'}</button>
-                <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">Cancelar</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 transition-colors">{saving ? t.common.loading : t.common.save}</button>
+                <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">{t.common.cancel}</button>
               </div>
             </form>
           </div>

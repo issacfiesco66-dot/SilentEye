@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale } from '@/hooks/useLocale';
 
 const API = '';
 
@@ -21,6 +22,7 @@ function maskImei(imei: string): string {
 
 export default function VehiclesSection() {
   const router = useRouter();
+  const { t } = useLocale();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [users, setUsers] = useState<{ id: string; name: string; phone: string; role?: string }[]>([]);
   const [activeIncidentVehicleIds, setActiveIncidentVehicleIds] = useState<string[]>([]);
@@ -180,18 +182,18 @@ export default function VehiclesSection() {
   });
 
   if (loading) {
-    return <div className="p-6 text-zinc-400">Cargando vehículos...</div>;
+    return <div className="p-6 text-zinc-400">{t.common.loading}</div>;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-bold text-zinc-900">Vehículos</h2>
+        <h2 className="text-lg font-bold text-zinc-900">{t.common.vehicles}</h2>
         <button
           onClick={() => { setShowForm(!showForm); setError(''); }}
           className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors"
         >
-          Nuevo vehículo
+          {t.fleet.newVehicle}
         </button>
       </div>
 
@@ -205,20 +207,20 @@ export default function VehiclesSection() {
         <form onSubmit={createVehicle} className="p-4 rounded-xl bg-white border border-zinc-200 space-y-3">
           <input
             required
-            placeholder="Placa"
+            placeholder={t.common.plate}
             value={form.plate}
             onChange={(e) => setForm((f) => ({ ...f, plate: e.target.value }))}
             className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
           />
           <input
-            placeholder="Nombre (opcional)"
+            placeholder={t.common.name}
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
           />
           <input
             required
-            placeholder="IMEI (15 dígitos)"
+            placeholder={t.fleet.imeiPlaceholder}
             value={form.imei}
             onChange={(e) => setForm((f) => ({ ...f, imei: e.target.value }))}
             className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
@@ -228,14 +230,14 @@ export default function VehiclesSection() {
             onChange={(e) => setForm((f) => ({ ...f, driver_id: e.target.value }))}
             className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
           >
-            <option value="">Sin conductor</option>
+            <option value="">{t.fleet.assignDriver}</option>
             {drivers.map((u) => (
               <option key={u.id} value={u.id}>{u.name} ({u.phone})</option>
             ))}
           </select>
           <div className="flex gap-2">
-            <button type="submit" disabled={saving} className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 transition-colors">{saving ? 'Creando...' : 'Crear'}</button>
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">Cancelar</button>
+            <button type="submit" disabled={saving} className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 transition-colors">{saving ? t.common.loading : t.common.save}</button>
+            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">{t.common.cancel}</button>
           </div>
         </form>
       )}
@@ -244,12 +246,12 @@ export default function VehiclesSection() {
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-zinc-200">
-              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Placa</th>
-              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Nombre</th>
-              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Conductor</th>
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">{t.common.plate}</th>
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">{t.common.name}</th>
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">{t.common.driver}</th>
               <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">IMEI</th>
-              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">Estado</th>
-              <th className="text-right py-3 px-2 text-zinc-400 font-medium text-[13px]">Acción</th>
+              <th className="text-left py-3 px-2 text-zinc-400 font-medium text-[13px]">{t.admin.incidents.status}</th>
+              <th className="text-right py-3 px-2 text-zinc-400 font-medium text-[13px]">{t.common.edit}</th>
             </tr>
           </thead>
           <tbody>
@@ -277,7 +279,7 @@ export default function VehiclesSection() {
                       }}
                       className="px-3 py-1.5 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors"
                     >
-                      Editar
+                      {t.common.edit}
                     </button>
                     <button
                       onClick={() => {
@@ -285,9 +287,9 @@ export default function VehiclesSection() {
                       }}
                       disabled={hasActiveIncident(v.id)}
                       className="px-3 py-1.5 text-[13px] font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      title={hasActiveIncident(v.id) ? 'No se puede eliminar con incidente activo' : 'Eliminar'}
+                      title={t.common.delete}
                     >
-                      Eliminar
+                      {t.common.delete}
                     </button>
                   </div>
                 </td>
@@ -298,23 +300,23 @@ export default function VehiclesSection() {
       </div>
 
       {vehicles.length === 0 && !showForm && (
-        <p className="p-6 text-zinc-400 text-center">No hay vehículos</p>
+        <p className="p-6 text-zinc-400 text-center">{t.common.noData}</p>
       )}
 
       {editingVehicle && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 max-w-md w-full border border-zinc-200 shadow-lg">
-            <h3 className="text-lg font-bold text-zinc-900 mb-4">Editar vehículo</h3>
+            <h3 className="text-lg font-bold text-zinc-900 mb-4">{t.common.edit} {t.common.vehicle}</h3>
             <form onSubmit={updateVehicle} className="space-y-3">
               <input
                 required
-                placeholder="Placa"
+                placeholder={t.common.plate}
                 value={form.plate}
                 onChange={(e) => setForm((f) => ({ ...f, plate: e.target.value }))}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
               <input
-                placeholder="Nombre"
+                placeholder={t.common.name}
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
@@ -331,14 +333,14 @@ export default function VehiclesSection() {
                 onChange={(e) => setForm((f) => ({ ...f, driver_id: e.target.value }))}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               >
-                <option value="">Sin conductor</option>
+                <option value="">{t.fleet.assignDriver}</option>
                 {drivers.map((u) => (
                   <option key={u.id} value={u.id}>{u.name} ({u.phone})</option>
                 ))}
               </select>
               <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={saving} className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 transition-colors">{saving ? 'Guardando...' : 'Guardar'}</button>
-                <button type="button" onClick={() => setEditingVehicle(null)} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">Cancelar</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 text-[13px] font-semibold text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 disabled:opacity-50 transition-colors">{saving ? t.common.loading : t.common.save}</button>
+                <button type="button" onClick={() => setEditingVehicle(null)} className="px-4 py-2 text-[13px] font-medium text-zinc-600 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors">{t.common.cancel}</button>
               </div>
             </form>
           </div>

@@ -1,10 +1,12 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { useLocale } from '@/hooks/useLocale';
 
 const HIDDEN_ROUTES = ['/admin', '/dashboard', '/perfil'];
 
 export default function WhatsAppButton() {
+  const { t } = useLocale();
   const pathname = usePathname();
   if (HIDDEN_ROUTES.some((r) => pathname.startsWith(r))) return null;
 
@@ -13,7 +15,7 @@ export default function WhatsAppButton() {
       href="https://wa.me/525610669353?text=Hola%2C%20me%20interesa%20SilentEye"
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="Contactar por WhatsApp"
+      aria-label={t.common.contactWhatsApp}
       className="fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 bg-[#25D366] rounded-full shadow-lg hover:bg-[#20bd5a] transition-colors hover:scale-105 active:scale-95"
     >
       <svg viewBox="0 0 32 32" width="28" height="28" fill="#fff">

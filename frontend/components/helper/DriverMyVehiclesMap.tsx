@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import MapView from '../MapView';
 import TripHistory from '../TripHistory';
 import GeofenceManager from '../GeofenceManager';
+import { useLocale } from '@/hooks/useLocale';
 
 const API = '';
 
@@ -30,6 +31,7 @@ interface VehiclePosition {
 
 export default function DriverMyVehiclesMap() {
   const router = useRouter();
+  const { t } = useLocale();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [positions, setPositions] = useState<VehiclePosition[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,11 +72,11 @@ export default function DriverMyVehiclesMap() {
         setError(null);
       }
     } catch {
-      setError('Error de conexión');
+      setError(t.driverView.connectionError);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchVehicles();
@@ -133,10 +135,10 @@ export default function DriverMyVehiclesMap() {
         );
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Error al cambiar estado');
+        setError(data.error || t.common.error);
       }
     } catch {
-      setError('Error de conexión');
+      setError(t.driverView.connectionError);
     } finally {
       setToggling(null);
     }
@@ -166,11 +168,11 @@ export default function DriverMyVehiclesMap() {
           setPaywallInfo({ plan: data.plan, limit: data.limit, current: data.current });
           setShowAddForm(false);
         } else {
-          setError(data.error || 'Error al agregar vehículo');
+          setError(data.error || t.fleet.errorAddVehicle);
         }
       }
     } catch {
-      setError('Error de conexión');
+      setError(t.driverView.connectionError);
     } finally {
       setAdding(false);
     }
@@ -179,7 +181,7 @@ export default function DriverMyVehiclesMap() {
   if (loading && liveLocations.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-zinc-400">
-        Cargando tus vehículos...
+        {t.common.loading}
       </div>
     );
   }
@@ -192,30 +194,30 @@ export default function DriverMyVehiclesMap() {
       {/* Header with stats */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-bold text-zinc-900">Mis vehículos</h2>
+          <h2 className="text-base font-bold text-zinc-900">{t.driverView.myVehicles}</h2>
           <p className="text-[11px] text-zinc-400 mt-0.5">
             {liveLocations.length === 0
-              ? 'Sin vehículos asignados'
-              : `${activeCount} activo${activeCount !== 1 ? 's' : ''} · ${parkedCount} estacionado${parkedCount !== 1 ? 's' : ''}`
+              ? t.driverView.noVehiclesAssigned
+              : `${t.driverView.activeCount(activeCount)} · ${t.driverView.parkedCount(parkedCount)}`
             }
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[10px] text-zinc-400 font-medium">Tiempo real</span>
+            <span className="text-[10px] text-zinc-400 font-medium">{t.common.realTime}</span>
           </div>
           <button
             onClick={() => setShowGeofences(true)}
             className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center hover:bg-amber-200 active:scale-95 transition-all"
-            title="Geocercas"
+            title={t.fleet.geofences}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
           </button>
           <button
             onClick={() => setShowAddForm(!showAddForm)}
             className="w-8 h-8 rounded-lg bg-zinc-900 text-white flex items-center justify-center hover:bg-zinc-700 active:scale-95 transition-all"
-            title="Agregar vehículo"
+            title={t.fleet.newVehicle}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
           </button>
@@ -225,21 +227,21 @@ export default function DriverMyVehiclesMap() {
       {/* Add vehicle form */}
       {showAddForm && (
         <div className="p-4 rounded-xl border border-zinc-200 bg-white shadow-sm space-y-3">
-          <h3 className="text-sm font-bold text-zinc-900">Agregar vehículo</h3>
+          <h3 className="text-sm font-bold text-zinc-900">{t.fleet.newVehicle}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <input
               value={addPlate} onChange={(e) => setAddPlate(e.target.value)}
-              placeholder="Placa *" maxLength={20}
+              placeholder={t.fleet.platePlaceholder} maxLength={20}
               className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400"
             />
             <input
               value={addImei} onChange={(e) => setAddImei(e.target.value.replace(/\D/g, ''))}
-              placeholder="IMEI del GPS (15 dígitos) *" maxLength={15}
+              placeholder={t.fleet.imeiPlaceholder} maxLength={15}
               className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400"
             />
             <input
               value={addName} onChange={(e) => setAddName(e.target.value)}
-              placeholder="Nombre (opcional)" maxLength={100}
+              placeholder={t.fleet.namePlaceholder} maxLength={100}
               className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400"
             />
           </div>
@@ -249,13 +251,13 @@ export default function DriverMyVehiclesMap() {
               disabled={adding || !addPlate.trim() || addImei.trim().length !== 15}
               className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-[12px] font-semibold hover:bg-zinc-700 active:scale-95 transition-all disabled:opacity-40"
             >
-              {adding ? 'Agregando...' : 'Agregar'}
+              {adding ? t.fleet.adding : t.common.add}
             </button>
             <button
               onClick={() => setShowAddForm(false)}
               className="px-4 py-2 rounded-lg text-zinc-500 text-[12px] font-semibold hover:bg-zinc-100 transition-all"
             >
-              Cancelar
+              {t.common.cancel}
             </button>
           </div>
         </div>
@@ -268,25 +270,24 @@ export default function DriverMyVehiclesMap() {
             <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-4">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             </div>
-            <h3 className="text-lg font-extrabold text-zinc-900 text-center mb-2">Mejora tu plan</h3>
+            <h3 className="text-lg font-extrabold text-zinc-900 text-center mb-2">{t.common.upgradePlan}</h3>
             <p className="text-[14px] text-zinc-500 text-center mb-4">
-              Tu plan {paywallInfo?.plan || 'gratuito'} permite {paywallInfo?.limit || 1} vehículo{(paywallInfo?.limit || 1) > 1 ? 's' : ''}.
-              Para agregar más vehículos, elige un plan de pago.
+              {t.paywall.planAllows(paywallInfo?.plan || t.paywall.planFree, paywallInfo?.limit || 1)}
             </p>
             <div className="space-y-2 mb-4">
               <div className="flex items-center justify-between px-4 py-3 rounded-lg border-2 border-blue-500 bg-blue-50">
                 <div>
-                  <p className="text-sm font-bold text-zinc-900">Personal</p>
-                  <p className="text-[12px] text-zinc-500">Hasta 3 vehículos</p>
+                  <p className="text-sm font-bold text-zinc-900">{t.paywall.personal}</p>
+                  <p className="text-[12px] text-zinc-500">{t.paywall.personalDesc}</p>
                 </div>
-                <span className="text-lg font-extrabold text-zinc-900">$99<span className="text-[12px] text-zinc-400 font-normal">/mes</span></span>
+                <span className="text-lg font-extrabold text-zinc-900">{t.paywall.personalPrice}<span className="text-[12px] text-zinc-400 font-normal">{t.paywall.perMonth}</span></span>
               </div>
               <div className="flex items-center justify-between px-4 py-3 rounded-lg border border-zinc-200">
                 <div>
-                  <p className="text-sm font-bold text-zinc-900">Flotillas</p>
-                  <p className="text-[12px] text-zinc-500">Vehículos ilimitados</p>
+                  <p className="text-sm font-bold text-zinc-900">{t.paywall.fleet}</p>
+                  <p className="text-[12px] text-zinc-500">{t.paywall.fleetDesc}</p>
                 </div>
-                <span className="text-lg font-extrabold text-zinc-900">$79<span className="text-[12px] text-zinc-400 font-normal">/mes c/u</span></span>
+                <span className="text-lg font-extrabold text-zinc-900">{t.paywall.fleetPrice}<span className="text-[12px] text-zinc-400 font-normal">{t.paywall.perMonthEach}</span></span>
               </div>
             </div>
             <a
@@ -295,13 +296,13 @@ export default function DriverMyVehiclesMap() {
               rel="noopener noreferrer"
               className="block w-full text-center py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors mb-2"
             >
-              Contactar por WhatsApp
+              {t.common.contactWhatsApp}
             </a>
             <button
               onClick={() => setShowPaywall(false)}
               className="w-full text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors py-2"
             >
-              Cerrar
+              {t.common.close}
             </button>
           </div>
         </div>
@@ -338,9 +339,9 @@ export default function DriverMyVehiclesMap() {
                       <div className="font-semibold text-zinc-900 text-sm truncate">{v.plate || v.imei}</div>
                       <div className="text-[11px] mt-0.5">
                         {v.latitude === 0 && v.longitude === 0 ? (
-                          <span className="text-amber-500 font-medium">Sin señal GPS</span>
+                          <span className="text-amber-500 font-medium">{t.fleet.noGpsSignal}</span>
                         ) : isParked ? (
-                          <span className="text-blue-600 font-medium">Estacionado</span>
+                          <span className="text-blue-600 font-medium">{t.fleet.parked}</span>
                         ) : (
                           <span className="text-zinc-400">{v.speed ?? 0} km/h</span>
                         )}
@@ -351,7 +352,7 @@ export default function DriverMyVehiclesMap() {
                     <button
                       onClick={() => v.vehicleId && setHistoryVehicle({ id: v.vehicleId, plate: v.plate || v.imei || '' })}
                       className="px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-zinc-100 text-zinc-600 hover:bg-zinc-200 active:scale-95 transition-all"
-                      title="Historial"
+                      title={t.common.history}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                     </button>
@@ -365,7 +366,7 @@ export default function DriverMyVehiclesMap() {
                           : 'bg-blue-600 text-white hover:bg-blue-500 active:scale-95'
                       }`}
                     >
-                      {isToggling ? '...' : isParked ? 'Desestacionar' : 'Estacionar'}
+                      {isToggling ? '...' : isParked ? t.driverView.unpark : t.driverView.park}
                     </button>
                   </div>
                 </div>
@@ -381,8 +382,8 @@ export default function DriverMyVehiclesMap() {
           <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center mb-3">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
           </div>
-          <p className="text-zinc-500 text-sm font-semibold">Sin vehículos asignados</p>
-          <p className="text-zinc-400 text-xs mt-1 max-w-[220px]">Contacta al administrador para que te asigne un vehículo.</p>
+          <p className="text-zinc-500 text-sm font-semibold">{t.driverView.noVehiclesTitle}</p>
+          <p className="text-zinc-400 text-xs mt-1 max-w-[220px]">{t.driverView.noVehiclesDesc}</p>
         </div>
       )}
 

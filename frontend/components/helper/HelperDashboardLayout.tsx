@@ -11,6 +11,7 @@ import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { playAlarmSound, initAudioOnInteraction } from '@/lib/alarm';
+import { useLocale } from '@/hooks/useLocale';
 
 const API = '';
 
@@ -56,6 +57,7 @@ function computeHelperStatus(
 
 export default function HelperDashboardLayout() {
   const router = useRouter();
+  const { t } = useLocale();
   const { token, user: sessionUser, permissions, ready: authReady, logout } = useSession({
     requiredPermission: 'respondIncidents',
     fallbackPath: '/dashboard',
@@ -207,7 +209,7 @@ export default function HelperDashboardLayout() {
   if (!authReady || !user) {
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
-        <span className="text-zinc-400 text-sm">Cargando...</span>
+        <span className="text-zinc-400 text-sm">{t.dashboard.loading}</span>
       </div>
     );
   }
@@ -227,7 +229,7 @@ export default function HelperDashboardLayout() {
       <main className="flex-1 flex flex-col p-3 gap-3">
         {loading ? (
           <div className="flex-1 flex items-center justify-center text-zinc-400 text-sm">
-            Cargando...
+            {t.dashboard.loading}
           </div>
         ) : !activeIncident ? (
           permissions?.viewOwnVehicles ? (

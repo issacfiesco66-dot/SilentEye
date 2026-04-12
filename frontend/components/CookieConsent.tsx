@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useLocale } from '@/hooks/useLocale';
 
 const COOKIE_NAME = 'se_cookie_consent';
 
@@ -17,6 +18,7 @@ function setCookie(name: string, value: string, days: number) {
 }
 
 export default function CookieConsent() {
+  const { t } = useLocale();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -39,9 +41,9 @@ export default function CookieConsent() {
       <div className="max-w-lg mx-auto pointer-events-auto bg-zinc-900 text-white rounded-2xl shadow-2xl shadow-black/20 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 animate-in slide-in-from-bottom-4 duration-500">
         <div className="flex-1 min-w-0">
           <p className="text-[13px] leading-relaxed text-zinc-300">
-            Usamos cookies esenciales para mantener tu sesión activa. No usamos rastreadores ni publicidad.{' '}
+            {t.cookie.message}{' '}
             <Link href="/cookies" className="text-blue-400 hover:text-blue-300 underline underline-offset-2 font-medium">
-              Más info
+              {t.cookie.moreInfo}
             </Link>
           </p>
         </div>
@@ -49,7 +51,7 @@ export default function CookieConsent() {
           onClick={accept}
           className="flex-shrink-0 px-5 py-2 rounded-lg bg-white text-zinc-900 text-[13px] font-semibold hover:bg-zinc-100 active:scale-95 transition-all"
         >
-          Aceptar
+          {t.cookie.accept}
         </button>
       </div>
     </div>

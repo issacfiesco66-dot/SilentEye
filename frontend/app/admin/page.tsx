@@ -18,10 +18,12 @@ import ComandanciaSection from '@/components/admin/ComandanciaSection';
 import GpsActivitySection from '@/components/admin/GpsActivitySection';
 import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useLocale } from '@/hooks/useLocale';
 import { playAlarmSound, initAudioOnInteraction } from '@/lib/alarm';
 
 export default function AdminPage() {
   const router = useRouter();
+  const { t } = useLocale();
   const { token, user: sessionUser, ready: authReady, logout } = useSession({
     requiredPermission: 'viewAdminPanel',
     fallbackPath: '/dashboard',
@@ -49,7 +51,7 @@ export default function AdminPage() {
   if (!authReady || !user) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <span className="text-zinc-400">Cargando...</span>
+        <span className="text-zinc-400">{t.common.loading}</span>
       </div>
     );
   }
@@ -61,16 +63,16 @@ export default function AdminPage() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
           Dashboard
         </Link>
-        <span className="text-sm font-bold tracking-tight">Administración</span>
+        <span className="text-sm font-bold tracking-tight">{t.admin.title}</span>
         <div className="flex items-center gap-4">
           <Link href="/perfil" className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors">
-            Perfil
+            {t.profile.title}
           </Link>
           <button
             onClick={handleLogout}
             className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
           >
-            Salir
+            {t.common.logout}
           </button>
         </div>
       </header>

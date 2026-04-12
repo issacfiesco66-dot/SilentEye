@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useLocale } from '@/hooks/useLocale';
 
 const API = '';
 const LOCATION_THROTTLE_MS = 30000; // 30s REST fallback (primary is WS every 3s)
@@ -51,6 +52,7 @@ export default function HelperMapSection({
   wsSend,
   wsConnected,
 }: HelperMapSectionProps) {
+  const { t } = useLocale();
   const [localHelperLoc, setLocalHelperLoc] = useState<{
     latitude: number;
     longitude: number;
@@ -208,7 +210,7 @@ export default function HelperMapSection({
     <div className="w-full h-full min-h-[300px] rounded-xl overflow-hidden bg-slate-800 border border-slate-700 relative">
       {!geoReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-800/90 z-10">
-          <span className="text-slate-400">Obteniendo ubicación…</span>
+          <span className="text-slate-400">{t.helper.gettingLocation}</span>
         </div>
       )}
       <LeafletMap
@@ -231,7 +233,7 @@ export default function HelperMapSection({
         onClick={centerOnIncident}
         className="absolute bottom-4 left-4 z-[1000] px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-sm shadow border border-slate-600"
       >
-        Centrar
+        {t.helper.center}
       </button>
     </div>
   );

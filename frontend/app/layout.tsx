@@ -3,6 +3,8 @@ import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import CookieConsent from '@/components/CookieConsent';
 import WhatsAppButton from '@/components/WhatsAppButton';
+import { LocaleProvider } from '@/contexts/LocaleContext';
+import MetadataUpdater from '@/components/MetadataUpdater';
 
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta' });
 
@@ -17,110 +19,30 @@ export const metadata: Metadata = {
   description:
     'Te roban el auto y en 3 segundos todos los conductores en 2 km reciben la alerta con tu ubicación GPS en vivo. Sin llamadas, sin centrales. Plataforma GPS para autos, motos, camiones, trailers y flotillas. Compatible con Teltonika, Queclink, Concox, Cobán y Sinotrack.',
   keywords: [
-    'plataforma GPS',
-    'rastreo GPS',
-    'rastreo vehicular',
-    'monitoreo GPS',
-    'GPS en tiempo real',
-    'seguridad vehicular',
-    'rastreador GPS',
-    'GPS para auto',
-    'GPS para autos',
-    'GPS para carro',
-    'GPS para camiones',
-    'GPS para trailers',
-    'GPS para motos',
-    'GPS para motocicletas',
-    'GPS para flotillas',
-    'GPS para transporte',
-    'GPS para uber',
-    'GPS para didi',
-    'GPS para taxi',
-    'GPS para camioneta',
-    'GPS para vehículos',
-    'plataforma para GPS',
-    'plataforma de rastreo GPS',
-    'software GPS tracking',
-    'mejor plataforma GPS México',
-    'GPS Teltonika',
-    'GPS Queclink',
-    'GPS Concox',
-    'GPS Cobán',
-    'GPS Sinotrack',
-    'GPS tracker México',
-    'gestión de flotillas GPS',
-    'localización GPS vehicular',
-    'botón de pánico GPS',
-    'alerta GPS robo de auto',
-    'monitoreo de vehículos',
-    'seguimiento GPS',
-    'sistema GPS antirrobo',
-    'GPS FMB920',
-    'GPS FMC920',
-    'GPS GT06N',
-    'GPS TK103',
-    'geocercas GPS',
-    'recuperación vehicular GPS',
-    'GPS multi-marca',
-    'plataforma GPS México',
-    'rastreo GPS camiones',
-    'rastreo GPS motos',
-    'rastreo GPS trailers',
-    'localizar auto robado GPS',
-    'GPS antirrobo moto',
-    'GPS antirrobo auto',
-    'localizador GPS para auto',
-    'localizador GPS para moto',
-    'localizador vehicular',
-    'localizador de autos',
-    'rastreador vehicular México',
-    'sistema de rastreo GPS',
-    'plataforma de monitoreo GPS',
-    'software de rastreo vehicular',
-    'control de flotillas',
-    'monitoreo de flotillas',
-    'GPS para transporte de carga',
-    'GPS para reparto',
-    'GPS para empresa de transporte',
-    'precio GPS tracker México',
-    'rastreo satelital vehicular',
-    'rastreo satelital México',
-    'GPS con alerta de robo',
-    'GPS con botón de pánico',
-    'seguridad para conductores Uber',
-    'GPS para InDriver',
-    'GPS para Beat',
-    'monitoreo vehicular en tiempo real',
-    'plataforma GPS gratuita',
-    'app de rastreo GPS',
-    'rastrear auto robado',
-    'como rastrear un auto con GPS',
-    'mejor rastreador GPS México 2026',
-    'GPS para prevenir robo de auto',
-    'GPS económico para auto México',
-    'chip GPS para auto',
-    'GPS sin renta mensual',
-    'GPS para carga pesada',
-    'GPS para mensajería',
-    'GPS oculto para auto',
-    'GPS vehicular con app',
-    'GPS Micodus',
-    'GPS con corte de motor a distancia',
-    'localización satelital',
-    'GPS para repartidores',
-    'GPS antirrobo camioneta',
-    'GPS para autobús',
-    'como saber si mi auto tiene GPS',
-    'APN GPS tracker Telcel',
-    'GPS para mujeres',
-    'botón de pánico vehicular',
-    'recuperar auto robado GPS',
-    'GPS tracker barato México',
-    'rastreador satelital para carro',
-    'GPS para taxi',
-    'GPS para camioneta pickup',
-    'geocerca GPS',
-    'alerta de velocidad GPS',
+    // ── Spanish (MX) ──
+    'plataforma GPS', 'rastreo GPS', 'rastreo vehicular', 'monitoreo GPS',
+    'GPS en tiempo real', 'seguridad vehicular', 'rastreador GPS',
+    'GPS para auto', 'GPS para camiones', 'GPS para trailers',
+    'GPS para motos', 'GPS para flotillas', 'GPS para uber',
+    'botón de pánico GPS', 'alerta GPS robo de auto',
+    'sistema GPS antirrobo', 'geocercas GPS', 'recuperación vehicular GPS',
+    'GPS Teltonika', 'GPS Queclink', 'GPS Concox', 'GPS Cobán', 'GPS Sinotrack',
+    'GPS FMB920', 'GPS GT06N', 'GPS TK103',
+    'localizador GPS para auto', 'localizador vehicular',
+    'plataforma GPS México', 'rastreador vehicular México',
+    // ── English (US) ──
+    'GPS tracking platform', 'vehicle GPS tracker', 'real-time GPS tracking',
+    'GPS fleet management', 'vehicle theft alert', 'stolen car GPS recovery',
+    'GPS tracker for cars', 'GPS tracker for trucks', 'GPS tracker for motorcycles',
+    'GPS tracker for fleets', 'GPS tracker for Uber drivers',
+    'panic button GPS', 'GPS theft alert system', 'vehicle recovery GPS',
+    'GPS geofence alerts', 'anti-theft GPS tracker',
+    'Teltonika GPS tracker', 'Queclink GPS tracker', 'Concox GPS tracker',
+    'Coban GPS tracker', 'Sinotrack GPS tracker',
+    'best GPS tracker USA', 'fleet GPS tracking software',
+    'car GPS locator', 'vehicle tracking system', 'GPS vehicle security',
+    'mass alert GPS platform', 'crowd-sourced vehicle recovery',
+    'GPS tracker no app needed', 'browser-based GPS tracking',
   ],
   authors: [{ name: 'SilentEye', url: SITE_URL }],
   creator: 'SilentEye',
@@ -139,6 +61,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'es_MX',
+    alternateLocale: 'en_US',
     url: SITE_URL,
     siteName: 'SilentEye',
     title: 'SilentEye — Alerta de Robo Vehicular en 3 Segundos | Recuperación GPS México',
@@ -163,7 +86,7 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: SITE_URL,
-    languages: { 'es-MX': SITE_URL },
+    languages: { 'es-MX': SITE_URL, 'en-US': SITE_URL },
   },
   icons: {
     icon: [
@@ -187,9 +110,12 @@ export default function RootLayout({
   return (
     <html lang="es" className={jakarta.variable}>
       <body className="bg-white text-zinc-900 antialiased" style={{ minHeight: '100vh', margin: 0 }}>
-        {children}
-        <CookieConsent />
-        <WhatsAppButton />
+        <LocaleProvider>
+          <MetadataUpdater />
+          {children}
+          <CookieConsent />
+          <WhatsAppButton />
+        </LocaleProvider>
       </body>
     </html>
   );

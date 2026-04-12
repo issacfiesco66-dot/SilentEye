@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { clearSession } from '@/lib/session';
+import { useLocale } from '@/hooks/useLocale';
 
 const API = '';
 const EMERGENCY_NUMBER = '911';
@@ -23,15 +24,17 @@ interface Location {
   plate?: string;
 }
 
-function timeAgo(dateStr: string): string {
-  const d = new Date(dateStr).getTime();
-  const now = Date.now();
-  const diffMin = Math.floor((now - d) / 60000);
-  if (diffMin < 1) return 'hace un momento';
-  if (diffMin === 1) return 'hace 1 min';
-  if (diffMin < 60) return `hace ${diffMin} min`;
-  const h = Math.floor(diffMin / 60);
-  return h === 1 ? 'hace 1 h' : `hace ${h} h`;
+function useTimeAgo() {
+  const { t } = useLocale();
+  return (dateStr: string): string => {
+    const d = new Date(dateStr).getTime();
+    const now = Date.now();
+    const diffMin = Math.floor((now - d) / 60000);
+    if (diffMin < 1) return t.helper.timeJustNow;
+    if (diffMin < 60) return t.helper.timeMinAgo(diffMin);
+    const h = Math.floor(diffMin / 60);
+    return t.helper.timeHourAgo(h);
+  };
 }
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -62,6 +65,8 @@ export default function HelperIncidentCard({
   onStatusChange,
   onDecline,
 }: HelperIncidentCardProps) {
+  const { t } = useLocale();
+  const timeAgo = useTimeAgo();
   const [loading, setLoading] = useState<string | null>(null);
   const [showDeclineConfirm, setShowDeclineConfirm] = useState(false);
 
@@ -133,13 +138,13 @@ export default function HelperIncidentCard({
   const isTerminal = ['resolved', 'recuperado', 'falsa_alarma', 'cancelled'].includes(st);
 
   const statusBadge: Record<string, { label: string; color: string }> = {
-    active: { label: 'Activo', color: 'bg-red-100 text-red-700' },
-    attending: { label: 'En camino', color: 'bg-amber-100 text-amber-700' },
-    localizado: { label: 'Localizado', color: 'bg-blue-100 text-blue-700' },
-    recuperado: { label: 'Recuperado', color: 'bg-emerald-100 text-emerald-700' },
-    resolved: { label: 'Resuelto', color: 'bg-zinc-100 text-zinc-500' },
-    falsa_alarma: { label: 'Falsa alarma', color: 'bg-zinc-100 text-zinc-500' },
-    cancelled: { label: 'Cancelado', color: 'bg-zinc-100 text-zinc-500' },
+    active: { label: t.helper.statusActive, color: 'bg-red-100 text-red-700' },
+    attending: { label: t.helper.statusAttending, color: 'bg-amber-100 text-amber-700' },
+    localizado: { label: t.helper.statusLocated, color: 'bg-blue-100 text-blue-700' },
+    recuperado: { label: t.helper.statusRecovered, color: 'bg-emerald-100 text-emerald-700' },
+    resolved: { label: t.helper.statusResolved, color: 'bg-zinc-100 text-zinc-500' },
+    falsa_alarma: { label: t.helper.statusFalseAlarm, color: 'bg-zinc-100 text-zinc-500' },
+    cancelled: { label: t.helper.statusCancelled, color: 'bg-zinc-100 text-zinc-500' },
   };
   const badge = statusBadge[st] || { label: st, color: 'bg-zinc-100 text-zinc-500' };
 
@@ -161,7 +166,7 @@ export default function HelperIncidentCard({
           {vehicleLocation && !isTerminal && (
             <span className="flex items-center gap-0.5 text-emerald-600 font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              EN VIVO
+              {t.helper.live}
             </span>
           )}
         </div>
@@ -169,13 +174,13 @@ export default function HelperIncidentCard({
 
       {/* Info */}
       <div className="flex items-baseline gap-2 mb-3">
-        <span className="font-semibold text-sm text-zinc-900">{incident.plate || 'Sin placa'}</span>
-        <span className="text-xs text-zinc-400">{incident.driver_name || 'Conductor'}</span>
+        <span className="font-semibold text-sm text-zinc-900">{incident.plate || t.helper.noPlate}</span>
+        <span className="text-xs text-zinc-400">{incident.driver_name || t.helper.driverLabel}</span>
       </div>
 
       {/* Terminal state — no actions */}
       {isTerminal && (
-        <div className="text-center text-xs text-zinc-400 py-1">Incidente finalizado</div>
+        <div className="text-center text-xs text-zinc-400 py-1">{t.helper.incidentFinished}</div>
       )}
 
       {/* Actions for active incidents */}
@@ -188,7 +193,7 @@ export default function HelperIncidentCard({
               disabled={!canAct}
               className="w-full py-2 rounded-md bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 font-semibold text-white text-xs transition-colors"
             >
-              {loading === 'attending' ? 'Enviando...' : 'Voy en camino'}
+              {loading === 'attending' ? t.helper.sending : t.helper.goingOnMyWay}
             </button>
           )}
 
@@ -200,14 +205,14 @@ export default function HelperIncidentCard({
                 disabled={!canAct}
                 className="flex-1 py-2 rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-50 font-semibold text-white text-xs transition-colors"
               >
-                {loading === 'localizado' ? '...' : 'Localizado'}
+                {loading === 'localizado' ? '...' : t.helper.located}
               </button>
               <button
                 onClick={() => changeStatus('falsa_alarma')}
                 disabled={!canAct}
                 className="flex-1 py-2 rounded-md bg-zinc-200 hover:bg-zinc-300 disabled:opacity-50 font-medium text-zinc-600 text-xs transition-colors"
               >
-                {loading === 'falsa_alarma' ? '...' : 'Falsa alarma'}
+                {loading === 'falsa_alarma' ? '...' : t.helper.falseAlarm}
               </button>
             </div>
           )}
@@ -219,7 +224,7 @@ export default function HelperIncidentCard({
               disabled={!canAct}
               className="w-full py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-semibold text-white text-xs transition-colors"
             >
-              {loading === 'recuperado' ? '...' : 'Vehículo Recuperado'}
+              {loading === 'recuperado' ? '...' : t.helper.vehicleRecovered}
             </button>
           )}
 
@@ -231,13 +236,13 @@ export default function HelperIncidentCard({
               rel="noopener noreferrer"
               className="flex-1 py-2 rounded-md bg-zinc-100 hover:bg-zinc-200 text-center font-medium text-zinc-700 text-xs transition-colors"
             >
-              Google Maps
+              {t.helper.googleMaps}
             </a>
             <a
               href={`tel:${EMERGENCY_NUMBER}`}
               className="flex-1 py-2 rounded-md bg-red-600 hover:bg-red-500 text-center font-medium text-white text-xs transition-colors"
             >
-              Llamar 911
+              {t.helper.call911}
             </a>
           </div>
 
@@ -248,7 +253,7 @@ export default function HelperIncidentCard({
               disabled={!canAct}
               className="w-full py-1.5 rounded-md border border-zinc-200 text-zinc-400 hover:bg-zinc-50 disabled:opacity-50 text-[11px] transition-colors"
             >
-              No puedo atender
+              {t.helper.cannotAttend}
             </button>
           ) : (
             <div className="flex gap-1.5">
@@ -257,14 +262,14 @@ export default function HelperIncidentCard({
                 disabled={!canAct}
                 className="flex-1 py-1.5 rounded-md border border-zinc-200 text-zinc-400 text-[11px]"
               >
-                Cancelar
+                {t.common.cancel}
               </button>
               <button
                 onClick={handleNoPuedoAtender}
                 disabled={!canAct}
                 className="flex-1 py-1.5 rounded-md bg-amber-50 text-amber-600 border border-amber-100 hover:bg-amber-100 text-[11px] font-medium disabled:opacity-50 transition-colors"
               >
-                {loading === 'decline' ? '...' : 'Confirmar'}
+                {loading === 'decline' ? '...' : t.common.confirm}
               </button>
             </div>
           )}

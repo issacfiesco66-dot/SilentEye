@@ -9,6 +9,7 @@ import jwt from 'jsonwebtoken';
 import { randomInt } from 'crypto';
 import { pool } from '../db/pool.js';
 import { logger } from '../utils/logger.js';
+import { t as _t } from '../i18n.js';
 
 // Seguridad: JWT_SECRET obligatorio. Sin valor por defecto.
 const _rawSecret = process.env.JWT_SECRET;
@@ -53,7 +54,7 @@ export async function verifyOtp(phone: string, code: string): Promise<{ valid: b
     );
     if ((attempts.rows[0]?.cnt ?? 0) > 0) {
       logger.warn(`OTP bloqueado por intentos excesivos: ***${phone.slice(-4)}`);
-      return { valid: false, user: null, error: 'Demasiados intentos. Solicita un nuevo código.' };
+      return { valid: false, user: null, error: 'Too many attempts / Demasiados intentos' };
     }
     await pool.query(
       `UPDATE otp_codes SET attempts = COALESCE(attempts, 0) + 1
@@ -99,7 +100,7 @@ export async function verifyOtp(phone: string, code: string): Promise<{ valid: b
   const user = userResult.rows[0] ?? null;
   if (user && user.is_active === false) {
     logger.warn(`Login bloqueado: usuario desactivado ***${phone.slice(-4)}`);
-    return { valid: false, user: null, error: 'Cuenta desactivada. Contacta al administrador.' };
+    return { valid: false, user: null, error: 'Account disabled / Cuenta desactivada' };
   }
   return { valid: true, user: user ? { id: user.id, phone: user.phone, name: user.name, role: user.role, email: user.email, plan: user.plan } : null };
 }

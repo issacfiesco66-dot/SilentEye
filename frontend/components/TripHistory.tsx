@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { useLocale } from '@/hooks/useLocale';
 
 const API = '';
 
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export default function TripHistory({ vehicleId, plate, onClose, MapView }: Props) {
+  const { t } = useLocale();
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [points, setPoints] = useState<TripPoint[]>([]);
   const [summary, setSummary] = useState<TripSummary | null>(null);
@@ -45,14 +47,14 @@ export default function TripHistory({ vehicleId, plate, onClose, MapView }: Prop
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Error al cargar historial');
+        setError(data.error || t.common.error);
         return;
       }
       const data = await res.json();
       setPoints(data.points || []);
       setSummary(data.summary || null);
     } catch {
-      setError('Error de conexión');
+      setError(t.common.error);
     } finally {
       setLoading(false);
     }
@@ -73,8 +75,8 @@ export default function TripHistory({ vehicleId, plate, onClose, MapView }: Prop
 
   // Convert points to liveLocations format for MapView (polyline)
   const mapLocations = points.length > 0 ? [
-    { latitude: points[0].lat, longitude: points[0].lng, speed: 0, plate: `Inicio ${fmtTime(summary?.startTime ?? null)}` },
-    { latitude: points[points.length - 1].lat, longitude: points[points.length - 1].lng, speed: 0, plate: `Fin ${fmtTime(summary?.endTime ?? null)}` },
+    { latitude: points[0].lat, longitude: points[0].lng, speed: 0, plate: `${t.tripHistory.start} ${fmtTime(summary?.startTime ?? null)}` },
+    { latitude: points[points.length - 1].lat, longitude: points[points.length - 1].lng, speed: 0, plate: `${t.tripHistory.end} ${fmtTime(summary?.endTime ?? null)}` },
   ] : [];
 
   return (
@@ -83,7 +85,7 @@ export default function TripHistory({ vehicleId, plate, onClose, MapView }: Prop
         {/* Header */}
         <div className="p-4 border-b border-zinc-100 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-zinc-900">Historial de recorridos</h2>
+            <h2 className="text-base font-bold text-zinc-900">{t.tripHistory.title}</h2>
             <p className="text-xs text-zinc-400 mt-0.5">{plate}</p>
           </div>
           <div className="flex items-center gap-3">
@@ -109,15 +111,15 @@ export default function TripHistory({ vehicleId, plate, onClose, MapView }: Prop
             </div>
             <div className="p-2.5 rounded-xl bg-zinc-50 text-center">
               <div className="text-lg font-bold text-zinc-900">{summary.maxSpeed}</div>
-              <div className="text-[10px] text-zinc-400 font-medium">km/h máx</div>
+              <div className="text-[10px] text-zinc-400 font-medium">{t.tripHistory.maxSpeed}</div>
             </div>
             <div className="p-2.5 rounded-xl bg-zinc-50 text-center">
               <div className="text-lg font-bold text-zinc-900">{fmtTime(summary.startTime)}</div>
-              <div className="text-[10px] text-zinc-400 font-medium">Inicio</div>
+              <div className="text-[10px] text-zinc-400 font-medium">{t.tripHistory.start}</div>
             </div>
             <div className="p-2.5 rounded-xl bg-zinc-50 text-center">
               <div className="text-lg font-bold text-zinc-900">{fmtTime(summary.endTime)}</div>
-              <div className="text-[10px] text-zinc-400 font-medium">Fin</div>
+              <div className="text-[10px] text-zinc-400 font-medium">{t.tripHistory.end}</div>
             </div>
           </div>
         )}
@@ -125,7 +127,7 @@ export default function TripHistory({ vehicleId, plate, onClose, MapView }: Prop
         {/* Content */}
         <div className="flex-1 overflow-hidden">
           {loading && (
-            <div className="flex items-center justify-center py-12 text-zinc-400 text-sm">Cargando...</div>
+            <div className="flex items-center justify-center py-12 text-zinc-400 text-sm">{t.common.loading}</div>
           )}
           {error && (
             <div className="mx-4 mt-3 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">{error}</div>
@@ -135,8 +137,8 @@ export default function TripHistory({ vehicleId, plate, onClose, MapView }: Prop
               <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center mb-3">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8Z"/><circle cx="12" cy="10" r="3"/></svg>
               </div>
-              <p className="text-zinc-500 text-sm font-semibold">Sin recorridos</p>
-              <p className="text-zinc-400 text-xs mt-1">No hay datos GPS para esta fecha.</p>
+              <p className="text-zinc-500 text-sm font-semibold">{t.tripHistory.noTrips}</p>
+              <p className="text-zinc-400 text-xs mt-1">{t.tripHistory.noTrips}</p>
             </div>
           )}
           {!loading && points.length > 0 && (

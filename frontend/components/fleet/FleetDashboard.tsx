@@ -6,6 +6,7 @@ import { clearSession } from '@/lib/session';
 import MapView from '../MapView';
 import TripHistory from '../TripHistory';
 import GeofenceManager from '../GeofenceManager';
+import { useLocale } from '@/hooks/useLocale';
 
 const API = '';
 
@@ -39,6 +40,7 @@ interface User {
 
 export default function FleetDashboard() {
   const router = useRouter();
+  const { t } = useLocale();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [positions, setPositions] = useState<VehiclePosition[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,7 +86,7 @@ export default function FleetDashboard() {
         setVehicles(await res.json());
       }
     } catch {
-      setError('Error al cargar vehículos');
+      setError(t.fleet.errorLoadVehicles);
     }
   }, [token, router]);
 
@@ -148,11 +150,11 @@ export default function FleetDashboard() {
           setPaywallInfo({ plan: data.plan, limit: data.limit, current: data.current });
           setShowAddForm(false);
         } else {
-          setError(data.error || 'Error al agregar vehículo');
+          setError(data.error || t.fleet.errorAddVehicle);
         }
       }
     } catch {
-      setError('Error de conexión');
+      setError(t.fleet.errorConnection);
     } finally {
       setAdding(false);
     }
@@ -173,17 +175,17 @@ export default function FleetDashboard() {
         fetchVehicles();
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Error al editar vehículo');
+        setError(data.error || t.fleet.errorEditVehicle);
       }
     } catch {
-      setError('Error de conexión');
+      setError(t.fleet.errorConnection);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteVehicle = async (id: string) => {
-    if (!token || !confirm('¿Eliminar este vehículo? Esta acción no se puede deshacer.')) return;
+    if (!token || !confirm(t.fleet.deleteConfirm)) return;
     setError(null);
     try {
       const res = await fetch(`${API}/api/vehicles/${id}`, {
@@ -195,10 +197,10 @@ export default function FleetDashboard() {
         fetchPositions();
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Error al eliminar');
+        setError(data.error || t.fleet.errorDelete);
       }
     } catch {
-      setError('Error de conexión');
+      setError(t.fleet.errorConnection);
     }
   };
 
@@ -215,7 +217,7 @@ export default function FleetDashboard() {
       });
       if (!driverRes.ok) {
         const data = await driverRes.json().catch(() => ({}));
-        setError(data.error || 'Error al crear conductor');
+        setError(data.error || t.fleet.errorCreateDriver);
         setAssigningDriver(false);
         return;
       }
@@ -234,10 +236,10 @@ export default function FleetDashboard() {
         fetchVehicles();
       } else {
         const data = await assignRes.json().catch(() => ({}));
-        setError(data.error || 'Error al asignar conductor');
+        setError(data.error || t.fleet.errorAssignDriver);
       }
     } catch {
-      setError('Error de conexión');
+      setError(t.fleet.errorConnection);
     } finally {
       setAssigningDriver(false);
     }
@@ -254,7 +256,7 @@ export default function FleetDashboard() {
       });
       if (res.ok) fetchVehicles();
     } catch {
-      setError('Error de conexión');
+      setError(t.fleet.errorConnection);
     }
   };
 
@@ -272,26 +274,25 @@ export default function FleetDashboard() {
       {showPaywall && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
-            <h3 className="text-lg font-extrabold text-zinc-900 text-center mb-2">Mejora tu plan</h3>
+            <h3 className="text-lg font-extrabold text-zinc-900 text-center mb-2">{t.common.upgradePlan}</h3>
             <p className="text-[14px] text-zinc-500 text-center mb-4">
-              Tu plan {paywallInfo?.plan || 'gratuito'} permite {paywallInfo?.limit || 1} vehículo{(paywallInfo?.limit || 1) > 1 ? 's' : ''}.
-              Para agregar más, elige un plan superior.
+              {t.paywall.planAllows(paywallInfo?.plan || t.paywall.planFree, paywallInfo?.limit || 1)}
             </p>
             <div className="space-y-2 mb-4">
               <div className="flex items-center justify-between px-4 py-3 rounded-lg border-2 border-blue-500 bg-blue-50">
-                <div><p className="text-sm font-bold text-zinc-900">Personal</p><p className="text-[12px] text-zinc-500">Hasta 3 vehículos</p></div>
-                <span className="text-lg font-extrabold text-zinc-900">$99<span className="text-[12px] text-zinc-400 font-normal">/mes</span></span>
+                <div><p className="text-sm font-bold text-zinc-900">{t.paywall.personal}</p><p className="text-[12px] text-zinc-500">{t.paywall.personalDesc}</p></div>
+                <span className="text-lg font-extrabold text-zinc-900">{t.paywall.personalPrice}<span className="text-[12px] text-zinc-400 font-normal">{t.paywall.perMonth}</span></span>
               </div>
               <div className="flex items-center justify-between px-4 py-3 rounded-lg border border-zinc-200">
-                <div><p className="text-sm font-bold text-zinc-900">Flotillas</p><p className="text-[12px] text-zinc-500">Vehículos ilimitados</p></div>
-                <span className="text-lg font-extrabold text-zinc-900">$79<span className="text-[12px] text-zinc-400 font-normal">/mes c/u</span></span>
+                <div><p className="text-sm font-bold text-zinc-900">{t.paywall.fleet}</p><p className="text-[12px] text-zinc-500">{t.paywall.fleetDesc}</p></div>
+                <span className="text-lg font-extrabold text-zinc-900">{t.paywall.fleetPrice}<span className="text-[12px] text-zinc-400 font-normal">{t.paywall.perMonthEach}</span></span>
               </div>
             </div>
             <a href="https://wa.me/525610669353?text=Hola%2C%20quiero%20mejorar%20mi%20plan%20de%20SilentEye" target="_blank" rel="noopener noreferrer"
               className="block w-full text-center py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors mb-2">
-              Contactar por WhatsApp
+              {t.common.contactWhatsApp}
             </a>
-            <button onClick={() => setShowPaywall(false)} className="w-full text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors py-2">Cerrar</button>
+            <button onClick={() => setShowPaywall(false)} className="w-full text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors py-2">{t.common.close}</button>
           </div>
         </div>
       )}
@@ -302,14 +303,14 @@ export default function FleetDashboard() {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
           </div>
           <span className="text-sm font-bold tracking-tight">SilentEye</span>
-          <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full">FLOTILLA</span>
+          <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full">{t.fleet.badge}</span>
         </div>
         <div className="flex items-center gap-4">
           <button
             onClick={handleLogout}
             className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
           >
-            Salir
+            {t.common.logout}
           </button>
         </div>
       </header>
@@ -319,16 +320,16 @@ export default function FleetDashboard() {
 
       <main className="flex-1 flex flex-col p-4 gap-4">
         {loading ? (
-          <div className="flex-1 flex items-center justify-center text-zinc-400 text-sm">Cargando flotilla...</div>
+          <div className="flex-1 flex items-center justify-center text-zinc-400 text-sm">{t.fleet.loadingFleet}</div>
         ) : (
           <>
             {/* Stats bar */}
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-lg font-bold">Mi flotilla</h1>
+                <h1 className="text-lg font-bold">{t.fleet.title}</h1>
                 <p className="text-[11px] text-zinc-400">
-                  {vehicles.length} vehículo{vehicles.length !== 1 ? 's' : ''}
-                  {positions.length > 0 && ` · ${activeCount} activo${activeCount !== 1 ? 's' : ''} · ${parkedCount} estacionado${parkedCount !== 1 ? 's' : ''}`}
+                  {vehicles.length} {vehicles.length !== 1 ? t.common.vehicles.toLowerCase() : t.common.vehicle.toLowerCase()}
+                  {positions.length > 0 && ` · ${t.driverView.activeCount(activeCount)} · ${t.driverView.parkedCount(parkedCount)}`}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -337,14 +338,14 @@ export default function FleetDashboard() {
                   className="px-3 py-2 rounded-lg bg-amber-100 text-amber-700 text-[12px] font-semibold hover:bg-amber-200 active:scale-95 transition-all flex items-center gap-1.5"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
-                  Geocercas
+                  {t.fleet.geofences}
                 </button>
                 <button
                   onClick={() => setShowAddForm(!showAddForm)}
                   className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-[12px] font-semibold hover:bg-zinc-700 active:scale-95 transition-all flex items-center gap-1.5"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                  Agregar GPS
+                  {t.fleet.addGps}
                 </button>
               </div>
             </div>
@@ -352,17 +353,17 @@ export default function FleetDashboard() {
             {/* Add form */}
             {showAddForm && (
               <div className="p-4 rounded-xl border border-zinc-200 bg-white shadow-sm space-y-3">
-                <h3 className="text-sm font-bold text-zinc-900">Nuevo vehículo</h3>
+                <h3 className="text-sm font-bold text-zinc-900">{t.fleet.newVehicle}</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <input value={addPlate} onChange={e => setAddPlate(e.target.value)} placeholder="Placa *" maxLength={20} className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400" />
-                  <input value={addImei} onChange={e => setAddImei(e.target.value.replace(/\D/g, ''))} placeholder="IMEI GPS (15 dígitos) *" maxLength={15} className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400" />
-                  <input value={addName} onChange={e => setAddName(e.target.value)} placeholder="Nombre (opcional)" maxLength={100} className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400" />
+                  <input value={addPlate} onChange={e => setAddPlate(e.target.value)} placeholder={t.fleet.platePlaceholder} maxLength={20} className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400" />
+                  <input value={addImei} onChange={e => setAddImei(e.target.value.replace(/\D/g, ''))} placeholder={t.fleet.imeiPlaceholder} maxLength={15} className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400" />
+                  <input value={addName} onChange={e => setAddName(e.target.value)} placeholder={t.fleet.namePlaceholder} maxLength={100} className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400" />
                 </div>
                 <div className="flex gap-2">
                   <button onClick={handleAddVehicle} disabled={adding || !addPlate.trim() || addImei.trim().length !== 15} className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-[12px] font-semibold hover:bg-zinc-700 active:scale-95 transition-all disabled:opacity-40">
-                    {adding ? 'Agregando...' : 'Agregar'}
+                    {adding ? t.fleet.adding : t.common.add}
                   </button>
-                  <button onClick={() => setShowAddForm(false)} className="px-4 py-2 rounded-lg text-zinc-500 text-[12px] font-semibold hover:bg-zinc-100 transition-all">Cancelar</button>
+                  <button onClick={() => setShowAddForm(false)} className="px-4 py-2 rounded-lg text-zinc-500 text-[12px] font-semibold hover:bg-zinc-100 transition-all">{t.common.cancel}</button>
                 </div>
               </div>
             )}
@@ -400,12 +401,12 @@ export default function FleetDashboard() {
                   <div key={v.id} className={`p-4 rounded-xl border transition-all ${isParked ? 'bg-blue-50/60 border-blue-200/80' : 'bg-white border-zinc-200 shadow-sm'}`}>
                     {isEditing ? (
                       <div className="space-y-2">
-                        <input value={editPlate} onChange={e => setEditPlate(e.target.value)} placeholder="Placa" className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400" />
-                        <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Nombre" className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400" />
+                        <input value={editPlate} onChange={e => setEditPlate(e.target.value)} placeholder={t.common.plate} className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400" />
+                        <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={t.common.name} className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400" />
                         <input value={editImei} onChange={e => setEditImei(e.target.value.replace(/\D/g, ''))} placeholder="IMEI" maxLength={15} className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400" />
                         <div className="flex gap-2">
-                          <button onClick={() => handleEditVehicle(v.id)} disabled={saving} className="px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-[11px] font-semibold hover:bg-zinc-700 disabled:opacity-40">{saving ? '...' : 'Guardar'}</button>
-                          <button onClick={() => setEditingId(null)} className="px-3 py-1.5 rounded-lg text-zinc-500 text-[11px] font-semibold hover:bg-zinc-100">Cancelar</button>
+                          <button onClick={() => handleEditVehicle(v.id)} disabled={saving} className="px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-[11px] font-semibold hover:bg-zinc-700 disabled:opacity-40">{saving ? '...' : t.common.save}</button>
+                          <button onClick={() => setEditingId(null)} className="px-3 py-1.5 rounded-lg text-zinc-500 text-[11px] font-semibold hover:bg-zinc-100">{t.common.cancel}</button>
                         </div>
                       </div>
                     ) : (
@@ -420,21 +421,21 @@ export default function FleetDashboard() {
                             <button
                               onClick={() => setHistoryVehicle({ id: v.id, plate: v.plate })}
                               className="w-7 h-7 rounded-lg bg-zinc-100 flex items-center justify-center hover:bg-zinc-200 transition-colors"
-                              title="Historial"
+                              title={t.common.history}
                             >
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                             </button>
                             <button
                               onClick={() => { setEditingId(v.id); setEditPlate(v.plate); setEditName(v.name || ''); setEditImei(v.imei); }}
                               className="w-7 h-7 rounded-lg bg-zinc-100 flex items-center justify-center hover:bg-zinc-200 transition-colors"
-                              title="Editar"
+                              title={t.common.edit}
                             >
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                             </button>
                             <button
                               onClick={() => handleDeleteVehicle(v.id)}
                               className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center hover:bg-red-100 transition-colors"
-                              title="Eliminar"
+                              title={t.common.delete}
                             >
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                             </button>
@@ -447,13 +448,13 @@ export default function FleetDashboard() {
                             <>
                               <div className={`w-1.5 h-1.5 rounded-full ${isParked ? 'bg-blue-500' : 'bg-emerald-500 animate-pulse'}`} />
                               <span className={isParked ? 'text-blue-600 font-medium' : 'text-zinc-500'}>
-                                {isParked ? 'Estacionado' : `${pos.speed ?? 0} km/h`}
+                                {isParked ? t.fleet.parked : `${pos.speed ?? 0} km/h`}
                               </span>
                             </>
                           ) : (
                             <>
                               <div className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
-                              <span className="text-zinc-400">Sin señal GPS</span>
+                              <span className="text-zinc-400">{t.fleet.noGpsSignal}</span>
                             </>
                           )}
                         </div>
@@ -472,18 +473,18 @@ export default function FleetDashboard() {
                                 onClick={() => handleUnassignDriver(v.id)}
                                 className="text-[10px] text-red-500 hover:text-red-700 font-medium"
                               >
-                                Quitar
+                                {t.fleet.remove}
                               </button>
                             </div>
                           ) : isAssigning ? (
                             <div className="space-y-2">
-                              <input value={assignName} onChange={e => setAssignName(e.target.value)} placeholder="Nombre del conductor" className="w-full px-2 py-1.5 rounded-lg border border-zinc-200 text-[12px] focus:outline-none focus:border-zinc-400" />
-                              <input value={assignPhone} onChange={e => setAssignPhone(e.target.value)} placeholder="Teléfono (ej: +52...)" className="w-full px-2 py-1.5 rounded-lg border border-zinc-200 text-[12px] focus:outline-none focus:border-zinc-400" />
+                              <input value={assignName} onChange={e => setAssignName(e.target.value)} placeholder={t.fleet.driverName} className="w-full px-2 py-1.5 rounded-lg border border-zinc-200 text-[12px] focus:outline-none focus:border-zinc-400" />
+                              <input value={assignPhone} onChange={e => setAssignPhone(e.target.value)} placeholder={t.fleet.driverPhone} className="w-full px-2 py-1.5 rounded-lg border border-zinc-200 text-[12px] focus:outline-none focus:border-zinc-400" />
                               <div className="flex gap-1.5">
                                 <button onClick={() => handleAssignDriver(v.id)} disabled={assigningDriver || !assignPhone.trim() || !assignName.trim()} className="px-3 py-1 rounded-lg bg-blue-600 text-white text-[10px] font-semibold hover:bg-blue-500 disabled:opacity-40">
-                                  {assigningDriver ? '...' : 'Asignar'}
+                                  {assigningDriver ? '...' : t.fleet.assign}
                                 </button>
-                                <button onClick={() => { setAssigningId(null); setAssignPhone(''); setAssignName(''); }} className="px-3 py-1 rounded-lg text-zinc-500 text-[10px] font-semibold hover:bg-zinc-100">Cancelar</button>
+                                <button onClick={() => { setAssigningId(null); setAssignPhone(''); setAssignName(''); }} className="px-3 py-1 rounded-lg text-zinc-500 text-[10px] font-semibold hover:bg-zinc-100">{t.common.cancel}</button>
                               </div>
                             </div>
                           ) : (
@@ -492,7 +493,7 @@ export default function FleetDashboard() {
                               className="text-[11px] text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
                             >
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
-                              Asignar conductor
+                              {t.fleet.assignDriver}
                             </button>
                           )}
                         </div>
@@ -508,8 +509,8 @@ export default function FleetDashboard() {
                 <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center mb-4">
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
                 </div>
-                <p className="text-zinc-500 text-sm font-semibold">Tu flotilla está vacía</p>
-                <p className="text-zinc-400 text-xs mt-1 max-w-[240px]">Presiona &quot;Agregar GPS&quot; para registrar tu primer vehículo.</p>
+                <p className="text-zinc-500 text-sm font-semibold">{t.fleet.emptyTitle}</p>
+                <p className="text-zinc-400 text-xs mt-1 max-w-[240px]">{t.fleet.emptyDesc}</p>
               </div>
             )}
           </>

@@ -1,13 +1,8 @@
 'use client';
 
-export type HelperStatus = 'disponible' | 'asignado' | 'en_ruta' | 'offline';
+import { useLocale } from '@/hooks/useLocale';
 
-const STATUS_LABELS: Record<HelperStatus, string> = {
-  disponible: 'Disponible',
-  asignado: 'Asignado',
-  en_ruta: 'En ruta',
-  offline: 'Offline',
-};
+export type HelperStatus = 'disponible' | 'asignado' | 'en_ruta' | 'offline';
 
 const STATUS_COLORS: Record<HelperStatus, string> = {
   disponible: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
@@ -24,6 +19,14 @@ interface HelperHeaderProps {
 }
 
 export default function HelperHeader({ status, onLogout, userName }: HelperHeaderProps) {
+  const { t } = useLocale();
+
+  const STATUS_LABELS: Record<HelperStatus, string> = {
+    disponible: t.helper.statusAvailable,
+    asignado: t.helper.statusAssigned,
+    en_ruta: t.helper.statusEnRoute,
+    offline: t.helper.statusOffline,
+  };
 
   return (
     <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-lg border-b border-zinc-200/60 px-4 h-12 flex items-center justify-between">
@@ -49,9 +52,9 @@ export default function HelperHeader({ status, onLogout, userName }: HelperHeade
       <button
         onClick={onLogout}
         className="text-zinc-400 hover:text-zinc-600 text-xs font-medium transition-colors"
-        aria-label="Cerrar sesión"
+        aria-label={t.helper.closeSession}
       >
-        Salir
+        {t.common.logout}
       </button>
     </header>
   );

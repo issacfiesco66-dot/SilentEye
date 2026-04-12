@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale } from '@/hooks/useLocale';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { playAlarmSound, initAudioOnInteraction } from '@/lib/alarm';
 
@@ -22,6 +23,7 @@ export interface Alert {
 
 export default function AlertsSection() {
   const router = useRouter();
+  const { t } = useLocale();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -139,7 +141,7 @@ export default function AlertsSection() {
   };
 
   if (loading) {
-    return <div className="p-6 text-zinc-400">Cargando alertas...</div>;
+    return <div className="p-6 text-zinc-400">{t.common.loading}</div>;
   }
 
   const priorityLabel = (p?: number) => {
@@ -151,7 +153,7 @@ export default function AlertsSection() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-2">
-        <h2 className="text-lg font-bold text-zinc-900">Alertas GPS</h2>
+        <h2 className="text-lg font-bold text-zinc-900">{t.admin.alerts.title}</h2>
         <div className="flex gap-2">
           <button
             onClick={fetchAlerts}
@@ -165,14 +167,14 @@ export default function AlertsSection() {
             disabled={deleting}
             className="px-3 py-1.5 text-[13px] font-medium bg-amber-50 text-amber-600 border border-amber-100 rounded-lg hover:bg-amber-100 disabled:opacity-50 transition-colors"
           >
-            Borrar &gt; 7 días
+            {t.admin.alerts.deleteOld}
           </button>
           <button
             onClick={() => handleDelete(undefined, true)}
             disabled={deleting || alerts.length === 0}
             className="px-3 py-1.5 text-[13px] font-medium bg-red-50 text-red-600 border border-red-100 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
           >
-            Borrar todas
+            {t.admin.alerts.deleteAll}
           </button>
         </div>
       </div>
@@ -185,7 +187,7 @@ export default function AlertsSection() {
 
       <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-xl overflow-hidden">
         {alerts.length === 0 ? (
-          <li className="p-6 text-zinc-400 text-center">No hay alertas</li>
+          <li className="p-6 text-zinc-400 text-center">{t.admin.alerts.noAlerts}</li>
         ) : (
           alerts.map((a) => (
             <li key={a.id} className="p-4 flex justify-between items-start gap-4 hover:bg-zinc-50 transition-colors">
@@ -217,9 +219,9 @@ export default function AlertsSection() {
                 <button
                   onClick={() => deleteSingleAlert(a.id)}
                   className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 border border-red-100 rounded hover:bg-red-100 transition-colors"
-                  title="Eliminar alerta"
+                  title={t.common.delete}
                 >
-                  Eliminar
+                  {t.common.delete}
                 </button>
               </div>
             </li>

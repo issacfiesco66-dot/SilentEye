@@ -2,13 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale } from '@/hooks/useLocale';
 
 const API = '';
-
-const ROLES = [
-  { value: 'driver', label: 'Conductor' },
-  { value: 'helper', label: 'Helper' },
-] as const;
 
 export default function UserRoleSelect({
   userId,
@@ -24,6 +20,11 @@ export default function UserRoleSelect({
   currentUserId?: string;
 }) {
   const router = useRouter();
+  const { t } = useLocale();
+  const ROLES = [
+    { value: 'driver', label: t.admin.users.roles.driver },
+    { value: 'helper', label: t.admin.users.roles.helper },
+  ] as const;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -68,7 +69,7 @@ export default function UserRoleSelect({
   };
 
   if (currentRole === 'admin') {
-    return <span className="text-zinc-400 text-sm">Admin</span>;
+    return <span className="text-zinc-400 text-sm">{t.admin.users.roles.admin}</span>;
   }
 
   return (

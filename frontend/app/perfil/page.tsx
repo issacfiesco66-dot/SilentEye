@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from '@/hooks/useSession';
+import { useLocale } from '@/hooks/useLocale';
 import { saveSession, getSession } from '@/lib/session';
 
 const API = '';
 
 export default function PerfilPage() {
   const router = useRouter();
+  const { t } = useLocale();
   const { token, user, ready, logout } = useSession();
 
   const [name, setName] = useState('');
@@ -57,8 +59,8 @@ export default function PerfilPage() {
         body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase() || null }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error al actualizar perfil');
-      setProfileMsg('Perfil actualizado correctamente');
+      if (!res.ok) throw new Error(data.error || t.common.error);
+      setProfileMsg(t.profile.updated);
       // Update local session with new data
       const session = getSession();
       if (session) {
@@ -76,11 +78,11 @@ export default function PerfilPage() {
     setPwMsg('');
     setPwError('');
     if (!newPassword || newPassword.length < 6) {
-      setPwError('La nueva contraseña debe tener al menos 6 caracteres');
+      setPwError(t.common.error);
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPwError('Las contraseñas no coinciden');
+      setPwError(t.common.error);
       return;
     }
     setPwLoading(true);
@@ -91,8 +93,8 @@ export default function PerfilPage() {
         body: JSON.stringify({ currentPassword: currentPassword || undefined, newPassword }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error al cambiar contraseña');
-      setPwMsg('Contraseña actualizada correctamente');
+      if (!res.ok) throw new Error(data.error || t.common.error);
+      setPwMsg(t.profile.updated);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -106,7 +108,7 @@ export default function PerfilPage() {
   if (!ready || !user) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <span className="text-zinc-400">Cargando...</span>
+        <span className="text-zinc-400">{t.common.loading}</span>
       </div>
     );
   }
@@ -116,50 +118,50 @@ export default function PerfilPage() {
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-lg border-b border-zinc-100 px-4 md:px-6 h-14 flex items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-1 text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-          Volver
+          {t.common.back}
         </Link>
-        <span className="text-sm font-bold tracking-tight">Mi Perfil</span>
+        <span className="text-sm font-bold tracking-tight">{t.profile.title}</span>
         <button onClick={logout} className="text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors">
-          Salir
+          {t.common.logout}
         </button>
       </header>
 
       <div className="max-w-lg mx-auto p-6 space-y-8">
         {/* Profile info */}
         <section className="bg-zinc-50 border border-zinc-200 rounded-xl p-6">
-          <h2 className="text-lg font-bold mb-1">Información personal</h2>
-          <p className="text-[13px] text-zinc-400 mb-6">Actualiza tu nombre y correo electrónico</p>
+          <h2 className="text-lg font-bold mb-1">{t.profile.changeName}</h2>
+          <p className="text-[13px] text-zinc-400 mb-6">{t.profile.changeEmail}</p>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Nombre</label>
+              <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">{t.common.name}</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Tu nombre"
+                placeholder={t.common.name}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
             </div>
             <div>
-              <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Correo electrónico</label>
+              <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">{t.common.email}</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@correo.com"
+                placeholder={t.common.email}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
             </div>
             <div>
-              <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Teléfono</label>
+              <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">{t.common.phone}</label>
               <input
                 type="text"
                 value={user.phone || ''}
                 disabled
                 className="w-full px-3.5 py-2.5 rounded-lg bg-zinc-100 border border-zinc-200 text-zinc-500 text-[15px] cursor-not-allowed"
               />
-              <p className="text-[12px] text-zinc-400 mt-1">El teléfono no se puede cambiar</p>
+              <p className="text-[12px] text-zinc-400 mt-1">{t.common.phone}</p>
             </div>
           </div>
 
@@ -181,18 +183,18 @@ export default function PerfilPage() {
             disabled={profileLoading}
             className="mt-4 w-full py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-semibold disabled:opacity-40 transition-colors"
           >
-            {profileLoading ? 'Guardando...' : 'Guardar cambios'}
+            {profileLoading ? t.common.loading : t.common.save}
           </button>
         </section>
 
         {/* Change password */}
         <section className="bg-zinc-50 border border-zinc-200 rounded-xl p-6">
-          <h2 className="text-lg font-bold mb-1">Cambiar contraseña</h2>
-          <p className="text-[13px] text-zinc-400 mb-6">Actualiza tu contraseña de acceso</p>
+          <h2 className="text-lg font-bold mb-1">{t.profile.changePassword}</h2>
+          <p className="text-[13px] text-zinc-400 mb-6">{t.profile.changePassword}</p>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Contraseña actual</label>
+              <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">{t.profile.currentPassword}</label>
               <input
                 type="password"
                 value={currentPassword}
@@ -200,25 +202,25 @@ export default function PerfilPage() {
                 placeholder="••••••"
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
-              <p className="text-[12px] text-zinc-400 mt-1">Déjalo vacío si aún no tienes contraseña</p>
+              <p className="text-[12px] text-zinc-400 mt-1">{t.profile.currentPassword}</p>
             </div>
             <div>
-              <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Nueva contraseña</label>
+              <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">{t.profile.newPassword}</label>
               <input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Mínimo 6 caracteres"
+                placeholder={t.profile.newPassword}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
             </div>
             <div>
-              <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">Confirmar nueva contraseña</label>
+              <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">{t.profile.newPassword}</label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Repite la nueva contraseña"
+                placeholder={t.profile.newPassword}
                 onKeyDown={(e) => e.key === 'Enter' && changePassword()}
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all"
               />
@@ -243,7 +245,7 @@ export default function PerfilPage() {
             disabled={pwLoading}
             className="mt-4 w-full py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-semibold disabled:opacity-40 transition-colors"
           >
-            {pwLoading ? 'Actualizando...' : 'Cambiar contraseña'}
+            {pwLoading ? t.common.loading : t.profile.changePassword}
           </button>
         </section>
       </div>

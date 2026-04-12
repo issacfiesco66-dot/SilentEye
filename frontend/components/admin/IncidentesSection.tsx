@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import IncidentDetail from './IncidentDetail';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useLocale } from '@/hooks/useLocale';
 import { playAlarmSound, initAudioOnInteraction } from '@/lib/alarm';
 
 const API = '';
@@ -23,6 +24,7 @@ export interface Incident {
 
 export default function IncidentesSection() {
   const router = useRouter();
+  const { t } = useLocale();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -109,20 +111,20 @@ export default function IncidentesSection() {
 
   if (loading) {
     return (
-      <div className="p-6 text-zinc-400">Cargando incidentes...</div>
+      <div className="p-6 text-zinc-400">{t.common.loading}</div>
     );
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-bold text-zinc-900">Incidentes</h2>
+        <h2 className="text-lg font-bold text-zinc-900">{t.admin.tabs.incidents}</h2>
         <button
           onClick={fetchIncidents}
           disabled={refreshing}
           className={`px-3 py-1.5 text-[13px] font-medium rounded-lg transition-colors ${refreshing ? 'bg-zinc-100 text-zinc-400 cursor-wait' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`}
         >
-          {refreshing ? 'Cargando...' : 'Actualizar'}
+          {refreshing ? t.common.loading : t.common.realTime}
         </button>
       </div>
 
@@ -134,7 +136,7 @@ export default function IncidentesSection() {
 
       <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-xl overflow-hidden">
         {sortedIncidents.length === 0 ? (
-          <li className="p-6 text-zinc-400 text-center">No hay incidentes</li>
+          <li className="p-6 text-zinc-400 text-center">{t.common.noData}</li>
         ) : (
           sortedIncidents.map((inc) => (
             <li
@@ -168,7 +170,7 @@ export default function IncidentesSection() {
                     : 'bg-zinc-100 text-zinc-500'
                 }`}
               >
-                {inc.status === 'falsa_alarma' ? 'Falsa alarma' : inc.status === 'recuperado' ? 'Recuperado' : inc.status === 'localizado' ? 'Localizado' : inc.status}
+                {t.admin.incidents.statuses[inc.status as keyof typeof t.admin.incidents.statuses] || inc.status}
               </span>
             </li>
           ))

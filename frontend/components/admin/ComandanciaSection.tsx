@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useLocale } from '@/hooks/useLocale';
 import { getSession } from '@/lib/session';
 
 interface Prospect {
@@ -53,6 +54,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 const STATUS_ORDER = ['detectado', 'demo_enviada', 'interesado', 'contactado', 'cliente', 'descartado'];
 
 export default function ComandanciaSection() {
+  const { t } = useLocale();
   // ── Search state ──
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -229,7 +231,7 @@ export default function ComandanciaSection() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-zinc-900">Comandancia de Prospectos</h2>
+          <h2 className="text-lg font-bold text-zinc-900">{t.admin.tabs.comandancia}</h2>
           <p className="text-zinc-500 text-[13px]">Busca flotas en Google Maps y envía alertas de seguridad</p>
         </div>
       </div>
@@ -258,7 +260,7 @@ export default function ComandanciaSection() {
         >
           <span className="flex items-center justify-center gap-2">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            Buscar en Google Maps
+            {t.common.search}
           </span>
         </button>
         <button
@@ -299,7 +301,7 @@ export default function ComandanciaSection() {
                 ) : (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                 )}
-                {searching ? 'Buscando...' : 'Buscar'}
+                {searching ? t.common.loading : t.common.search}
               </button>
             </div>
             {searchError && (

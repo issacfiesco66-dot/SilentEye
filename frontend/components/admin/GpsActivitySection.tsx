@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale } from '@/hooks/useLocale';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
 const API = '';
@@ -22,6 +23,7 @@ interface GpsRecord {
 
 export default function GpsActivitySection() {
   const router = useRouter();
+  const { t } = useLocale();
   const [records, setRecords] = useState<GpsRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +75,7 @@ export default function GpsActivitySection() {
   });
 
   if (loading) {
-    return <div className="p-6 text-zinc-400">Cargando actividad GPS...</div>;
+    return <div className="p-6 text-zinc-400">{t.common.loading}</div>;
   }
 
   const priorityLabel = (p: number) => {
@@ -93,7 +95,7 @@ export default function GpsActivitySection() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-2">
-        <h2 className="text-lg font-bold text-zinc-900">Actividad GPS en vivo</h2>
+        <h2 className="text-lg font-bold text-zinc-900">{t.admin.gpsActivity.title}</h2>
         <button
           onClick={fetchActivity}
           className="px-3 py-1.5 text-[13px] font-medium bg-zinc-100 text-zinc-600 rounded-lg hover:bg-zinc-200 transition-colors"
@@ -110,7 +112,7 @@ export default function GpsActivitySection() {
 
       {records.length === 0 ? (
         <div className="p-6 text-zinc-400 text-center border border-zinc-200 rounded-xl">
-          No hay registros GPS recientes
+          {t.common.noData}
         </div>
       ) : (
         <>
@@ -147,9 +149,9 @@ export default function GpsActivitySection() {
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 text-zinc-500 text-xs">
                 <tr>
-                  <th className="text-left px-3 py-2 font-medium">Placa / IMEI</th>
-                  <th className="text-left px-3 py-2 font-medium">Ubicación</th>
-                  <th className="text-left px-3 py-2 font-medium">Vel.</th>
+                  <th className="text-left px-3 py-2 font-medium">{t.common.plate} / IMEI</th>
+                  <th className="text-left px-3 py-2 font-medium">{t.admin.gpsActivity.latestPositions}</th>
+                  <th className="text-left px-3 py-2 font-medium">{t.common.speed}</th>
                   <th className="text-left px-3 py-2 font-medium">Sat</th>
                   <th className="text-left px-3 py-2 font-medium">DIN1</th>
                   <th className="text-left px-3 py-2 font-medium">Prioridad</th>

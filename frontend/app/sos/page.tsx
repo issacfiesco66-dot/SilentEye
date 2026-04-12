@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useSession } from '@/hooks/useSession';
+import { useLocale } from '@/hooks/useLocale';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { playAlarmSound, initAudioOnInteraction } from '@/lib/alarm';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
@@ -56,6 +57,7 @@ interface LiveVehicle {
 export default function SOSPage() {
   const router = useRouter();
   const { token, user: sessionUser, ready: authReady, logout } = useSession();
+  const { t } = useLocale();
 
   usePushNotifications(token);
   const [status, setStatus] = useState<Status>('idle');
@@ -288,7 +290,7 @@ export default function SOSPage() {
       const data = await res.json();
       if (!res.ok) {
         setStatus('error');
-        setError(data.error || 'Error al enviar alerta');
+        setError(data.error || t.common.error);
         return;
       }
       setStatus('sent');
@@ -314,7 +316,7 @@ export default function SOSPage() {
       }, 1000);
     } catch (e) {
       setStatus('error');
-      setError('Sin conexión. Verifica tu internet.');
+      setError(t.sos.locationError);
     }
   }, [token]);
 
@@ -333,7 +335,7 @@ export default function SOSPage() {
     setStatus('locating');
     if (!navigator.geolocation) {
       setStatus('error');
-      setError('Tu navegador no soporta geolocalización');
+      setError(t.sos.locationError);
       return;
     }
 
@@ -353,13 +355,7 @@ export default function SOSPage() {
             return;
           }
           setStatus('error');
-          if (err.code === 1) {
-            setError('Permiso de ubicación denegado. Ve a Ajustes del navegador > Permisos > Ubicación y permite el acceso.');
-          } else if (err.code === 2) {
-            setError('No se pudo determinar tu ubicación. Asegúrate de estar al aire libre o cerca de una ventana.');
-          } else {
-            setError('Tiempo agotado obteniendo ubicación. Intenta de nuevo.');
-          }
+          setError(t.sos.locationError);
         },
         { enableHighAccuracy: highAccuracy, timeout: 20000, maximumAge: 30000 }
       );
@@ -370,7 +366,7 @@ export default function SOSPage() {
   const handleLogout = logout;
 
   if (!token) {
-    return <div className="min-h-screen bg-zinc-50 flex items-center justify-center text-zinc-400 text-sm">Cargando...</div>;
+    return <div className="min-h-screen bg-zinc-50 flex items-center justify-center text-zinc-400 text-sm">{t.common.loading}</div>;
   }
 
   return (
@@ -379,14 +375,14 @@ export default function SOSPage() {
       <header className="sticky top-0 z-10 bg-white/90 backdrop-blur-lg border-b border-zinc-200/60 px-4 h-12 flex items-center justify-between">
         <Link href={dashType === 'sos' ? '/' : '/dashboard'} className="flex items-center gap-1 text-zinc-400 hover:text-zinc-600 text-xs font-medium transition-colors">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-          {dashType === 'sos' ? 'Inicio' : 'Dashboard'}
+          {dashType === 'sos' ? t.common.back : 'Dashboard'}
         </Link>
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
           <span className="text-xs font-bold tracking-tight text-zinc-700">SilentEye SOS</span>
         </div>
         <button onClick={handleLogout} className="text-zinc-400 hover:text-zinc-600 text-xs font-medium transition-colors">
-          Salir
+          {t.common.logout}
         </button>
       </header>
 
@@ -395,8 +391,8 @@ export default function SOSPage() {
         <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${coords ? 'bg-emerald-500' : 'bg-amber-400 animate-pulse'}`} />
         <span className="text-[11px] text-zinc-400 truncate">
           {coords
-            ? `GPS listo · ±${gpsAccuracy || '?'}m · ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
-            : 'Obteniendo ubicación…'}
+            ? `GPS · ±${gpsAccuracy || '?'}m · ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
+            : t.sos.gettingLocation}
         </span>
       </div>
 
@@ -416,7 +412,7 @@ export default function SOSPage() {
 
         {/* Greeting */}
         {userName && (
-          <p className="text-zinc-400 text-xs mb-4">Hola, {userName}</p>
+          <p className="text-zinc-400 text-xs mb-4">{userName}</p>
         )}
 
         {/* SOS button */}
@@ -441,29 +437,29 @@ export default function SOSPage() {
             <span className="absolute inset-0 rounded-full border-[3px] border-red-300/25 animate-ping" style={{ animationDuration: '2s' }} />
           )}
 
-          {status === 'idle' && 'SOS'}
+          {status === 'idle' && t.sos.button}
           {status === 'locating' && (
             <span className="flex flex-col items-center text-sm gap-1">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8Z"/><circle cx="12" cy="10" r="3"/></svg>
-              Ubicando
+              {t.sos.gettingLocation}
             </span>
           )}
           {status === 'sending' && (
             <span className="flex flex-col items-center text-sm gap-1">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4 20-7Z"/></svg>
-              Enviando
+              {t.sos.sending}
             </span>
           )}
           {status === 'sent' && (
             <span className="flex flex-col items-center text-sm gap-1">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5L20 7"/></svg>
-              Enviado
+              {t.sos.sent}
             </span>
           )}
           {status === 'error' && (
             <span className="flex flex-col items-center text-xs gap-1">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-              Reintentar
+              {t.common.error}
             </span>
           )}
         </button>
@@ -472,20 +468,20 @@ export default function SOSPage() {
         <div className="mt-5 text-center min-h-[56px] max-w-xs">
           {status === 'idle' && (
             <p className="text-zinc-400 text-xs leading-relaxed">
-              Presiona el botón para enviar una alerta de emergencia con tu ubicación
+              {t.sos.subtitle}
             </p>
           )}
 
           {status === 'sent' && result && (
             <div className="space-y-1">
-              <p className="text-emerald-600 font-semibold text-sm">Alerta enviada</p>
+              <p className="text-emerald-600 font-semibold text-sm">{t.sos.sent}</p>
               <p className="text-zinc-500 text-xs">
                 {result.nearbyCount > 0
-                  ? `${result.nearbyCount} persona${result.nearbyCount > 1 ? 's' : ''} notificada${result.nearbyCount > 1 ? 's' : ''}`
-                  : 'Administradores notificados'}
+                  ? t.sos.nearbyNotified(result.nearbyCount)
+                  : t.sos.sentDesc}
               </p>
               {countdown > 0 && (
-                <p className="text-zinc-400 text-[11px]">Nueva alerta en {countdown}s</p>
+                <p className="text-zinc-400 text-[11px]">{t.sos.cooldown(countdown)}</p>
               )}
             </div>
           )}
@@ -497,14 +493,14 @@ export default function SOSPage() {
                 onClick={() => { setStatus('idle'); setError(''); }}
                 className="text-zinc-400 hover:text-zinc-600 text-xs underline transition-colors"
               >
-                Intentar de nuevo
+                {t.common.back}
               </button>
             </div>
           )}
 
           {(status === 'locating' || status === 'sending') && (
             <p className="text-amber-600 text-xs animate-pulse">
-              {status === 'locating' ? 'Obteniendo ubicación GPS…' : 'Enviando alerta…'}
+              {status === 'locating' ? t.sos.gettingLocation : t.sos.sending}
             </p>
           )}
         </div>
@@ -515,7 +511,7 @@ export default function SOSPage() {
           className="mt-4 flex items-center gap-1.5 text-xs text-zinc-400 hover:text-red-600 transition-colors"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
-          Llamar al 911
+          911
         </a>
       </main>
 
@@ -523,7 +519,7 @@ export default function SOSPage() {
       {incomingAlerts.length > 0 && !trackingIncident && (
         <div className="px-4 pb-3 space-y-2">
           <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider text-center">
-            Alertas cercanas
+            {t.sos.activeIncidents}
           </p>
           {incomingAlerts.map((a) => (
             <div
@@ -544,7 +540,7 @@ export default function SOSPage() {
                 </div>
               </div>
               <span className="text-red-600 text-xs font-medium flex items-center gap-1">
-                Ver mapa
+                {t.sos.trackOnMap}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
               </span>
             </div>
@@ -562,15 +558,15 @@ export default function SOSPage() {
               className="flex items-center gap-1.5 text-sm font-medium text-white/90 hover:text-white"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-              Volver
+              {t.sos.backToList}
             </button>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
               <span className="text-sm font-bold">
                 {(() => {
                   const tracked = incomingAlerts.find((a) => a.incidentId === trackingIncident);
-                  const label = tracked?.source === 'theft' ? 'ROBO' : (tracked?.plate || 'Emergencia');
-                  return `${label} — En vivo`;
+                  const label = tracked?.plate || t.sos.title;
+                  return `${label} — ${t.sos.tracking}`;
                 })()}
               </span>
             </div>
@@ -607,14 +603,14 @@ export default function SOSPage() {
                 status: 'active',
               }))}
               liveLocations={[
-                ...(coords ? [{ latitude: coords.lat, longitude: coords.lng, speed: 0, plate: 'Tú' }] : []),
+                ...(coords ? [{ latitude: coords.lat, longitude: coords.lng, speed: 0, plate: t.common.myLocation }] : []),
                 ...liveVehicles.map((v) => ({
                   vehicleId: v.vehicleId,
                   imei: v.imei,
                   latitude: v.latitude,
                   longitude: v.longitude,
                   speed: v.speed,
-                  plate: v.plate || 'Vehículo',
+                  plate: v.plate || t.common.vehicle,
                 })),
               ]}
               selectedId={selectedAlert}
@@ -626,7 +622,7 @@ export default function SOSPage() {
           {/* Bottom info */}
           <div className="bg-zinc-800 px-4 py-3 text-center safe-area-bottom">
             <p className="text-zinc-400 text-xs">
-              Ubicación del incidente en tiempo real · Sigue moviéndote con precaución
+              {t.sos.tracking} · {t.common.realTime}
             </p>
           </div>
         </div>
@@ -635,7 +631,7 @@ export default function SOSPage() {
       {/* Footer */}
       <footer className="px-4 py-3 border-t border-zinc-200/60 text-center">
         <p className="text-zinc-300 text-[10px] leading-relaxed">
-          Ubicación compartida solo en emergencias · Admins y personas cercanas serán notificados
+          {t.sos.sentDesc}
         </p>
       </footer>
     </div>

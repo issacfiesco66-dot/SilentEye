@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useLocale } from '@/hooks/useLocale';
 
 const API = '';
 
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export default function GeofenceManager({ onClose, onUpdate }: Props) {
+  const { t } = useLocale();
   const [geofences, setGeofences] = useState<Geofence[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
       });
       if (res.ok) setGeofences(await res.json());
     } catch {
-      setError('Error al cargar geocercas');
+      setError(t.geofence.errorLoad);
     } finally {
       setLoading(false);
     }
@@ -56,7 +58,7 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
   useEffect(() => { fetchGeofences(); }, [fetchGeofences]);
 
   const useCurrentLocation = () => {
-    if (!navigator.geolocation) { setError('Geolocalización no disponible'); return; }
+    if (!navigator.geolocation) { setError(t.geofence.geoNotAvailable); return; }
     setGettingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -64,7 +66,7 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
         setLng(pos.coords.longitude.toFixed(6));
         setGettingLocation(false);
       },
-      () => { setError('No se pudo obtener ubicación'); setGettingLocation(false); },
+      () => { setError(t.geofence.errorLocation); setGettingLocation(false); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
@@ -92,10 +94,10 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
         onUpdate();
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Error al crear geocerca');
+        setError(data.error || t.geofence.errorCreate);
       }
     } catch {
-      setError('Error de conexión');
+      setError(t.common.error);
     } finally {
       setSaving(false);
     }
@@ -110,7 +112,7 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
       });
       if (res.ok) { fetchGeofences(); onUpdate(); }
     } catch {
-      setError('Error al eliminar');
+      setError(t.geofence.errorDelete);
     }
   };
 
@@ -125,7 +127,7 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
       fetchGeofences();
       onUpdate();
     } catch {
-      setError('Error al actualizar');
+      setError(t.geofence.errorUpdate);
     }
   };
 
@@ -135,8 +137,8 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
         {/* Header */}
         <div className="p-4 border-b border-zinc-100 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-zinc-900">Geocercas</h2>
-            <p className="text-xs text-zinc-400 mt-0.5">Recibe alertas cuando un vehículo entre o salga de una zona</p>
+            <h2 className="text-base font-bold text-zinc-900">{t.geofence.title}</h2>
+            <p className="text-xs text-zinc-400 mt-0.5">{t.geofence.subtitle}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -156,19 +158,19 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
           <div className="p-4 border-b border-zinc-100 space-y-3">
             <input
               value={name} onChange={(e) => setName(e.target.value)}
-              placeholder="Nombre (ej: Casa, Oficina, Zona permitida)"
+              placeholder={t.geofence.namePlaceholder}
               maxLength={100}
               className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400"
             />
             <div className="grid grid-cols-2 gap-2">
               <input
                 value={lat} onChange={(e) => setLat(e.target.value)}
-                placeholder="Latitud" type="number" step="any"
+                placeholder={t.geofence.latitude} type="number" step="any"
                 className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400"
               />
               <input
                 value={lng} onChange={(e) => setLng(e.target.value)}
-                placeholder="Longitud" type="number" step="any"
+                placeholder={t.geofence.longitude} type="number" step="any"
                 className="px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:border-zinc-400"
               />
             </div>
@@ -178,10 +180,10 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
                 disabled={gettingLocation}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all"
               >
-                {gettingLocation ? 'Obteniendo...' : '📍 Usar mi ubicación'}
+                {gettingLocation ? t.geofence.gettingLocation : t.geofence.useMyLocation}
               </button>
               <div className="flex-1" />
-              <label className="text-xs text-zinc-500">Radio:</label>
+              <label className="text-xs text-zinc-500">{t.geofence.radius}:</label>
               <select
                 value={radius} onChange={(e) => setRadius(e.target.value)}
                 className="px-2 py-1.5 rounded-lg border border-zinc-200 text-sm"
@@ -197,11 +199,11 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-1.5 text-xs text-zinc-600">
                 <input type="checkbox" checked={alertExit} onChange={() => setAlertExit(!alertExit)} className="rounded" />
-                Alerta al salir
+                {t.geofence.alertOnExit}
               </label>
               <label className="flex items-center gap-1.5 text-xs text-zinc-600">
                 <input type="checkbox" checked={alertEnter} onChange={() => setAlertEnter(!alertEnter)} className="rounded" />
-                Alerta al entrar
+                {t.geofence.alertOnEnter}
               </label>
             </div>
             <div className="flex gap-2">
@@ -210,10 +212,10 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
                 disabled={saving || !name.trim() || !lat || !lng}
                 className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-xs font-semibold hover:bg-zinc-700 active:scale-95 transition-all disabled:opacity-40"
               >
-                {saving ? 'Guardando...' : 'Crear geocerca'}
+                {saving ? t.geofence.creating : t.geofence.create}
               </button>
               <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg text-zinc-500 text-xs font-semibold hover:bg-zinc-100 transition-all">
-                Cancelar
+                {t.common.cancel}
               </button>
             </div>
           </div>
@@ -225,11 +227,11 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
 
         {/* List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {loading && <div className="text-center py-8 text-zinc-400 text-sm">Cargando...</div>}
+          {loading && <div className="text-center py-8 text-zinc-400 text-sm">{t.common.loading}</div>}
           {!loading && geofences.length === 0 && (
             <div className="text-center py-8">
-              <p className="text-zinc-500 text-sm font-semibold">Sin geocercas</p>
-              <p className="text-zinc-400 text-xs mt-1">Crea una zona para recibir alertas.</p>
+              <p className="text-zinc-500 text-sm font-semibold">{t.geofence.noGeofences}</p>
+              <p className="text-zinc-400 text-xs mt-1">{t.geofence.noGeofencesDesc}</p>
             </div>
           )}
           {geofences.map((g) => (
@@ -239,8 +241,8 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
                   <div className="font-semibold text-sm text-zinc-900 truncate">{g.name}</div>
                   <div className="text-[11px] text-zinc-400 mt-0.5">
                     {g.radius_m >= 1000 ? `${g.radius_m / 1000} km` : `${g.radius_m}m`}
-                    {g.alert_on_exit && ' · Alerta al salir'}
-                    {g.alert_on_enter && ' · Alerta al entrar'}
+                    {g.alert_on_exit && ` · ${t.geofence.alertOnExit}`}
+                    {g.alert_on_enter && ` · ${t.geofence.alertOnEnter}`}
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -248,7 +250,7 @@ export default function GeofenceManager({ onClose, onUpdate }: Props) {
                     onClick={() => handleToggle(g)}
                     className={`px-2 py-1 rounded text-[10px] font-semibold transition-all ${g.is_active ? 'bg-amber-200 text-amber-800' : 'bg-zinc-200 text-zinc-500'}`}
                   >
-                    {g.is_active ? 'Activa' : 'Inactiva'}
+                    {g.is_active ? t.common.active : t.common.inactive}
                   </button>
                   <button
                     onClick={() => handleDelete(g.id)}
