@@ -8,7 +8,7 @@ import { useLocale } from '@/hooks/useLocale';
 const API = '';
 
 /** Login method — based on input type, NOT user role */
-type LoginMethod = 'gps' | 'email' | 'imei' | 'phone';
+type LoginMethod = 'gps' | 'email' | 'phone';
 
 export default function LoginPage() {
   return (
@@ -22,7 +22,6 @@ function LoginContent() {
   const router = useRouter();
   const [method, setMethod] = useState<LoginMethod>('gps');
   const [step, setStep] = useState<'input' | 'otp'>('input');
-  const [imei, setImei] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -65,18 +64,16 @@ function LoginContent() {
     setError('');
     try {
       let body: Record<string, string | undefined>;
-      if (method === 'imei') {
-        body = { imei: imei.trim() };
-      } else if (method === 'gps') {
+      if (method === 'gps') {
         body = { email: email.trim().toLowerCase(), mode: 'gps' };
       } else if (method === 'email') {
         body = { email: email.trim().toLowerCase(), mode: 'citizen' };
       } else {
         body = { phone: phone.trim() };
       }
-      const identifier = method === 'imei' ? imei.trim() : isEmailFlow ? email.trim() : phone.trim();
+      const identifier = isEmailFlow ? email.trim() : phone.trim();
       if (!identifier) {
-        setError(method === 'imei' ? t.login.errors.enterImei : isEmailFlow ? t.login.errors.enterEmail : t.login.errors.enterPhone);
+        setError(isEmailFlow ? t.login.errors.enterEmail : t.login.errors.enterPhone);
         setLoading(false);
         return;
       }
@@ -125,9 +122,7 @@ function LoginContent() {
     setError('');
     try {
       let body: Record<string, string | undefined>;
-      if (method === 'imei') {
-        body = { imei: imei.trim(), code: code.trim() };
-      } else if (method === 'gps') {
+      if (method === 'gps') {
         body = { email: email.trim().toLowerCase(), code: code.trim(), name: name.trim() || undefined, mode: 'gps' };
       } else if (method === 'email') {
         body = { email: email.trim().toLowerCase(), code: code.trim(), name: name.trim() || undefined, mode: 'citizen' };
@@ -234,21 +229,15 @@ function LoginContent() {
           <div className="flex gap-1 mb-6 p-1 bg-zinc-100 rounded-lg">
             <button
               onClick={() => { setMethod('gps'); resetForm(); }}
-              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'gps' ? 'bg-white text-blue-600 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'gps' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
             >
               {t.login.tabGps}
             </button>
             <button
               onClick={() => { setMethod('email'); resetForm(); }}
-              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'email' ? 'bg-white text-red-600 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
+              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'email' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
             >
               {t.login.tabSos}
-            </button>
-            <button
-              onClick={() => { setMethod('imei'); resetForm(); }}
-              className={`flex-1 py-2 rounded-md text-[13px] font-semibold transition-all ${method === 'imei' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}
-            >
-              {t.login.tabImei}
             </button>
             <button
               onClick={() => { setMethod('phone'); resetForm(); }}
@@ -286,25 +275,19 @@ function LoginContent() {
                   </div>
                 )}
                 <label className="block text-[13px] font-semibold text-zinc-700 mb-1.5">
-                  {method === 'imei' ? t.login.imei.label : isEmailFlow ? t.common.email : t.common.phone}
+                  {isEmailFlow ? t.common.email : t.common.phone}
                 </label>
                 <input
-                  type={method === 'imei' ? 'text' : isEmailFlow ? 'email' : 'tel'}
-                  value={method === 'imei' ? imei : isEmailFlow ? email : phone}
-                  onChange={(e) => method === 'imei' ? setImei(e.target.value) : isEmailFlow ? setEmail(e.target.value) : setPhone(e.target.value)}
-                  placeholder={method === 'imei' ? t.login.imei.placeholder : isEmailFlow ? 'tu@correo.com' : '+52 222 123 4567'}
-                  className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all mb-1.5"
+                  type={isEmailFlow ? 'email' : 'tel'}
+                  value={isEmailFlow ? email : phone}
+                  onChange={(e) => isEmailFlow ? setEmail(e.target.value) : setPhone(e.target.value)}
+                  placeholder={isEmailFlow ? 'tu@correo.com' : '+52 222 123 4567'}
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-zinc-900 placeholder-zinc-300 text-[15px] focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 outline-none transition-all mb-4"
                 />
-                {method === 'imei' && (
-                  <p className="text-zinc-400 text-[12px] mb-4">
-                    {t.login.imei.registeredByAdmin}
-                  </p>
-                )}
-                {method !== 'imei' && <div className="mb-4" />}
                 <button
                   onClick={requestOtp}
                   disabled={loading}
-                  className={`w-full py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-40 transition-colors ${method === 'gps' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-zinc-900 hover:bg-zinc-800'}`}
+                  className="w-full py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-40 transition-colors bg-zinc-900 hover:bg-zinc-800"
                 >
                   {loading ? t.login.sending : method === 'gps' ? t.login.gps.registerFree : t.login.sendCode}
                 </button>
@@ -316,7 +299,7 @@ function LoginContent() {
                     ? <>{t.login.otp.codeSentTo} <span className="font-semibold text-zinc-700">{email}</span></>
                     : emailHint
                     ? <>{t.login.otp.codeSentEmail} <span className="font-semibold text-zinc-700">{emailHint}</span></>
-                    : <>{t.login.otp.codeSentPhone} <span className="font-semibold text-zinc-700">{method === 'imei' ? t.login.otp.registeredContact : phone}</span></>
+                    : <>{t.login.otp.codeSentPhone} <span className="font-semibold text-zinc-700">{phone}</span></>
                   }
                 </p>
                 {emailSent && (
@@ -355,7 +338,7 @@ function LoginContent() {
                 <button
                   onClick={verifyOtp}
                   disabled={loading}
-                  className={`w-full py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-40 transition-colors mb-3 ${method === 'gps' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-zinc-900 hover:bg-zinc-800'}`}
+                  className="w-full py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-40 transition-colors mb-3 bg-zinc-900 hover:bg-zinc-800"
                 >
                   {loading ? t.login.otp.verifying : method === 'gps' ? t.login.gps.createAccount : t.login.otp.verify}
                 </button>
@@ -363,7 +346,7 @@ function LoginContent() {
                   onClick={resetForm}
                   className="w-full text-zinc-400 hover:text-zinc-600 text-[13px] font-medium transition-colors"
                 >
-                  {method === 'imei' ? t.login.otp.changeImei : isEmailFlow ? t.login.otp.changeEmail : t.login.otp.changePhone}
+                  {isEmailFlow ? t.login.otp.changeEmail : t.login.otp.changePhone}
                 </button>
               </>
             )}
