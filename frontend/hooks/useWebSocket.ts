@@ -56,14 +56,12 @@ export function useWebSocket({ token, onMessage, onConnect, onDisconnect, enable
     if (!enabled || !token) return;
 
     const connect = () => {
-      const url = `${WS_URL}?token=${encodeURIComponent(token)}`;
-      const ws = new WebSocket(url);
+      const ws = new WebSocket(WS_URL);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        retryCountRef.current = 0;
-        setConnected(true);
-        onConnect?.();
+        // Send auth message as first frame — token never touches the URL
+        ws.send(JSON.stringify({ type: 'auth', token }));
       };
 
       ws.onclose = () => {
@@ -84,6 +82,13 @@ export function useWebSocket({ token, onMessage, onConnect, onDisconnect, enable
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data) as WebSocketMessage;
+          // auth_ok confirma que el servidor aceptó el token
+          if (msg.type === 'auth_ok') {
+            retryCountRef.current = 0;
+            setConnected(true);
+            onConnect?.();
+            return;
+          }
           onMessageRef.current?.(msg);
         } catch {
           // Ignorar mensajes malformados

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { clearSession } from '@/lib/session';
 import MapView from '../MapView';
 import TripHistory from '../TripHistory';
 import GeofenceManager from '../GeofenceManager';
@@ -258,8 +259,7 @@ export default function FleetDashboard() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    clearSession();
     router.replace('/login');
   };
 
@@ -270,7 +270,7 @@ export default function FleetDashboard() {
     <div className="min-h-screen bg-zinc-50 text-zinc-900 flex flex-col">
       {/* Paywall modal */}
       {showPaywall && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
             <h3 className="text-lg font-extrabold text-zinc-900 text-center mb-2">Mejora tu plan</h3>
             <p className="text-[14px] text-zinc-500 text-center mb-4">

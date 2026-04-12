@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { clearSession } from '@/lib/session';
 
 const API = '';
 const EMERGENCY_NUMBER = '911';
@@ -91,7 +92,7 @@ export default function HelperIncidentCard({
         body: JSON.stringify({ status }),
       });
       if (res.status === 401) {
-        localStorage.removeItem('token');
+        clearSession();
         window.location.href = '/login';
         return;
       }
@@ -111,7 +112,7 @@ export default function HelperIncidentCard({
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) {
-        localStorage.removeItem('token');
+        clearSession();
         window.location.href = '/login';
         return;
       }

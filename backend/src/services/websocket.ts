@@ -20,15 +20,6 @@ const DB_WRITE_THROTTLE_MS = 10_000; // save to DB every 10s max per user
 const lastWsMsg = new Map<string, number>();
 const WS_MSG_THROTTLE_MS = 2_000; // min 2s between location_update messages per user
 
-// Seguridad: JWT obligatorio en handshake. Rol y vehicleId provienen SIEMPRE del servidor.
-function parseTokenFromRequest(req: { url?: string }): string | null {
-  const url = req.url || '';
-  const i = url.indexOf('?');
-  if (i === -1) return null;
-  const params = new URLSearchParams(url.slice(i));
-  return params.get('token');
-}
-
 async function resolveUserMeta(userId: string): Promise<{ role: string; vehicleId?: string } | null> {
   const r = await pool.query(
     `SELECT u.role, v.id as vehicle_id FROM users u
@@ -95,12 +86,15 @@ const VALID_ROLES = ['admin', 'helper', 'driver', 'citizen'];
 const MAX_WS_PER_IP = 10;
 const MAX_WS_PER_USER = 5;
 
+// Timeout for auth handshake: client must send {type:"auth",token:"..."} within 5s
+const AUTH_TIMEOUT_MS = 5000;
+
 export function createWebSocketServer(portOrServer: number | HttpServer): WebSocketServer {
   const wss = typeof portOrServer === 'number'
-    ? new WebSocketServer({ port: portOrServer, host: '0.0.0.0' })
-    : new WebSocketServer({ server: portOrServer, path: '/ws' });
+    ? new WebSocketServer({ port: portOrServer, host: '0.0.0.0', maxPayload: 64 * 1024 })
+    : new WebSocketServer({ server: portOrServer, path: '/ws', maxPayload: 64 * 1024 });
 
-  wss.on('connection', async (ws, req) => {
+  wss.on('connection', (ws, req) => {
     // Extract client IP for rate limiting
     const forwarded = req.headers['x-forwarded-for'];
     const clientIp = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress || 'unknown';
@@ -113,56 +107,81 @@ export function createWebSocketServer(portOrServer: number | HttpServer): WebSoc
       return;
     }
 
-    const token = parseTokenFromRequest(req);
-    if (!token) {
-      logger.warn('WebSocket: conexión rechazada (sin token)');
-      ws.close(4001, 'Token requerido');
-      return;
-    }
+    // Auth timeout: close unauthenticated connections after AUTH_TIMEOUT_MS
+    const authTimeout = setTimeout(() => {
+      if (!clients.has(ws as WsSocket)) {
+        logger.warn('WebSocket: conexión cerrada por timeout de autenticación');
+        ws.close(4001, 'Auth timeout');
+      }
+    }, AUTH_TIMEOUT_MS);
 
-    const payload = verifyToken(token);
-    if (!payload) {
-      logger.warn('WebSocket: conexión rechazada (JWT inválido o expirado)');
-      ws.close(4002, 'Token inválido');
-      return;
-    }
+    // First message must be {type:"auth", token:"..."} — all others are rejected until authed
+    const onFirstMessage = async (raw: unknown) => {
+      clearTimeout(authTimeout);
 
-    // Per-user connection limit (prevent session abuse)
-    const userCount = [...clients.values()].filter(m => m.userId === payload.userId).length;
-    if (userCount >= MAX_WS_PER_USER) {
-      logger.warn(`WebSocket: usuario ${payload.userId} excede límite (${MAX_WS_PER_USER} conexiones)`);
-      ws.close(4429, 'Too many connections for user');
-      return;
-    }
+      let msg: { type?: string; token?: string };
+      try {
+        msg = JSON.parse(typeof raw === 'string' ? raw : String(raw));
+      } catch {
+        ws.close(4001, 'Mensaje de auth inválido');
+        return;
+      }
 
-    const meta = await resolveUserMeta(payload.userId);
-    if (!meta || !VALID_ROLES.includes(meta.role)) {
-      logger.warn(`WebSocket: usuario no encontrado o rol inválido: ${payload.userId}`);
-      ws.close(4003, 'Usuario no autorizado');
-      return;
-    }
+      if (msg.type !== 'auth' || !msg.token) {
+        ws.close(4001, 'Se requiere mensaje {type:"auth", token:"..."}');
+        return;
+      }
 
-    // Metadatos SIEMPRE del servidor; ignoramos cualquier dato enviado por el cliente
-    clients.set(ws as WsSocket, {
-      userId: payload.userId,
-      role: meta.role,
-      vehicleId: meta.vehicleId,
-      ip: clientIp,
-    });
+      const payload = verifyToken(msg.token);
+      if (!payload) {
+        logger.warn('WebSocket: conexión rechazada (JWT inválido o expirado)');
+        ws.close(4002, 'Token inválido');
+        return;
+      }
 
-    ws.on('message', (raw) => {
-      handleClientMessage(ws as WsSocket, raw);
-    });
+      // Per-user connection limit (prevent session abuse)
+      const userCount = [...clients.values()].filter(m => m.userId === payload.userId).length;
+      if (userCount >= MAX_WS_PER_USER) {
+        logger.warn(`WebSocket: usuario ${payload.userId} excede límite (${MAX_WS_PER_USER} conexiones)`);
+        ws.close(4429, 'Too many connections for user');
+        return;
+      }
+
+      const meta = await resolveUserMeta(payload.userId);
+      if (!meta || !VALID_ROLES.includes(meta.role)) {
+        logger.warn(`WebSocket: usuario no encontrado o rol inválido: ${payload.userId}`);
+        ws.close(4003, 'Usuario no autorizado');
+        return;
+      }
+
+      // Metadatos SIEMPRE del servidor; ignoramos cualquier dato enviado por el cliente
+      clients.set(ws as WsSocket, {
+        userId: payload.userId,
+        role: meta.role,
+        vehicleId: meta.vehicleId,
+        ip: clientIp,
+      });
+
+      ws.send(JSON.stringify({ type: 'auth_ok' }));
+      logger.info(`WebSocket: cliente autenticado userId=${payload.userId} role=${meta.role}`);
+
+      // Switch to normal message handler
+      ws.on('message', (data) => {
+        handleClientMessage(ws as WsSocket, data);
+      });
+    };
+
+    ws.once('message', onFirstMessage);
 
     ws.on('close', () => {
+      clearTimeout(authTimeout);
       clients.delete(ws as WsSocket);
     });
 
     ws.on('error', () => {
+      clearTimeout(authTimeout);
       clients.delete(ws as WsSocket);
     });
-
-    logger.info(`WebSocket: cliente autenticado userId=${payload.userId} role=${meta.role}`);
   });
 
   logger.info(typeof portOrServer === 'number'

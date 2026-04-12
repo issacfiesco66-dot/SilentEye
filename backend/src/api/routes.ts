@@ -7,7 +7,7 @@
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHmac, timingSafeEqual, randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { pool } from '../db/pool.js';
 import { hasPostGis } from '../db/postgis-check.js';
@@ -177,6 +177,10 @@ function checkSetupSecret(req: import('express').Request): boolean {
 }
 
 api.post('/setup/migrate', asyncHandler(async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    res.status(403).json({ error: 'Endpoint deshabilitado en producción. Usa fly ssh console.' });
+    return;
+  }
   if (!checkSetupSecret(req)) {
     res.status(403).json({ error: 'Secret inválido. Define MIGRATE_SECRET en Fly Secrets.' });
     return;
@@ -186,6 +190,10 @@ api.post('/setup/migrate', asyncHandler(async (req, res) => {
 }));
 
 api.post('/setup/seed', asyncHandler(async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    res.status(403).json({ error: 'Endpoint deshabilitado en producción. Usa fly ssh console.' });
+    return;
+  }
   if (!checkSetupSecret(req)) {
     res.status(403).json({ error: 'Secret inválido. Define MIGRATE_SECRET en Fly Secrets.' });
     return;
@@ -654,8 +662,8 @@ api.put('/me/password', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const { currentPassword, newPassword } = req.body;
 
-  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
-    res.status(400).json({ error: 'La nueva contraseña debe tener al menos 8 caracteres' });
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 12) {
+    res.status(400).json({ error: 'La nueva contraseña debe tener al menos 12 caracteres' });
     return;
   }
 
@@ -2051,6 +2059,21 @@ api.put('/users/:id/role', authMiddleware, requireRole('admin'), asyncHandler(as
 
 api.put('/users/:id/block', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const { userId } = (req as any).user;
+  if (id === userId) {
+    res.status(400).json({ error: 'No puedes bloquearte a ti mismo' });
+    return;
+  }
+  // Prevent blocking the last active admin
+  const adminCount = await pool.query(
+    "SELECT COUNT(*)::int as cnt FROM users WHERE role = 'admin' AND COALESCE(is_active, true) = true AND id != $1",
+    [id]
+  );
+  const target = await pool.query('SELECT role FROM users WHERE id = $1', [id]);
+  if (target.rows[0]?.role === 'admin' && (adminCount.rows[0]?.cnt ?? 0) === 0) {
+    res.status(400).json({ error: 'No puedes bloquear al único administrador activo' });
+    return;
+  }
   const r = await pool.query(
     'UPDATE users SET is_active = NOT COALESCE(is_active, true), updated_at = NOW() WHERE id = $1 RETURNING id, phone, name, role, is_active',
     [id]
@@ -2317,13 +2340,14 @@ api.post('/push/subscribe', authMiddleware, asyncHandler(async (req, res) => {
 }));
 
 api.post('/push/unsubscribe', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
   const { endpoint } = req.body;
   if (!endpoint) {
     res.status(400).json({ error: 'Endpoint requerido' });
     return;
   }
   try {
-    await removeSubscription(endpoint);
+    await removeSubscription(endpoint, userId);
     res.json({ success: true });
   } catch (err) {
     logger.error('POST /push/unsubscribe error:', err);
@@ -2365,7 +2389,7 @@ const SITE_URL = process.env.PUBLIC_SITE_URL || 'https://silenteye.mx';
 function generateFolio(): string {
   const prefix = 'SE';
   const ts = Date.now().toString(36).toUpperCase();
-  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const rand = randomBytes(3).toString('hex').toUpperCase();
   return `${prefix}-${ts}-${rand}`;
 }
 

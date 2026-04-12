@@ -10,13 +10,13 @@ primary_region = 'dfw'
   dockerfile = 'Dockerfile'
 
 [env]
-  CORS_ORIGINS = 'http://localhost:3000,https://silenteye-3rrwnq.fly.dev,https://silent-eye-frontend.vercel.app,https://silenteye.mx,https://www.silenteye.mx'
+  CORS_ORIGINS = 'https://silenteye-3rrwnq.fly.dev,https://silent-eye-frontend.vercel.app,https://silenteye.mx,https://www.silenteye.mx'
   NODE_ENV = 'production'
   PORT = '8080'
   TCP_PORT = '5000'
   TCP_PORT_ALT = '8443'
   TCP_PORT_ALT2 = '15140'
-  TELTONIKA_SKIP_WHITELIST = 'true'
+  TELTONIKA_SKIP_WHITELIST = 'false'
 
 [http_service]
   internal_port = 8080

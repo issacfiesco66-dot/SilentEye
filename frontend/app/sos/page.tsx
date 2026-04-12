@@ -554,7 +554,7 @@ export default function SOSPage() {
 
       {/* Full-screen tracking map overlay */}
       {trackingIncident && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-zinc-900">
+        <div className="fixed inset-0 z-[9999] flex flex-col bg-zinc-900">
           {/* Tracking header */}
           <div className="bg-red-600 text-white px-4 py-3 flex items-center justify-between safe-area-top">
             <button

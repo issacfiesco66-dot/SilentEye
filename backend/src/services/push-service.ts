@@ -27,8 +27,12 @@ export async function saveSubscription(userId: string, subscription: { endpoint:
   logger.info(`Push subscription guardada para userId=${userId}`);
 }
 
-export async function removeSubscription(endpoint: string): Promise<void> {
-  await pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1', [endpoint]);
+export async function removeSubscription(endpoint: string, userId?: string): Promise<void> {
+  if (userId) {
+    await pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id = $2', [endpoint, userId]);
+  } else {
+    await pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1', [endpoint]);
+  }
 }
 
 export async function removeUserSubscriptions(userId: string): Promise<void> {

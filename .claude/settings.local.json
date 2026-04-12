@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(geo-audit)",
+      "Skill(geo-audit:*)",
+      "Bash(npx next:*)",
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(xargs grep:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

@@ -141,9 +141,9 @@ export async function findOrCreateUser(phone: string, name?: string, role?: stri
   return insert.rows[0];
 }
 
-// Duración de sesión: JWT_EXPIRES_IN (ej. "720h", "24h", "86400"). Por defecto 30 días.
+// Duración de sesión: JWT_EXPIRES_IN (ej. "24h", "8h", "86400"). Por defecto 24h.
 function getJwtExpiresInSeconds(): number {
-  const raw = process.env.JWT_EXPIRES_IN || '720h';
+  const raw = process.env.JWT_EXPIRES_IN || '24h';
   if (raw.endsWith('h')) return (parseInt(raw, 10) || 24) * 3600;
   if (raw.endsWith('m')) return (parseInt(raw, 10) || 60) * 60;
   const n = parseInt(raw, 10);

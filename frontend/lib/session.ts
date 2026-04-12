@@ -37,8 +37,11 @@ export interface SessionUser {
 // ── Cookie helpers ──
 
 function setCookie(name: string, value: string, maxAge = COOKIE_MAX_AGE) {
-  const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Lax${secure}`;
+  // Secure: siempre en producción, también en https en desarrollo
+  const isSecure = typeof window !== 'undefined' &&
+    (window.location.protocol === 'https:' || process.env.NODE_ENV === 'production');
+  const secure = isSecure ? '; Secure' : '';
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Strict${secure}`;
 }
 
 function getCookie(name: string): string | null {
