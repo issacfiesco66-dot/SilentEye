@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useLocale } from '@/hooks/useLocale';
 
@@ -99,8 +99,24 @@ export default function TerrainAnalysis({
   const [poiNotes, setPoiNotes] = useState('');
   const [savingPoi, setSavingPoi] = useState(false);
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{ display_name: string; lat: string; lon: string }[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+
   // Panel toggles
   const [showControls, setShowControls] = useState(true);
+
+  // Auto-fill GPS on mount
+  useEffect(() => {
+    if (coords && !lat && !lng) {
+      setLat(coords.lat.toFixed(6));
+      setLng(coords.lng.toFixed(6));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coords]);
 
   // Load POIs on mount
   useEffect(() => {
@@ -111,11 +127,49 @@ export default function TerrainAnalysis({
       .catch(() => {});
   }, [token]);
 
+  // Geocoding search via OpenStreetMap Nominatim (free, no API key)
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (query.trim().length < 3) {
+      setSearchResults([]);
+      setShowResults(false);
+      return;
+    }
+    searchTimeout.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}`,
+          { headers: { 'Accept-Language': 'es' } },
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data);
+          setShowResults(true);
+        }
+      } catch {
+        // silent
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+  }, []);
+
+  // Select a search result
+  const selectSearchResult = useCallback((result: { display_name: string; lat: string; lon: string }) => {
+    setLat(parseFloat(result.lat).toFixed(6));
+    setLng(parseFloat(result.lon).toFixed(6));
+    setSearchQuery(result.display_name.split(',').slice(0, 2).join(','));
+    setShowResults(false);
+  }, []);
+
   // Use GPS coordinates
   const useMyLocation = useCallback(() => {
     if (coords) {
       setLat(coords.lat.toFixed(6));
       setLng(coords.lng.toFixed(6));
+      setSearchQuery('');
     }
   }, [coords]);
 
@@ -273,40 +327,64 @@ export default function TerrainAnalysis({
       {/* Controls panel */}
       {showControls && (
         <div className="bg-white border-b border-zinc-200 px-4 py-3 space-y-3">
-          {/* Coordinates row */}
-          <div className="flex flex-wrap gap-2 items-end">
-            <div className="flex-1 min-w-[120px]">
-              <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">{t.terrain.latitude}</label>
-              <input
-                type="number"
-                step="any"
-                value={lat}
-                onChange={(e) => setLat(e.target.value)}
-                placeholder="19.4326"
-                className="w-full mt-0.5 px-2 py-1.5 text-xs border border-zinc-300 rounded-md focus:ring-1 focus:ring-amber-500 focus:border-amber-500 bg-white"
-              />
+          {/* Search bar */}
+          <div className="relative">
+            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">{t.terrain.searchPlace}</label>
+            <div className="flex gap-2 mt-0.5">
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  onFocus={() => searchResults.length > 0 && setShowResults(true)}
+                  placeholder={t.terrain.searchPlaceholder}
+                  className="w-full px-3 py-2 text-sm border border-zinc-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white pr-8"
+                />
+                {searching && (
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" className="animate-spin text-zinc-400" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" /></svg>
+                  </div>
+                )}
+                {!searching && (
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  </div>
+                )}
+
+                {/* Search results dropdown */}
+                {showResults && searchResults.length > 0 && (
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg overflow-hidden">
+                    {searchResults.map((r, i) => (
+                      <button
+                        key={i}
+                        onClick={() => selectSearchResult(r)}
+                        className="w-full text-left px-3 py-2 text-xs text-zinc-700 hover:bg-amber-50 border-b border-zinc-100 last:border-0 transition-colors"
+                      >
+                        <span className="font-medium">{r.display_name.split(',').slice(0, 2).join(',')}</span>
+                        <span className="text-zinc-400 ml-1">{r.display_name.split(',').slice(2, 4).join(',')}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={useMyLocation}
+                disabled={!coords}
+                className="px-3 py-2 text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg transition-colors disabled:opacity-40 whitespace-nowrap flex items-center gap-1.5"
+                title={t.terrain.useMyLocation}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" /><path d="M12 2v4m0 12v4M2 12h4m12 0h4" />
+                </svg>
+                <span className="hidden sm:inline">{t.terrain.useMyLocation}</span>
+              </button>
             </div>
-            <div className="flex-1 min-w-[120px]">
-              <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">{t.terrain.longitude}</label>
-              <input
-                type="number"
-                step="any"
-                value={lng}
-                onChange={(e) => setLng(e.target.value)}
-                placeholder="-99.1332"
-                className="w-full mt-0.5 px-2 py-1.5 text-xs border border-zinc-300 rounded-md focus:ring-1 focus:ring-amber-500 focus:border-amber-500 bg-white"
-              />
-            </div>
-            <button
-              onClick={useMyLocation}
-              disabled={!coords}
-              className="px-2 py-1.5 text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded-md transition-colors disabled:opacity-40 whitespace-nowrap"
-              title={t.terrain.useMyLocation}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" /><path d="M12 2v4m0 12v4M2 12h4m12 0h4" />
-              </svg>
-            </button>
+            {/* Show resolved coords */}
+            {lat && lng && (
+              <p className="text-[10px] text-zinc-400 mt-1">
+                {t.terrain.latitude}: {lat}, {t.terrain.longitude}: {lng}
+              </p>
+            )}
           </div>
 
           {/* Date + Radius + Analyze */}
@@ -349,9 +427,6 @@ export default function TerrainAnalysis({
               )}
             </button>
           </div>
-
-          {/* Click-to-select hint */}
-          <p className="text-[10px] text-zinc-400">{t.terrain.clickMap}</p>
 
           {/* Error */}
           {error && (

@@ -442,6 +442,8 @@ const es = {
     resolution: 'Resolución: 10m (Sentinel-2)',
     useMyLocation: 'Usar mi ubicación',
     clickMap: 'Click en el mapa para seleccionar ubicación',
+    searchPlace: 'Buscar lugar',
+    searchPlaceholder: 'Escribe una ciudad, dirección o lugar...',
     errorGee: 'Error al conectar con el servicio de análisis satelital',
     errorNoAuth: 'El servicio de análisis satelital no está configurado',
     errorNoImages: 'No se encontraron imágenes para estas fechas y ubicación',

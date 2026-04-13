@@ -444,6 +444,8 @@ const en: Translations = {
     resolution: 'Resolution: 10m (Sentinel-2)',
     useMyLocation: 'Use my location',
     clickMap: 'Click the map to select location',
+    searchPlace: 'Search location',
+    searchPlaceholder: 'Type a city, address or place...',
     errorGee: 'Error connecting to satellite analysis service',
     errorNoAuth: 'Satellite analysis service is not configured',
     errorNoImages: 'No images found for these dates and location',
