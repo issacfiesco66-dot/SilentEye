@@ -170,15 +170,26 @@ export async function analyzeTerrainChange(
   const aoi = point.buffer(radiusKm * 1000);
 
   const event = new Date(eventDate);
-  // Baseline: 60 days before event to 5 days before
+  const now = new Date();
+
+  // Baseline: 90 days before event to 5 days before
+  // — captures how the terrain looked in its normal state
   const baselineStart = new Date(event);
-  baselineStart.setDate(baselineStart.getDate() - 60);
+  baselineStart.setDate(baselineStart.getDate() - 90);
   const baselineEnd = new Date(event);
   baselineEnd.setDate(baselineEnd.getDate() - 5);
-  // Current: event date to 30 days after
-  const currentStart = new Date(event);
-  const currentEnd = new Date(event);
-  currentEnd.setDate(currentEnd.getDate() + 30);
+
+  // Current: most recent 90 days of imagery (up to today)
+  // — captures the CURRENT state of terrain, regardless of how long ago the event was
+  // If the event was recent (< 90 days ago), use event date as start
+  const currentEnd = now;
+  const currentStart = new Date(now);
+  currentStart.setDate(currentStart.getDate() - 90);
+  // Ensure current period doesn't overlap with baseline
+  if (currentStart < baselineEnd) {
+    currentStart.setTime(baselineEnd.getTime());
+    currentStart.setDate(currentStart.getDate() + 1);
+  }
 
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
