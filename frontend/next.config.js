@@ -25,9 +25,9 @@ module.exports = {
                 ? "script-src 'self' 'unsafe-inline'"
                 : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://unpkg.com blob:",
+              "img-src 'self' data: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://unpkg.com https://earthengine.googleapis.com https://*.earthengine.googleapis.com blob:",
               "font-src 'self'",
-              "connect-src 'self' https://silenteye-3rrwnq.fly.dev wss://silenteye-3rrwnq.fly.dev https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com",
+              "connect-src 'self' https://silenteye-3rrwnq.fly.dev wss://silenteye-3rrwnq.fly.dev https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://nominatim.openstreetmap.org https://earthengine.googleapis.com https://*.earthengine.googleapis.com",
               "frame-ancestors 'none'",
             ].join('; '),
           },
