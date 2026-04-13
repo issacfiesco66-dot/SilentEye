@@ -2317,6 +2317,105 @@ api.post('/location', authMiddleware, locationRateLimit, asyncHandler(async (req
   res.json({ success: true });
 }));
 
+// ── Terrain Analysis (Google Earth Engine) ───────────────────────────────────
+
+const terrainRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Demasiadas solicitudes de análisis. Intenta en 15 minutos.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const cfIp = req.headers['cf-connecting-ip'];
+    if (typeof cfIp === 'string') return cfIp;
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
+    return req.ip || req.socket?.remoteAddress || 'unknown';
+  },
+});
+
+api.post('/terrain/analyze', terrainRateLimit, authMiddleware, asyncHandler(async (req, res) => {
+  const { analyzeTerrainChange, isGeeReady } = await import('../services/gee-service.js');
+
+  if (!isGeeReady()) {
+    res.status(503).json({ error: 'Terrain analysis service not configured. Set GEE_SERVICE_ACCOUNT_EMAIL and GEE_PRIVATE_KEY.' });
+    return;
+  }
+
+  const { latitude, longitude, radiusKm, eventDate } = req.body;
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    res.status(400).json({ error: 'latitude and longitude are required (numbers)' });
+    return;
+  }
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    res.status(400).json({ error: 'Invalid coordinates' });
+    return;
+  }
+  if (!eventDate || isNaN(Date.parse(eventDate))) {
+    res.status(400).json({ error: 'eventDate is required (ISO date string)' });
+    return;
+  }
+  const radius = typeof radiusKm === 'number' && radiusKm > 0 && radiusKm <= 20 ? radiusKm : 2;
+
+  try {
+    const result = await analyzeTerrainChange(latitude, longitude, radius, eventDate);
+    res.json(result);
+  } catch (err: any) {
+    if (err.message === 'NO_IMAGES_FOUND') {
+      res.status(404).json({ error: 'No satellite images found for the selected dates and location' });
+      return;
+    }
+    logger.error('POST /terrain/analyze error:', err);
+    res.status(500).json({ error: 'Terrain analysis failed' });
+  }
+}));
+
+api.get('/terrain/pois', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const r = await pool.query(
+    `SELECT id, name, notes, latitude, longitude, event_date, created_at
+     FROM terrain_pois WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
+    [userId],
+  );
+  res.json(r.rows);
+}));
+
+api.post('/terrain/pois', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const { name, notes, latitude, longitude, eventDate } = req.body;
+
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    res.status(400).json({ error: 'name is required' });
+    return;
+  }
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    res.status(400).json({ error: 'latitude and longitude are required' });
+    return;
+  }
+
+  const pgHasPostGis = await hasPostGis();
+  const geomExpr = pgHasPostGis ? 'ST_SetSRID(ST_MakePoint($4, $3), 4326)' : 'NULL';
+
+  const r = await pool.query(
+    `INSERT INTO terrain_pois (user_id, name, notes, latitude, longitude, event_date, geom)
+     VALUES ($1, $2, $5, $3, $4, $6, ${geomExpr})
+     RETURNING id, name, notes, latitude, longitude, event_date, created_at`,
+    [userId, name.trim().slice(0, 200), latitude, longitude, typeof notes === 'string' ? notes.trim().slice(0, 2000) : null, eventDate ? new Date(eventDate) : null],
+  );
+  res.status(201).json(r.rows[0]);
+}));
+
+api.delete('/terrain/pois/:id', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const { id } = req.params;
+  const r = await pool.query('DELETE FROM terrain_pois WHERE id = $1 AND user_id = $2', [id, userId]);
+  if ((r.rowCount ?? 0) === 0) {
+    res.status(404).json({ error: 'POI not found' });
+    return;
+  }
+  res.json({ success: true });
+}));
+
 // ── Push Notifications ──────────────────────────────────────────────────────
 
 api.get('/push/vapid-key', (_req, res) => {

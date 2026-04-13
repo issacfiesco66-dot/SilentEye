@@ -11,6 +11,7 @@
     "reset:keep-admin": "node ../node_modules/tsx/dist/cli.mjs src/db/reset-keep-admin.ts"
   },
   "dependencies": {
+    "@google/earthengine": "^1.7.21",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",

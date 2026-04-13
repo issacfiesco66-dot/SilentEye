@@ -15,6 +15,7 @@ import { createWebSocketServer, getWebSocketClientCount } from './services/webso
 import { api } from './api/routes.js';
 import { startOtpCleanup } from './api/auth.js';
 import { logger } from './utils/logger.js';
+import { initializeGEE } from './services/gee-service.js';
 
 // ── Global crash guards ──
 process.on('uncaughtException', (err) => {
@@ -155,6 +156,7 @@ server.listen(HTTP_PORT, '0.0.0.0', () => {
   logger.info(`TCP Teltonika: 0.0.0.0:${TCP_PORT} | HTTP: ${HTTP_PORT}`);
   startOtpCleanup();
   startIncidentAutoTimeout();
+  initializeGEE().catch(() => {}); // non-blocking — logs its own errors
 });
 
 // Auto-resolve incidents stuck in 'active' or 'attending' for > 2 hours
