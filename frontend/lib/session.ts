@@ -9,7 +9,7 @@ const USER_KEY = 'user';
 const LOGIN_AT_KEY = 'loginAt';
 const COOKIE_TOKEN = 'se_token';
 const COOKIE_USER = 'se_user';
-const COOKIE_MAX_AGE = 30 * 24 * 3600; // 30 days (matches JWT)
+const COOKIE_MAX_AGE = 24 * 3600; // 24h — aligned with JWT expiry (was 30d)
 
 export interface Permissions {
   viewAdminPanel: boolean;
@@ -37,7 +37,8 @@ export interface SessionUser {
 // ── Cookie helpers ──
 
 function setCookie(name: string, value: string, maxAge = COOKIE_MAX_AGE) {
-  // Secure: siempre en producción, también en https en desarrollo
+  // Secure + SameSite=Strict always; token cookie should not be readable by JS ideally,
+  // but since we need it for Bearer header, we keep it accessible but tightly scoped.
   const isSecure = typeof window !== 'undefined' &&
     (window.location.protocol === 'https:' || process.env.NODE_ENV === 'production');
   const secure = isSecure ? '; Secure' : '';

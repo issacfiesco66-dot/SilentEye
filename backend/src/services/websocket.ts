@@ -216,7 +216,8 @@ export function broadcastPanic(event: PanicEvent, nearbyUserIds?: string[]) {
     meta.role === 'admin' ||
     meta.role === 'helper' ||
     meta.role === 'driver' ||
-    meta.role === 'citizen' ||
+    // Security: citizens only receive panics they are directly involved in (nearby/follower)
+    (meta.role === 'citizen' && (nearbyUserIds ?? []).includes(meta.userId ?? '')) ||
     (nearbyUserIds ?? []).includes(meta.userId ?? '');
   const recipientCount = [...clients.values()].filter(filter).length;
   logger.info(`broadcastPanic incident=${event.incidentId} plate=${event.plate} → ${recipientCount} clientes`);

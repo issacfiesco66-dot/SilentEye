@@ -106,10 +106,18 @@ function isValidCoords(lat: unknown, lng: unknown): boolean {
     && isFinite(lat) && isFinite(lng);
 }
 
-// HMAC signing for witness response URLs (prevents URL tampering)
-function signWitnessToken(incidentId: string, userId: string, response: string): string {
-  const secret = process.env.JWT_SECRET!; // Enforced at startup in auth.ts (min 32 chars)
-  return createHmac('sha256', secret).update(`${incidentId}:${userId}:${response}`).digest('hex');
+// HMAC signing for witness response URLs (prevents URL tampering + expiration)
+const WITNESS_URL_EXPIRY_MS = 72 * 3600 * 1000; // 72 hours
+function signWitnessToken(incidentId: string, userId: string, response: string, timestamp?: number): string {
+  const secret = process.env.JWT_SECRET!;
+  const ts = timestamp ?? Date.now();
+  return createHmac('sha256', secret).update(`${incidentId}:${userId}:${response}:${ts}`).digest('hex');
+}
+
+// UUID format validation
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isValidUuid(id: string): boolean {
+  return typeof id === 'string' && UUID_REGEX.test(id);
 }
 
 // ── Permissions: maps internal role → capabilities (frontend never sees role names) ──
@@ -671,6 +679,10 @@ api.put('/me/password', authMiddleware, asyncHandler(async (req, res) => {
     res.status(400).json({ error: 'La nueva contraseña debe tener al menos 12 caracteres' });
     return;
   }
+  if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+    res.status(400).json({ error: 'La contraseña debe contener mayúsculas, minúsculas y números' });
+    return;
+  }
 
   // If user already has a password, require the current one
   const userResult = await pool.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
@@ -1025,6 +1037,16 @@ api.put('/fleet/vehicles/:id/driver', authMiddleware, requireRole('fleet_owner')
   }
 
   const driverId = driver_id === '' || driver_id === null || driver_id === undefined ? null : driver_id;
+
+  // Security: validate that driver_id is actually a driver
+  if (driverId) {
+    const driverCheck = await pool.query('SELECT role FROM users WHERE id = $1', [driverId]);
+    if (!driverCheck.rows[0] || driverCheck.rows[0].role !== 'driver') {
+      res.status(400).json({ error: 'Solo se pueden asignar usuarios con rol driver' });
+      return;
+    }
+  }
+
   await pool.query('UPDATE vehicles SET driver_id = $2, updated_at = NOW() WHERE id = $1', [id, driverId]);
 
   const r = await pool.query(
@@ -1654,10 +1676,11 @@ api.post('/incidents/:id/witness-request', authMiddleware, requireRole('admin'),
     const email = responder.email || responder.phone; // phone might be an email for citizens
     if (!email || !email.includes('@')) continue;
 
-    const acceptSig = signWitnessToken(id, responder.user_id, 'accept');
-    const declineSig = signWitnessToken(id, responder.user_id, 'decline');
-    const acceptUrl = `${API_URL}/api/incidents/${id}/witness-response?user=${responder.user_id}&response=accept&sig=${acceptSig}`;
-    const declineUrl = `${API_URL}/api/incidents/${id}/witness-response?user=${responder.user_id}&response=decline&sig=${declineSig}`;
+    const ts = Date.now();
+    const acceptSig = signWitnessToken(id, responder.user_id, 'accept', ts);
+    const declineSig = signWitnessToken(id, responder.user_id, 'decline', ts);
+    const acceptUrl = `${API_URL}/api/incidents/${id}/witness-response?user=${responder.user_id}&response=accept&sig=${acceptSig}&ts=${ts}`;
+    const declineUrl = `${API_URL}/api/incidents/${id}/witness-response?user=${responder.user_id}&response=decline&sig=${declineSig}&ts=${ts}`;
 
     const emailSent = await sendWitnessRequestEmail(email, responder.name || 'Responder', id, acceptUrl, declineUrl);
     if (emailSent) {
@@ -1675,15 +1698,22 @@ api.post('/incidents/:id/witness-request', authMiddleware, requireRole('admin'),
 // Public: witness accept/decline (accessed via signed email link — HMAC prevents tampering)
 api.get('/incidents/:id/witness-response', asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { user, response, sig } = req.query;
+  const { user, response, sig, ts } = req.query;
 
   if (!user || !response || !['accept', 'decline'].includes(String(response))) {
     res.status(400).send('<html><body><h2>Enlace inv\u00e1lido</h2></body></html>');
     return;
   }
 
+  // Check URL expiration (72 hours)
+  const tsNum = parseInt(String(ts || '0'), 10);
+  if (!tsNum || Date.now() - tsNum > WITNESS_URL_EXPIRY_MS) {
+    res.status(403).send('<html><body><h2>Este enlace ha expirado. Contacta al administrador.</h2></body></html>');
+    return;
+  }
+
   // Verify HMAC signature (timing-safe to prevent side-channel attacks)
-  const expectedSig = signWitnessToken(id, String(user), String(response));
+  const expectedSig = signWitnessToken(id, String(user), String(response), tsNum);
   const sigStr = String(sig || '');
   const sigMatch = sigStr.length === expectedSig.length &&
     timingSafeEqual(Buffer.from(sigStr), Buffer.from(expectedSig));
@@ -1909,7 +1939,7 @@ api.get('/gps/logs', authMiddleware, asyncHandler(async (req, res) => {
 }));
 
 // Conductores y helpers cercanos (ayuda mutua: cualquiera con vehículo o rol helper)
-api.get('/helpers/nearby', authMiddleware, asyncHandler(async (req, res) => {
+api.get('/helpers/nearby', authMiddleware, requireRole('admin', 'helper', 'driver'), asyncHandler(async (req, res) => {
   const { latitude, longitude, radius_km = 3 } = req.query;
   if (typeof latitude !== 'string' || typeof longitude !== 'string') {
     res.status(400).json({ error: 'latitude y longitude requeridos' });
@@ -2573,7 +2603,21 @@ api.post('/ingest-prospects', ingestRateLimit, asyncHandler(async (req, res) => 
 }));
 
 // ── Public: Get prospect data for demo page (increments view count) ──
-api.get('/prospects/demo/:slug', asyncHandler(async (req, res) => {
+const prospectDemoRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: 'Demasiadas solicitudes. Intenta en 1 minuto.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const cfIp = req.headers['cf-connecting-ip'];
+    if (typeof cfIp === 'string') return cfIp;
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
+    return req.ip || req.socket?.remoteAddress || 'unknown';
+  },
+});
+api.get('/prospects/demo/:slug', prospectDemoRateLimit, asyncHandler(async (req, res) => {
   const { slug } = req.params;
   if (!slug || typeof slug !== 'string' || slug.length > 120) {
     res.status(400).json({ error: t(req, 'slugInvalid') });

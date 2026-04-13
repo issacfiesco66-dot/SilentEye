@@ -29,9 +29,10 @@ const MAX_CONNECTION_BUFFER = 1024 * 1024; // 1 MB
 const IMEI_LOGIN_TIMEOUT_MS = 30000;   // 30s para recibir IMEI
 const AVL_IDLE_TIMEOUT_MS = 600000;    // 10 min sin datos AVL → desconectar
 
-// Aceptar cualquier IMEI cuando TELTONIKA_SKIP_WHITELIST=true/1/yes (o no definido)
+// Security: IMEI whitelist is ENABLED by default (only registered devices accepted).
+// Set TELTONIKA_SKIP_WHITELIST=true to accept any IMEI (dev/testing only).
 const _skip = (process.env.TELTONIKA_SKIP_WHITELIST || '').toLowerCase();
-const SKIP_WHITELIST = _skip !== 'false' && _skip !== '0' && _skip !== 'no';
+const SKIP_WHITELIST = _skip === 'true' || _skip === '1' || _skip === 'yes';
 
 type ConnectionState = 'imei' | 'validating' | 'avl';
 type ProtocolType = 'unknown' | 'teltonika' | 'queclink' | 'concox';
