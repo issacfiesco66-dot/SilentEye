@@ -23,7 +23,69 @@ export interface TerrainAnomaly {
   type: 'vegetation_loss' | 'soil_exposure' | 'both';
   ndviChange: number;
   bsiChange: number;
+  saviChange?: number;
 }
+
+export type SensitivityLevel = 'low' | 'normal' | 'high' | 'max';
+
+interface SensitivityConfig {
+  ndviThreshold: number;     // min NDVI drop to flag
+  bsiThreshold: number;      // min BSI rise to flag
+  saviThreshold: number;     // min SAVI drop to flag
+  minClusterPixels: number;  // min connected pixels
+  minAreaM2: number;         // post-filter min area
+  minSeverity: number;       // post-filter min severity
+  windowDays: number;        // composite window size
+  cloudPct: number;          // max cloud percentage
+  maxAnomalies: number;      // max results returned
+}
+
+const SENSITIVITY_CONFIGS: Record<SensitivityLevel, SensitivityConfig> = {
+  low: {
+    ndviThreshold: 0.20,
+    bsiThreshold: 0.15,
+    saviThreshold: 0.18,
+    minClusterPixels: 15,
+    minAreaM2: 500,
+    minSeverity: 30,
+    windowDays: 90,
+    cloudPct: 30,
+    maxAnomalies: 20,
+  },
+  normal: {
+    ndviThreshold: 0.15,
+    bsiThreshold: 0.10,
+    saviThreshold: 0.12,
+    minClusterPixels: 10,
+    minAreaM2: 100,
+    minSeverity: 20,
+    windowDays: 90,
+    cloudPct: 30,
+    maxAnomalies: 30,
+  },
+  high: {
+    ndviThreshold: 0.08,
+    bsiThreshold: 0.05,
+    saviThreshold: 0.06,
+    minClusterPixels: 3,
+    minAreaM2: 50,
+    minSeverity: 10,
+    windowDays: 60,
+    cloudPct: 40,
+    maxAnomalies: 40,
+  },
+  max: {
+    ndviThreshold: 0.04,
+    bsiThreshold: 0.03,
+    saviThreshold: 0.03,
+    minClusterPixels: 1,
+    minAreaM2: 0,
+    minSeverity: 5,
+    windowDays: 45,
+    cloudPct: 50,
+    maxAnomalies: 50,
+  },
+};
 
 export interface TerrainAnalysisResult {
   layers: TerrainLayer[];
@@ -37,6 +99,7 @@ export interface TerrainAnalysisResult {
     baselineImages: number;
     currentImages: number;
     cloudWarning: boolean;
+    sensitivity: SensitivityLevel;
   };
 }
 
@@ -123,6 +186,19 @@ function computeBSI(image: any): any {
 }
 
 /**
+ * Calculate SAVI (Soil-Adjusted Vegetation Index):
+ * ((NIR - Red) / (NIR + Red + L)) * (1 + L)  where L = 0.5
+ * Better than NDVI in areas with sparse vegetation or exposed soil.
+ * Critical for detecting small terrain disturbances in semi-arid regions.
+ */
+function computeSAVI(image: any): any {
+  const nir = image.select('B8');
+  const red = image.select('B4');
+  const L = 0.5;
+  return nir.subtract(red).divide(nir.add(red).add(L)).multiply(1 + L).rename('SAVI');
+}
+
+/**
  * Get a GEE tile URL for visualization via getMapId.
  */
 async function getTileUrl(image: any, visParams: Record<string, any>): Promise<string> {
@@ -162,6 +238,7 @@ export async function analyzeTerrainChange(
   radiusKm: number,
   eventDate: string,
   afterDate?: string,
+  sensitivity: SensitivityLevel = 'normal',
 ): Promise<TerrainAnalysisResult> {
   if (!geeReady || !ee) {
     throw new Error('GEE_NOT_INITIALIZED');
@@ -173,10 +250,12 @@ export async function analyzeTerrainChange(
   const event = new Date(eventDate);
   const now = new Date();
 
-  // Baseline: 90 days before event to 5 days before
+  const cfg = SENSITIVITY_CONFIGS[sensitivity] || SENSITIVITY_CONFIGS.normal;
+
+  // Baseline: windowDays before event to 5 days before
   // — captures how the terrain looked in its normal state
   const baselineStart = new Date(event);
-  baselineStart.setDate(baselineStart.getDate() - 90);
+  baselineStart.setDate(baselineStart.getDate() - cfg.windowDays);
   const baselineEnd = new Date(event);
   baselineEnd.setDate(baselineEnd.getDate() - 5);
 
@@ -191,12 +270,12 @@ export async function analyzeTerrainChange(
   let currentEnd: Date;
 
   if (afterDate) {
-    // User specified a custom "after" date — use 5 days after to 95 days after
+    // User specified a custom "after" date — use 5 days after to windowDays+5 days after
     const after = new Date(afterDate);
     currentStart = new Date(after);
     currentStart.setDate(currentStart.getDate() + 5);
     currentEnd = new Date(after);
-    currentEnd.setDate(currentEnd.getDate() + 95);
+    currentEnd.setDate(currentEnd.getDate() + cfg.windowDays + 5);
     // Cap at today if after date is recent
     if (currentEnd > now) currentEnd = now;
   } else if (eventAge > SIX_MONTHS_MS) {
@@ -205,14 +284,14 @@ export async function analyzeTerrainChange(
     currentStart = new Date(event);
     currentStart.setDate(currentStart.getDate() + 5);
     currentEnd = new Date(event);
-    currentEnd.setDate(currentEnd.getDate() + 95);
+    currentEnd.setDate(currentEnd.getDate() + cfg.windowDays + 5);
     // Cap at today
     if (currentEnd > now) currentEnd = now;
   } else {
     // Recent event: compare against today (original behavior)
     currentEnd = now;
     currentStart = new Date(now);
-    currentStart.setDate(currentStart.getDate() - 90);
+    currentStart.setDate(currentStart.getDate() - cfg.windowDays);
   }
 
   // Ensure current period doesn't overlap with baseline
@@ -225,7 +304,7 @@ export async function analyzeTerrainChange(
 
   const s2 = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
     .filterBounds(aoi)
-    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30));
+    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', cfg.cloudPct));
 
   const baselineCollection = s2
     .filterDate(fmt(baselineStart), fmt(baselineEnd))
@@ -257,6 +336,11 @@ export async function analyzeTerrainChange(
   const bsiAfter = computeBSI(current);
   const bsiDiff = bsiAfter.subtract(bsiBefore).rename('BSI_diff');
 
+  // SAVI — better for sparse vegetation / semi-arid regions
+  const saviBefore = computeSAVI(baseline);
+  const saviAfter = computeSAVI(current);
+  const saviDiff = saviAfter.subtract(saviBefore).rename('SAVI_diff');
+
   const cloudWarning = baselineCount < 3 || currentCount < 3;
 
   // Generate tile URLs in parallel
@@ -283,15 +367,18 @@ export async function analyzeTerrainChange(
   // ── Anomaly detection ──────────────────────────────────────────────────
   let anomalies: TerrainAnomaly[] = [];
   try {
-    // Threshold: significant vegetation loss OR soil exposure
-    const vegLoss = ndviDiff.lt(-0.15);      // NDVI dropped > 0.15
-    const soilExposure = bsiDiff.gt(0.1);    // BSI increased > 0.1
-    const anyAnomaly = vegLoss.or(soilExposure);
+    // Multi-index thresholding with sensitivity-aware parameters
+    const vegLoss = ndviDiff.lt(-cfg.ndviThreshold);       // NDVI drop
+    const soilExposure = bsiDiff.gt(cfg.bsiThreshold);     // BSI rise
+    const saviLoss = saviDiff.lt(-cfg.saviThreshold);      // SAVI drop (better for sparse veg)
+    // Any of the three indices flagging = potential anomaly
+    const anyAnomaly = vegLoss.or(soilExposure).or(saviLoss);
     const bothAnomaly = vegLoss.and(soilExposure);
 
-    // Filter tiny clusters: keep only connected areas >= 10 pixels (~1000m²)
-    const pixelCount = anyAnomaly.selfMask().connectedPixelCount(50, false);
-    const largeClusters = anyAnomaly.updateMask(pixelCount.gte(10));
+    // Filter clusters by sensitivity-aware minimum size
+    const maxNeighbors = Math.max(cfg.minClusterPixels * 5, 50);
+    const pixelCount = anyAnomaly.selfMask().connectedPixelCount(maxNeighbors, false);
+    const largeClusters = anyAnomaly.updateMask(pixelCount.gte(cfg.minClusterPixels));
 
     // Label connected components
     const labeled = largeClusters.selfMask()
@@ -303,10 +390,11 @@ export async function analyzeTerrainChange(
     });
     const labels = connected.select('labels');
 
-    // Stack bands for reduction: labels, ndviDiff, bsiDiff, bothAnomaly, coords
+    // Stack bands for reduction: labels, ndviDiff, bsiDiff, saviDiff, bothAnomaly, coords
     const forReduction = labels
       .addBands(ndviDiff)
       .addBands(bsiDiff)
+      .addBands(saviDiff)
       .addBands(bothAnomaly.rename('both'))
       .addBands(ee.Image.pixelLonLat());
 
@@ -319,11 +407,12 @@ export async function analyzeTerrainChange(
       labelBand: 'labels',
     });
 
-    // Sample the cluster centroids
+    // Sample the cluster centroids — more samples for high sensitivity
+    const numSamples = sensitivity === 'max' ? 500 : sensitivity === 'high' ? 300 : 100;
     const vectors = stats.sample({
       region: aoi,
       scale: 10,
-      numPixels: 100,
+      numPixels: numSamples,
       geometries: true,
     });
 
@@ -340,12 +429,16 @@ export async function analyzeTerrainChange(
         const coords = f.geometry?.coordinates || [0, 0];
         const ndviMean = props.NDVI_diff_mean ?? props.NDVI_diff ?? 0;
         const bsiMean = props.BSI_diff_mean ?? props.BSI_diff ?? 0;
+        const saviMean = props.SAVI_diff_mean ?? props.SAVI_diff ?? 0;
         const bothVal = props.both_mean ?? props.both ?? 0;
         const count = props.labels_count ?? props.count ?? 1;
         const areaM2 = count * 100; // 10m resolution → 100m² per pixel
 
-        // Severity: 0-100 based on magnitude of change and area
-        const changeMagnitude = Math.min(1, (Math.abs(ndviMean) + Math.abs(bsiMean)) / 0.6);
+        // Severity: 0-100 based on magnitude of change (all 3 indices) and area
+        // Use worst signal from any index for magnitude
+        const maxChange = Math.max(Math.abs(ndviMean), Math.abs(bsiMean), Math.abs(saviMean));
+        const combinedChange = (Math.abs(ndviMean) + Math.abs(bsiMean) + Math.abs(saviMean)) / 3;
+        const changeMagnitude = Math.min(1, (maxChange * 0.6 + combinedChange * 0.4) / 0.3);
         const areaNorm = Math.min(1, areaM2 / 5000);
         const severity = Math.round(changeMagnitude * 70 + areaNorm * 30);
 
@@ -362,13 +455,14 @@ export async function analyzeTerrainChange(
           type,
           ndviChange: Math.round(ndviMean * 1000) / 1000,
           bsiChange: Math.round(bsiMean * 1000) / 1000,
+          saviChange: Math.round(saviMean * 1000) / 1000,
         };
       })
-      .filter((a: TerrainAnomaly) => a.areaM2 >= 100 && a.severity >= 20)
+      .filter((a: TerrainAnomaly) => a.areaM2 >= cfg.minAreaM2 && a.severity >= cfg.minSeverity)
       .sort((a: TerrainAnomaly, b: TerrainAnomaly) => b.severity - a.severity)
-      .slice(0, 20); // top 20 anomalies max
+      .slice(0, cfg.maxAnomalies);
 
-    logger.info(`[GEE] Detected ${anomalies.length} anomalies in analysis`);
+    logger.info(`[GEE] Detected ${anomalies.length} anomalies (sensitivity: ${sensitivity})`);
   } catch (anomalyErr) {
     logger.warn('[GEE] Anomaly detection failed (tiles still available):', anomalyErr);
     // Non-fatal: tile layers still work even if anomaly detection fails
@@ -404,6 +498,7 @@ export async function analyzeTerrainChange(
       baselineImages: baselineCount,
       currentImages: currentCount,
       cloudWarning,
+      sensitivity,
     },
   };
 }

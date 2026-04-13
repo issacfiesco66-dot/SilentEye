@@ -2372,7 +2372,7 @@ api.post('/terrain/analyze', terrainRateLimit, authMiddleware, asyncHandler(asyn
     return;
   }
 
-  const { latitude, longitude, radiusKm, eventDate, afterDate } = req.body;
+  const { latitude, longitude, radiusKm, eventDate, afterDate, sensitivity } = req.body;
   if (typeof latitude !== 'number' || typeof longitude !== 'number') {
     res.status(400).json({ error: 'latitude and longitude are required (numbers)' });
     return;
@@ -2392,7 +2392,9 @@ api.post('/terrain/analyze', terrainRateLimit, authMiddleware, asyncHandler(asyn
   const radius = typeof radiusKm === 'number' && radiusKm > 0 && radiusKm <= 20 ? radiusKm : 2;
 
   try {
-    const result = await analyzeTerrainChange(latitude, longitude, radius, eventDate, afterDate || undefined);
+    const validSensitivities = ['low', 'normal', 'high', 'max'];
+    const sens = validSensitivities.includes(sensitivity) ? sensitivity : 'normal';
+    const result = await analyzeTerrainChange(latitude, longitude, radius, eventDate, afterDate || undefined, sens);
     res.json(result);
   } catch (err: any) {
     if (err.message === 'NO_IMAGES_FOUND') {

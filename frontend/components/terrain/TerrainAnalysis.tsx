@@ -92,6 +92,7 @@ export default function TerrainAnalysis({
   const [afterDate, setAfterDate] = useState('');
   const [useAfterDate, setUseAfterDate] = useState(false);
   const [radiusKm, setRadiusKm] = useState(2);
+  const [sensitivity, setSensitivity] = useState<'low' | 'normal' | 'high' | 'max'>('high');
 
   // Analysis state
   const [loading, setLoading] = useState(false);
@@ -223,6 +224,7 @@ export default function TerrainAnalysis({
           longitude: lngNum,
           radiusKm,
           eventDate,
+          sensitivity,
           ...(useAfterDate && afterDate ? { afterDate } : {}),
         }),
       });
@@ -465,6 +467,29 @@ export default function TerrainAnalysis({
                 onChange={(e) => setRadiusKm(parseFloat(e.target.value))}
                 className="w-full mt-1 accent-amber-500"
               />
+            </div>
+            {/* Sensitivity selector */}
+            <div className="min-w-[120px]">
+              <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">{t.terrain.sensitivity}</label>
+              <div className="flex gap-0.5 mt-0.5">
+                {(['low', 'normal', 'high', 'max'] as const).map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => setSensitivity(level)}
+                    className={`flex-1 py-1.5 text-[10px] font-medium rounded transition-colors ${
+                      sensitivity === level
+                        ? level === 'max' ? 'bg-red-600 text-white'
+                          : level === 'high' ? 'bg-amber-600 text-white'
+                          : level === 'normal' ? 'bg-blue-600 text-white'
+                          : 'bg-zinc-600 text-white'
+                        : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'
+                    }`}
+                    title={t.terrain.sensitivityHint[level]}
+                  >
+                    {t.terrain.sensitivityLabels[level]}
+                  </button>
+                ))}
+              </div>
             </div>
             <button
               onClick={handleAnalyze}
