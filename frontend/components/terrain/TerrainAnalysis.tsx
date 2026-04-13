@@ -304,7 +304,7 @@ export default function TerrainAnalysis({
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-50">
+    <div className="flex flex-col bg-zinc-50" style={{ height: 'calc(100vh - 140px)' }}>
       {/* Controls toggle for mobile */}
       <button
         onClick={() => setShowControls(!showControls)}
@@ -436,9 +436,9 @@ export default function TerrainAnalysis({
       )}
 
       {/* Map + Layers sidebar */}
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Map */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative min-h-[300px]">
           <TerrainMap
             center={mapCenter}
             radiusKm={radiusKm}
