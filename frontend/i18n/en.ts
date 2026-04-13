@@ -484,6 +484,40 @@ const en: Translations = {
     bothDetected: 'Vegetation removed + soil exposed',
     shouldInvestigate: 'These areas show unusual terrain changes. Field verification is recommended.',
     viewOnMap: 'View on map',
+    forensic: {
+      whyImportant: 'Why search here?',
+      vegetation_loss: {
+        title: 'Vegetation loss detected',
+        what: 'The satellite detected that vegetation disappeared or was damaged in this area between the two compared dates.',
+        why: 'When a grave is dug, surface vegetation (grass, shrubs) is removed. Even if covered up, the satellite detects the vegetation is no longer the same.',
+        lookFor: 'In the field look for: disturbed soil, flattened or different vegetation, irregular mounds.',
+      },
+      soil_exposure: {
+        title: 'Exposed soil detected',
+        what: 'The satellite detected bare soil appeared where there was previously vegetation cover.',
+        why: 'Digging exposes soil. Freshly moved earth reflects light differently than naturally compacted soil. This change is visible from space.',
+        lookFor: 'In the field look for: patches of loose soil, different color than surrounding ground, depressions or bulges.',
+      },
+      both: {
+        title: 'Vegetation removed + soil exposed',
+        what: 'BOTH signals detected: vegetation was removed AND bare soil appeared. This is the strongest signal.',
+        why: 'The combination of vegetation loss with soil exposure is the classic pattern of recent excavation. It is the most reliable sign that someone altered the terrain.',
+        lookFor: 'In the field look for: area with loose soil and no vegetation, possible tool marks, notable difference from surrounding terrain.',
+      },
+      severity: {
+        high: 'HIGH severity: Very marked change, highly suspicious. Prioritize this area.',
+        medium: 'MEDIUM severity: Notable change. Could be human or natural activity. Worth verifying.',
+        low: 'LOW severity: Slight change. Possible false positive, but do not rule out in areas of interest.',
+      },
+      area: (m2: number) => m2 >= 10000
+        ? `Estimated area: ${(m2 / 10000).toFixed(1)} hectares — large scale change`
+        : m2 >= 500
+        ? `Estimated area: ${m2} m² — compatible with multiple grave or activity zone`
+        : `Estimated area: ${m2} m² — compatible with individual grave or small excavation`,
+      coordinates: 'Field GPS coordinates',
+      clickToNavigate: 'Click to center map here',
+      anomalyPixels: 'Anomalous pixels',
+    },
   },
 
   // ── Admin Panel ──

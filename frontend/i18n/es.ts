@@ -482,6 +482,41 @@ const es = {
     bothDetected: 'Vegetación removida + suelo expuesto',
     shouldInvestigate: 'Estas zonas muestran cambios inusuales en el terreno. Se recomienda verificar en campo.',
     viewOnMap: 'Ver en mapa',
+    // Forensic explanations for each anomaly type
+    forensic: {
+      whyImportant: '¿Por qué buscar aquí?',
+      vegetation_loss: {
+        title: 'Se detectó pérdida de vegetación',
+        what: 'El satélite detectó que la vegetación desapareció o se dañó en esta zona entre las dos fechas comparadas.',
+        why: 'Cuando se excava una fosa, se remueve la vegetación superficial (pasto, arbustos). Incluso si se intenta cubrir, el satélite detecta que la vegetación ya no es igual.',
+        lookFor: 'En campo buscar: tierra removida, vegetación aplastada o diferente al entorno, montículos irregulares.',
+      },
+      soil_exposure: {
+        title: 'Se detectó suelo expuesto',
+        what: 'El satélite detectó que apareció tierra/suelo desnudo donde antes había cobertura vegetal.',
+        why: 'Al excavar se expone la tierra. La tierra recién movida refleja la luz de forma diferente al suelo compactado natural. Este cambio es visible desde el espacio.',
+        lookFor: 'En campo buscar: parches de tierra suelta, color diferente al suelo circundante, hundimientos o abultamientos.',
+      },
+      both: {
+        title: 'Vegetación removida + suelo expuesto',
+        what: 'Se detectaron AMBAS señales: la vegetación fue removida Y apareció suelo desnudo. Esta es la señal más fuerte.',
+        why: 'La combinación de pérdida de vegetación con exposición de suelo es el patrón clásico de excavación reciente. Es la señal más confiable de que alguien alteró el terreno.',
+        lookFor: 'En campo buscar: zona con tierra suelta sin vegetación, posibles marcas de herramientas, diferencia notable con el terreno alrededor.',
+      },
+      severity: {
+        high: 'Severidad ALTA: Cambio muy marcado, altamente sospechoso. Priorizar esta zona.',
+        medium: 'Severidad MEDIA: Cambio notable. Podría ser actividad humana o natural. Vale la pena verificar.',
+        low: 'Severidad BAJA: Cambio leve. Posible falso positivo, pero no descartar en zonas de interés.',
+      },
+      area: (m2: number) => m2 >= 10000
+        ? `Área estimada: ${(m2 / 10000).toFixed(1)} hectáreas — cambio a gran escala`
+        : m2 >= 500
+        ? `Área estimada: ${m2} m² — compatible con fosa múltiple o zona de actividad`
+        : `Área estimada: ${m2} m² — compatible con fosa individual o pequeña excavación`,
+      coordinates: 'Coordenadas para GPS de campo',
+      clickToNavigate: 'Click para centrar el mapa aquí',
+      anomalyPixels: 'Píxeles anómalos',
+    },
   },
 
   // ── Admin Panel ──

@@ -44,6 +44,9 @@ interface AnalysisResult {
     baselineImages: number;
     currentImages: number;
     cloudWarning: boolean;
+    sensitivity?: string;
+    anomalyPixelCount?: number;
+    anomalyError?: string;
   };
 }
 
@@ -98,6 +101,7 @@ export default function TerrainAnalysis({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [expandedAnomaly, setExpandedAnomaly] = useState<number | null>(null);
 
   // Map controls
   const [activeLayer, setActiveLayer] = useState<string | null>(null);
@@ -530,44 +534,80 @@ export default function TerrainAnalysis({
             </p>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {result.anomalies.map((a) => (
-              <button
-                key={a.id}
-                onClick={() => {
-                  setLat(a.latitude.toFixed(6));
-                  setLng(a.longitude.toFixed(6));
-                }}
-                className={`flex-shrink-0 px-3 py-2 rounded-lg border text-left transition-colors ${
-                  a.severity >= 70
-                    ? 'bg-red-100 border-red-300 hover:bg-red-200'
-                    : a.severity >= 40
-                    ? 'bg-amber-100 border-amber-300 hover:bg-amber-200'
-                    : 'bg-yellow-50 border-yellow-300 hover:bg-yellow-100'
-                }`}
-              >
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                    a.severity >= 70 ? 'bg-red-600 text-white' :
-                    a.severity >= 40 ? 'bg-amber-600 text-white' :
-                    'bg-yellow-500 text-white'
-                  }`}>
-                    {a.severity >= 70 ? t.terrain.severityHigh :
-                     a.severity >= 40 ? t.terrain.severityMedium :
-                     t.terrain.severityLow}
-                  </span>
-                  <span className="text-[10px] text-zinc-500">#{a.id}</span>
+            {result.anomalies.map((a) => {
+              const forensicInfo = t.terrain.forensic[a.type];
+              const isExpanded = expandedAnomaly === a.id;
+              return (
+                <div
+                  key={a.id}
+                  className={`flex-shrink-0 rounded-lg border text-left transition-all ${
+                    a.severity >= 70
+                      ? 'bg-red-50 border-red-300'
+                      : a.severity >= 40
+                      ? 'bg-amber-50 border-amber-300'
+                      : 'bg-yellow-50 border-yellow-300'
+                  } ${isExpanded ? 'min-w-[280px]' : 'min-w-[160px]'}`}
+                >
+                  <button
+                    onClick={() => {
+                      setLat(a.latitude.toFixed(6));
+                      setLng(a.longitude.toFixed(6));
+                      setExpandedAnomaly(isExpanded ? null : a.id);
+                    }}
+                    className="w-full text-left px-3 py-2"
+                  >
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                        a.severity >= 70 ? 'bg-red-600 text-white' :
+                        a.severity >= 40 ? 'bg-amber-600 text-white' :
+                        'bg-yellow-500 text-white'
+                      }`}>
+                        {a.severity >= 70 ? t.terrain.severityHigh :
+                         a.severity >= 40 ? t.terrain.severityMedium :
+                         t.terrain.severityLow}
+                      </span>
+                      <span className="text-[10px] text-zinc-500">#{a.id}</span>
+                      <span className="text-[10px] text-zinc-400 ml-auto">{a.severity}/100</span>
+                    </div>
+                    <p className="text-[11px] font-medium text-zinc-700">
+                      {a.type === 'both' ? t.terrain.bothDetected :
+                       a.type === 'vegetation_loss' ? t.terrain.vegetationLoss :
+                       t.terrain.soilExposure}
+                    </p>
+                    <p className="text-[10px] text-zinc-500">
+                      {a.areaM2 >= 10000 ? `${(a.areaM2 / 10000).toFixed(1)} ha` : `${a.areaM2} m²`}
+                      {' · '}{a.latitude.toFixed(4)}, {a.longitude.toFixed(4)}
+                    </p>
+                  </button>
+                  {/* Expandable forensic explanation */}
+                  {isExpanded && forensicInfo && (
+                    <div className="px-3 pb-2.5 border-t border-current/10">
+                      <p className="text-[10px] font-bold text-zinc-700 mt-2 mb-1 flex items-center gap-1">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                        {t.terrain.forensic.whyImportant}
+                      </p>
+                      <p className="text-[10px] text-zinc-600 leading-relaxed">{forensicInfo.what}</p>
+                      <p className="text-[10px] text-zinc-700 font-medium mt-1.5 leading-relaxed">{forensicInfo.why}</p>
+                      <p className="text-[10px] text-amber-700 bg-amber-50 rounded px-2 py-1 mt-1.5 leading-relaxed">
+                        🔍 {forensicInfo.lookFor}
+                      </p>
+                      <p className="text-[10px] text-zinc-500 mt-1.5">{t.terrain.forensic.area(a.areaM2)}</p>
+                      <p className={`text-[10px] mt-1 ${
+                        a.severity >= 70 ? 'text-red-700 font-medium' :
+                        a.severity >= 40 ? 'text-amber-700' : 'text-zinc-500'
+                      }`}>
+                        {a.severity >= 70 ? t.terrain.forensic.severity.high :
+                         a.severity >= 40 ? t.terrain.forensic.severity.medium :
+                         t.terrain.forensic.severity.low}
+                      </p>
+                      <p className="text-[9px] text-zinc-400 mt-1.5 font-mono">
+                        📍 {t.terrain.forensic.coordinates}: {a.latitude.toFixed(6)}, {a.longitude.toFixed(6)}
+                      </p>
+                    </div>
+                  )}
                 </div>
-                <p className="text-[11px] font-medium text-zinc-700">
-                  {a.type === 'both' ? t.terrain.bothDetected :
-                   a.type === 'vegetation_loss' ? t.terrain.vegetationLoss :
-                   t.terrain.soilExposure}
-                </p>
-                <p className="text-[10px] text-zinc-500">
-                  {a.areaM2 >= 10000 ? `${(a.areaM2 / 10000).toFixed(1)} ha` : `${a.areaM2} m²`}
-                  {' · '}{a.latitude.toFixed(4)}, {a.longitude.toFixed(4)}
-                </p>
-              </button>
-            ))}
+              );
+            })}
           </div>
           <p className="text-[10px] text-red-600 mt-1.5">{t.terrain.shouldInvestigate}</p>
         </div>
@@ -583,7 +623,7 @@ export default function TerrainAnalysis({
       {/* Map + Layers sidebar */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Map */}
-        <div className="flex-1 relative min-h-[300px]">
+        <div className="flex-1 relative min-h-[450px]">
           <TerrainMap
             center={mapCenter}
             radiusKm={radiusKm}

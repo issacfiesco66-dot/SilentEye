@@ -28,7 +28,30 @@ interface Anomaly {
   type: 'vegetation_loss' | 'soil_exposure' | 'both';
   ndviChange: number;
   bsiChange: number;
+  saviChange?: number;
 }
+
+// Forensic explanations for map popups (Spanish — primary language)
+const FORENSIC_POPUP: Record<string, { icon: string; title: string; why: string; lookFor: string }> = {
+  vegetation_loss: {
+    icon: '🌿',
+    title: 'Pérdida de vegetación',
+    why: 'Al excavar se remueve la vegetación. El satélite detecta este cambio incluso si se intentó cubrir.',
+    lookFor: 'Buscar: vegetación aplastada, diferente al entorno, montículos.',
+  },
+  soil_exposure: {
+    icon: '🟤',
+    title: 'Suelo expuesto',
+    why: 'Tierra removida refleja luz diferente al suelo natural. Señal de excavación.',
+    lookFor: 'Buscar: parches de tierra suelta, color diferente, hundimientos.',
+  },
+  both: {
+    icon: '⚠️',
+    title: 'Vegetación removida + suelo expuesto',
+    why: 'Señal MÁS FUERTE: patrón clásico de excavación reciente. Priorizar.',
+    lookFor: 'Buscar: tierra suelta sin vegetación, marcas de herramientas.',
+  },
+};
 
 interface TerrainMapProps {
   center: [number, number]; // [lat, lng]
@@ -235,26 +258,43 @@ export default function TerrainMap({
         ))}
 
         {/* Anomaly markers */}
-        {anomalies.map((a) => (
-          <Marker
-            key={`anomaly-${a.id}`}
-            position={[a.latitude, a.longitude]}
-            icon={createAnomalyIcon(a.severity)}
-            eventHandlers={{ click: () => onSelectAnomaly?.(a) }}
-          >
-            <Popup>
-              <div className="text-xs min-w-[140px]">
-                <p className="font-bold text-red-700">Anomaly #{a.id}</p>
-                <p className="text-zinc-600 mt-0.5">
-                  {a.type === 'both' ? 'Vegetation loss + Soil exposure' :
-                   a.type === 'vegetation_loss' ? 'Vegetation loss' : 'Soil exposure'}
-                </p>
-                <p className="text-zinc-500">Area: {a.areaM2 >= 10000 ? `${(a.areaM2 / 10000).toFixed(1)} ha` : `${a.areaM2} m²`}</p>
-                <p className="text-zinc-500">Severity: {a.severity}/100</p>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {anomalies.map((a) => {
+          const info = FORENSIC_POPUP[a.type] || FORENSIC_POPUP.soil_exposure;
+          const sevLabel = a.severity >= 70 ? 'ALTA' : a.severity >= 40 ? 'MEDIA' : 'BAJA';
+          const sevColor = a.severity >= 70 ? '#dc2626' : a.severity >= 40 ? '#d97706' : '#ca8a04';
+          return (
+            <Marker
+              key={`anomaly-${a.id}`}
+              position={[a.latitude, a.longitude]}
+              icon={createAnomalyIcon(a.severity)}
+              eventHandlers={{ click: () => onSelectAnomaly?.(a) }}
+            >
+              <Popup maxWidth={280} minWidth={220}>
+                <div style={{ fontSize: '11px', lineHeight: '1.5', fontFamily: 'system-ui, sans-serif' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '16px' }}>{info.icon}</span>
+                    <span style={{ fontWeight: 700, color: '#1f2937' }}>#{a.id} {info.title}</span>
+                  </div>
+                  <div style={{ background: sevColor, color: '#fff', display: 'inline-block', padding: '1px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 700, marginBottom: '6px' }}>
+                    {sevLabel} — {a.severity}/100
+                  </div>
+                  <p style={{ color: '#374151', margin: '4px 0' }}>
+                    <strong>¿Por qué buscar aquí?</strong><br/>
+                    {info.why}
+                  </p>
+                  <p style={{ color: '#92400e', background: '#fffbeb', padding: '4px 6px', borderRadius: '4px', margin: '4px 0', fontSize: '10px' }}>
+                    🔍 {info.lookFor}
+                  </p>
+                  <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '4px', marginTop: '6px', color: '#6b7280', fontSize: '10px' }}>
+                    <p>Área: {a.areaM2 >= 10000 ? `${(a.areaM2 / 10000).toFixed(1)} ha` : `${a.areaM2} m²`}
+                    {a.areaM2 < 500 ? ' (compatible con fosa individual)' : a.areaM2 < 10000 ? ' (zona de actividad)' : ''}</p>
+                    <p style={{ fontFamily: 'monospace', marginTop: '2px' }}>📍 {a.latitude.toFixed(6)}, {a.longitude.toFixed(6)}</p>
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
 
         {/* Map click handler */}
         {onMapClick && <ClickHandler onClick={onMapClick} />}
