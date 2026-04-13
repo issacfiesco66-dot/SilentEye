@@ -710,9 +710,19 @@ export default function TerrainAnalysis({
                   <p>{t.terrain.imagesAfter(result.metadata.currentImages)}</p>
                   <p>{t.terrain.dateRange}: {result.metadata.baselineStart} → {result.metadata.currentEnd}</p>
                   <p className="text-zinc-400">{t.terrain.resolution}</p>
+                  {typeof result.metadata.anomalyPixelCount === 'number' && (
+                    <p className="text-zinc-400 mt-1">
+                      Píxeles anómalos: <span className="font-medium text-zinc-600">{result.metadata.anomalyPixelCount.toLocaleString()}</span>
+                    </p>
+                  )}
                 </div>
                 {result.metadata.cloudWarning && (
                   <p className="mt-1.5 text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded">{t.terrain.cloudWarning}</p>
+                )}
+                {result.metadata.anomalyError && (
+                  <p className="mt-1.5 text-[10px] text-red-600 bg-red-50 px-2 py-1 rounded">
+                    Error en detección: {result.metadata.anomalyError}
+                  </p>
                 )}
               </div>
             )}

@@ -100,6 +100,8 @@ export interface TerrainAnalysisResult {
     currentImages: number;
     cloudWarning: boolean;
     sensitivity: SensitivityLevel;
+    anomalyPixelCount?: number;
+    anomalyError?: string;
   };
 }
 
@@ -364,108 +366,145 @@ export async function analyzeTerrainChange(
     getTileUrl(current, TRUE_COLOR_VIS),
   ]);
 
-  // ── Anomaly detection ──────────────────────────────────────────────────
+  // ── Anomaly detection (robust approach: sample + JS clustering) ──────
   let anomalies: TerrainAnomaly[] = [];
+  let anomalyPixelCount = 0;
+  let anomalyError: string | undefined;
   try {
     // Multi-index thresholding with sensitivity-aware parameters
     const vegLoss = ndviDiff.lt(-cfg.ndviThreshold);       // NDVI drop
     const soilExposure = bsiDiff.gt(cfg.bsiThreshold);     // BSI rise
-    const saviLoss = saviDiff.lt(-cfg.saviThreshold);      // SAVI drop (better for sparse veg)
-    // Any of the three indices flagging = potential anomaly
+    const saviLoss = saviDiff.lt(-cfg.saviThreshold);      // SAVI drop
     const anyAnomaly = vegLoss.or(soilExposure).or(saviLoss);
-    const bothAnomaly = vegLoss.and(soilExposure);
 
-    // Filter clusters by sensitivity-aware minimum size
-    const maxNeighbors = Math.max(cfg.minClusterPixels * 5, 50);
-    const pixelCount = anyAnomaly.selfMask().connectedPixelCount(maxNeighbors, false);
-    const largeClusters = anyAnomaly.updateMask(pixelCount.gte(cfg.minClusterPixels));
-
-    // Label connected components
-    const labeled = largeClusters.selfMask()
-      .multiply(0).add(1) // binary 1 for anomalous pixels
-      .toInt();
-    const connected = labeled.connectedComponents({
-      connectedness: ee.Kernel.square(1),
-      maxSize: 256,
-    });
-    const labels = connected.select('labels');
-
-    // Stack bands for reduction: labels, ndviDiff, bsiDiff, saviDiff, bothAnomaly, coords
-    const forReduction = labels
-      .addBands(ndviDiff)
-      .addBands(bsiDiff)
-      .addBands(saviDiff)
-      .addBands(bothAnomaly.rename('both'))
-      .addBands(ee.Image.pixelLonLat());
-
-    // Reduce by label to get stats per cluster
-    const stats = forReduction.reduceConnectedComponents({
-      reducer: ee.Reducer.mean().combine({
-        reducer2: ee.Reducer.count(),
-        sharedInputs: false,
-      }),
-      labelBand: 'labels',
-    });
-
-    // Sample the cluster centroids — more samples for high sensitivity
-    const numSamples = sensitivity === 'max' ? 500 : sensitivity === 'high' ? 300 : 100;
-    const vectors = stats.sample({
-      region: aoi,
-      scale: 10,
-      numPixels: numSamples,
-      geometries: true,
-    });
-
-    const rawAnomalies: any[] = await new Promise((resolve, reject) => {
-      vectors.evaluate((fc: any, err: string) => {
+    // Step 1: Count how many anomalous pixels exist (diagnostic)
+    const pixelCountResult: number = await new Promise((resolve, reject) => {
+      anyAnomaly.selfMask().reduceRegion({
+        reducer: ee.Reducer.count(),
+        geometry: aoi,
+        scale: 10,
+        maxPixels: 1e7,
+      }).evaluate((result: any, err: string) => {
         if (err) return reject(new Error(err));
-        resolve(fc?.features || []);
+        // The band name could be 'NDVI_diff' or 'constant' depending on GEE
+        const val = result ? Object.values(result)[0] : 0;
+        resolve(typeof val === 'number' ? val : 0);
       });
     });
+    anomalyPixelCount = pixelCountResult;
+    logger.info(`[GEE] Anomalous pixels found: ${anomalyPixelCount} (sensitivity: ${sensitivity})`);
 
-    anomalies = rawAnomalies
-      .map((f: any, i: number) => {
-        const props = f.properties || {};
-        const coords = f.geometry?.coordinates || [0, 0];
-        const ndviMean = props.NDVI_diff_mean ?? props.NDVI_diff ?? 0;
-        const bsiMean = props.BSI_diff_mean ?? props.BSI_diff ?? 0;
-        const saviMean = props.SAVI_diff_mean ?? props.SAVI_diff ?? 0;
-        const bothVal = props.both_mean ?? props.both ?? 0;
-        const count = props.labels_count ?? props.count ?? 1;
-        const areaM2 = count * 100; // 10m resolution → 100m² per pixel
+    if (anomalyPixelCount === 0) {
+      logger.info('[GEE] No anomalous pixels — skipping clustering');
+    } else {
+      // Step 2: Stack index values + coords onto the anomaly mask
+      const anomalyImage = anyAnomaly.selfMask()
+        .addBands(ndviDiff)
+        .addBands(bsiDiff)
+        .addBands(saviDiff)
+        .addBands(vegLoss.rename('veg_loss'))
+        .addBands(soilExposure.rename('soil_exp'))
+        .addBands(ee.Image.pixelLonLat());
 
-        // Severity: 0-100 based on magnitude of change (all 3 indices) and area
-        // Use worst signal from any index for magnitude
-        const maxChange = Math.max(Math.abs(ndviMean), Math.abs(bsiMean), Math.abs(saviMean));
-        const combinedChange = (Math.abs(ndviMean) + Math.abs(bsiMean) + Math.abs(saviMean)) / 3;
-        const changeMagnitude = Math.min(1, (maxChange * 0.6 + combinedChange * 0.4) / 0.3);
-        const areaNorm = Math.min(1, areaM2 / 5000);
-        const severity = Math.round(changeMagnitude * 70 + areaNorm * 30);
+      // Step 3: Sample anomalous pixels directly (no connectedComponents)
+      const numSamples = sensitivity === 'max' ? 500 : sensitivity === 'high' ? 300 : 200;
+      const sampled = anomalyImage.sample({
+        region: aoi,
+        scale: 10,
+        numPixels: Math.min(numSamples, anomalyPixelCount),
+        geometries: true,
+      });
 
-        const type: TerrainAnomaly['type'] = bothVal > 0.5 ? 'both'
-          : Math.abs(ndviMean) > Math.abs(bsiMean) ? 'vegetation_loss'
-          : 'soil_exposure';
+      const rawSamples: any[] = await new Promise((resolve, reject) => {
+        sampled.evaluate((fc: any, err: string) => {
+          if (err) return reject(new Error(err));
+          resolve(fc?.features || []);
+        });
+      });
+      logger.info(`[GEE] Sampled ${rawSamples.length} anomalous pixels`);
 
-        return {
-          id: i + 1,
-          latitude: coords[1],
-          longitude: coords[0],
-          areaM2: Math.round(areaM2),
-          severity,
-          type,
-          ndviChange: Math.round(ndviMean * 1000) / 1000,
-          bsiChange: Math.round(bsiMean * 1000) / 1000,
-          saviChange: Math.round(saviMean * 1000) / 1000,
-        };
-      })
-      .filter((a: TerrainAnomaly) => a.areaM2 >= cfg.minAreaM2 && a.severity >= cfg.minSeverity)
-      .sort((a: TerrainAnomaly, b: TerrainAnomaly) => b.severity - a.severity)
-      .slice(0, cfg.maxAnomalies);
+      // Step 4: Cluster nearby sampled pixels in JS (simple grid-based grouping)
+      // Group points that are within ~30m of each other (3 pixels)
+      const CLUSTER_DIST = 0.0003; // ~30m in degrees
+      const points = rawSamples.map((f: any) => ({
+        lon: f.geometry?.coordinates?.[0] ?? 0,
+        lat: f.geometry?.coordinates?.[1] ?? 0,
+        ndvi: f.properties?.NDVI_diff ?? 0,
+        bsi: f.properties?.BSI_diff ?? 0,
+        savi: f.properties?.SAVI_diff ?? 0,
+        vegLoss: f.properties?.veg_loss ?? 0,
+        soilExp: f.properties?.soil_exp ?? 0,
+        clusterId: -1,
+      }));
 
-    logger.info(`[GEE] Detected ${anomalies.length} anomalies (sensitivity: ${sensitivity})`);
-  } catch (anomalyErr) {
-    logger.warn('[GEE] Anomaly detection failed (tiles still available):', anomalyErr);
-    // Non-fatal: tile layers still work even if anomaly detection fails
+      // Simple single-pass clustering: assign to nearest existing cluster or create new
+      let nextCluster = 0;
+      const clusters: Map<number, typeof points> = new Map();
+      for (const pt of points) {
+        let assigned = false;
+        for (const [cid, members] of clusters) {
+          const centLon = members.reduce((s, m) => s + m.lon, 0) / members.length;
+          const centLat = members.reduce((s, m) => s + m.lat, 0) / members.length;
+          if (Math.abs(pt.lon - centLon) < CLUSTER_DIST && Math.abs(pt.lat - centLat) < CLUSTER_DIST) {
+            pt.clusterId = cid;
+            members.push(pt);
+            assigned = true;
+            break;
+          }
+        }
+        if (!assigned) {
+          pt.clusterId = nextCluster;
+          clusters.set(nextCluster, [pt]);
+          nextCluster++;
+        }
+      }
+
+      // Step 5: Build anomalies from clusters
+      anomalies = Array.from(clusters.values())
+        .map((members, i) => {
+          const avgLon = members.reduce((s, m) => s + m.lon, 0) / members.length;
+          const avgLat = members.reduce((s, m) => s + m.lat, 0) / members.length;
+          const avgNdvi = members.reduce((s, m) => s + m.ndvi, 0) / members.length;
+          const avgBsi = members.reduce((s, m) => s + m.bsi, 0) / members.length;
+          const avgSavi = members.reduce((s, m) => s + m.savi, 0) / members.length;
+          const hasVegLoss = members.some(m => m.vegLoss > 0);
+          const hasSoilExp = members.some(m => m.soilExp > 0);
+          // Estimate area: each sampled pixel represents (totalAnomalyPixels / sampleCount) pixels
+          const scaleFactor = anomalyPixelCount / rawSamples.length;
+          const estimatedPixels = members.length * scaleFactor;
+          const areaM2 = Math.round(estimatedPixels * 100); // 10m res = 100m²/pixel
+
+          const maxChange = Math.max(Math.abs(avgNdvi), Math.abs(avgBsi), Math.abs(avgSavi));
+          const combinedChange = (Math.abs(avgNdvi) + Math.abs(avgBsi) + Math.abs(avgSavi)) / 3;
+          const changeMagnitude = Math.min(1, (maxChange * 0.6 + combinedChange * 0.4) / 0.3);
+          const areaNorm = Math.min(1, areaM2 / 5000);
+          const severity = Math.round(changeMagnitude * 70 + areaNorm * 30);
+
+          const type: TerrainAnomaly['type'] = (hasVegLoss && hasSoilExp) ? 'both'
+            : hasVegLoss ? 'vegetation_loss'
+            : 'soil_exposure';
+
+          return {
+            id: i + 1,
+            latitude: avgLat,
+            longitude: avgLon,
+            areaM2,
+            severity,
+            type,
+            ndviChange: Math.round(avgNdvi * 1000) / 1000,
+            bsiChange: Math.round(avgBsi * 1000) / 1000,
+            saviChange: Math.round(avgSavi * 1000) / 1000,
+          };
+        })
+        .filter((a) => a.severity >= cfg.minSeverity)
+        .sort((a, b) => b.severity - a.severity)
+        .slice(0, cfg.maxAnomalies);
+    }
+
+    logger.info(`[GEE] Detected ${anomalies.length} anomalies from ${anomalyPixelCount} pixels (sensitivity: ${sensitivity})`);
+  } catch (anomalyErr: any) {
+    anomalyError = anomalyErr?.message || String(anomalyErr);
+    logger.warn('[GEE] Anomaly detection failed:', anomalyError);
   }
 
   // Calculate bounds for the AOI
@@ -499,6 +538,8 @@ export async function analyzeTerrainChange(
       currentImages: currentCount,
       cloudWarning,
       sensitivity,
+      anomalyPixelCount,
+      anomalyError,
     },
   };
 }
