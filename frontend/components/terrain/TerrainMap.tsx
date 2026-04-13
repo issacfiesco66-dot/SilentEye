@@ -19,6 +19,17 @@ interface POI {
   notes?: string;
 }
 
+interface Anomaly {
+  id: number;
+  latitude: number;
+  longitude: number;
+  areaM2: number;
+  severity: number;
+  type: 'vegetation_loss' | 'soil_exposure' | 'both';
+  ndviChange: number;
+  bsiChange: number;
+}
+
 interface TerrainMapProps {
   center: [number, number]; // [lat, lng]
   radiusKm: number;
@@ -26,11 +37,31 @@ interface TerrainMapProps {
   activeLayer: string | null;
   opacity: number;
   pois: POI[];
+  anomalies: Anomaly[];
   onMapClick?: (lat: number, lng: number) => void;
+  onSelectAnomaly?: (anomaly: Anomaly) => void;
   comparisonMode: boolean;
   beforeLayer: string | null;
   afterLayer: string | null;
   splitPosition: number; // 0-100
+}
+
+// Anomaly marker icon — pulsing circle with severity color
+function createAnomalyIcon(severity: number) {
+  const color = severity >= 70 ? '#dc2626' : severity >= 40 ? '#f59e0b' : '#eab308';
+  const size = severity >= 70 ? 32 : severity >= 40 ? 26 : 22;
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:${size}px;height:${size}px;position:relative;">
+      <div style="position:absolute;inset:0;background:${color};border-radius:50%;opacity:0.3;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>
+      <div style="position:absolute;inset:4px;background:${color};border-radius:50%;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      </div>
+      <style>@keyframes ping{75%,100%{transform:scale(2);opacity:0}}</style>
+    </div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
 }
 
 // POI marker icon
@@ -103,7 +134,9 @@ export default function TerrainMap({
   activeLayer,
   opacity,
   pois,
+  anomalies,
   onMapClick,
+  onSelectAnomaly,
   comparisonMode,
   beforeLayer,
   afterLayer,
@@ -196,6 +229,28 @@ export default function TerrainMap({
               <div className="text-xs">
                 <p className="font-semibold">{poi.name}</p>
                 {poi.notes && <p className="text-zinc-500 mt-1">{poi.notes}</p>}
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+        {/* Anomaly markers */}
+        {anomalies.map((a) => (
+          <Marker
+            key={`anomaly-${a.id}`}
+            position={[a.latitude, a.longitude]}
+            icon={createAnomalyIcon(a.severity)}
+            eventHandlers={{ click: () => onSelectAnomaly?.(a) }}
+          >
+            <Popup>
+              <div className="text-xs min-w-[140px]">
+                <p className="font-bold text-red-700">Anomaly #{a.id}</p>
+                <p className="text-zinc-600 mt-0.5">
+                  {a.type === 'both' ? 'Vegetation loss + Soil exposure' :
+                   a.type === 'vegetation_loss' ? 'Vegetation loss' : 'Soil exposure'}
+                </p>
+                <p className="text-zinc-500">Area: {a.areaM2 >= 10000 ? `${(a.areaM2 / 10000).toFixed(1)} ha` : `${a.areaM2} m²`}</p>
+                <p className="text-zinc-500">Severity: {a.severity}/100</p>
               </div>
             </Popup>
           </Marker>

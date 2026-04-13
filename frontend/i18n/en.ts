@@ -457,6 +457,16 @@ const en: Translations = {
     increase: 'Increase',
     decrease: 'Decrease',
     noChange: 'No change',
+    anomaliesFound: (n: number) => `${n} anomal${n !== 1 ? 'ies' : 'y'} detected — areas with unusual changes`,
+    noAnomalies: 'No significant anomalies detected in this area and period',
+    severityHigh: 'HIGH',
+    severityMedium: 'MEDIUM',
+    severityLow: 'LOW',
+    vegetationLoss: 'Vegetation loss',
+    soilExposure: 'Soil exposure',
+    bothDetected: 'Vegetation removed + soil exposed',
+    shouldInvestigate: 'These areas show unusual terrain changes. Field verification is recommended.',
+    viewOnMap: 'View on map',
   },
 
   // ── Admin Panel ──

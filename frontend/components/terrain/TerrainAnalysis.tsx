@@ -21,9 +21,21 @@ interface TerrainLayer {
   type: string;
 }
 
+interface Anomaly {
+  id: number;
+  latitude: number;
+  longitude: number;
+  areaM2: number;
+  severity: number;
+  type: 'vegetation_loss' | 'soil_exposure' | 'both';
+  ndviChange: number;
+  bsiChange: number;
+}
+
 interface AnalysisResult {
   layers: TerrainLayer[];
   bounds: { south: number; west: number; north: number; east: number };
+  anomalies: Anomaly[];
   metadata: {
     baselineStart: string;
     baselineEnd: string;
@@ -435,6 +447,66 @@ export default function TerrainAnalysis({
         </div>
       )}
 
+      {/* Anomaly alerts */}
+      {result && result.anomalies && result.anomalies.length > 0 && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-2.5">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+            <p className="text-sm font-bold text-red-700">
+              {t.terrain.anomaliesFound(result.anomalies.length)}
+            </p>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {result.anomalies.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => {
+                  setLat(a.latitude.toFixed(6));
+                  setLng(a.longitude.toFixed(6));
+                }}
+                className={`flex-shrink-0 px-3 py-2 rounded-lg border text-left transition-colors ${
+                  a.severity >= 70
+                    ? 'bg-red-100 border-red-300 hover:bg-red-200'
+                    : a.severity >= 40
+                    ? 'bg-amber-100 border-amber-300 hover:bg-amber-200'
+                    : 'bg-yellow-50 border-yellow-300 hover:bg-yellow-100'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                    a.severity >= 70 ? 'bg-red-600 text-white' :
+                    a.severity >= 40 ? 'bg-amber-600 text-white' :
+                    'bg-yellow-500 text-white'
+                  }`}>
+                    {a.severity >= 70 ? t.terrain.severityHigh :
+                     a.severity >= 40 ? t.terrain.severityMedium :
+                     t.terrain.severityLow}
+                  </span>
+                  <span className="text-[10px] text-zinc-500">#{a.id}</span>
+                </div>
+                <p className="text-[11px] font-medium text-zinc-700">
+                  {a.type === 'both' ? t.terrain.bothDetected :
+                   a.type === 'vegetation_loss' ? t.terrain.vegetationLoss :
+                   t.terrain.soilExposure}
+                </p>
+                <p className="text-[10px] text-zinc-500">
+                  {a.areaM2 >= 10000 ? `${(a.areaM2 / 10000).toFixed(1)} ha` : `${a.areaM2} m²`}
+                  {' · '}{a.latitude.toFixed(4)}, {a.longitude.toFixed(4)}
+                </p>
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-red-600 mt-1.5">{t.terrain.shouldInvestigate}</p>
+        </div>
+      )}
+
+      {result && result.anomalies && result.anomalies.length === 0 && (
+        <div className="bg-emerald-50 border-b border-emerald-200 px-4 py-2 flex items-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2"><path d="m5 12 5 5L20 7"/></svg>
+          <p className="text-xs text-emerald-700 font-medium">{t.terrain.noAnomalies}</p>
+        </div>
+      )}
+
       {/* Map + Layers sidebar */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Map */}
@@ -446,7 +518,12 @@ export default function TerrainAnalysis({
             activeLayer={activeLayer}
             opacity={opacity}
             pois={pois}
+            anomalies={result?.anomalies || []}
             onMapClick={handleMapClick}
+            onSelectAnomaly={(a) => {
+              setLat(a.latitude.toFixed(6));
+              setLng(a.longitude.toFixed(6));
+            }}
             comparisonMode={comparisonMode}
             beforeLayer={beforeLayer}
             afterLayer={afterLayer}

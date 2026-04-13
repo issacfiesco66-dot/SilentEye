@@ -455,6 +455,16 @@ const es = {
     increase: 'Aumento',
     decrease: 'Disminución',
     noChange: 'Sin cambio',
+    anomaliesFound: (n: number) => `Se detectaron ${n} anomalía${n !== 1 ? 's' : ''} — zonas con cambios inusuales`,
+    noAnomalies: 'No se detectaron anomalías significativas en esta zona y periodo',
+    severityHigh: 'ALTA',
+    severityMedium: 'MEDIA',
+    severityLow: 'BAJA',
+    vegetationLoss: 'Pérdida de vegetación',
+    soilExposure: 'Suelo expuesto',
+    bothDetected: 'Vegetación removida + suelo expuesto',
+    shouldInvestigate: 'Estas zonas muestran cambios inusuales en el terreno. Se recomienda verificar en campo.',
+    viewOnMap: 'Ver en mapa',
   },
 
   // ── Admin Panel ──
