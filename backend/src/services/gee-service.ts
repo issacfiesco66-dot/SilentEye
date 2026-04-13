@@ -161,6 +161,7 @@ export async function analyzeTerrainChange(
   lon: number,
   radiusKm: number,
   eventDate: string,
+  afterDate?: string,
 ): Promise<TerrainAnalysisResult> {
   if (!geeReady || !ee) {
     throw new Error('GEE_NOT_INITIALIZED');
@@ -179,12 +180,41 @@ export async function analyzeTerrainChange(
   const baselineEnd = new Date(event);
   baselineEnd.setDate(baselineEnd.getDate() - 5);
 
-  // Current: most recent 90 days of imagery (up to today)
-  // — captures the CURRENT state of terrain, regardless of how long ago the event was
-  // If the event was recent (< 90 days ago), use event date as start
-  const currentEnd = now;
-  const currentStart = new Date(now);
-  currentStart.setDate(currentStart.getDate() - 90);
+  // "After" period logic:
+  // - If afterDate is provided, center the 90-day window around it
+  // - If event is old (>180 days) and no afterDate, compare right after the event
+  // - If event is recent (<180 days), compare against today
+  const SIX_MONTHS_MS = 180 * 24 * 3600 * 1000;
+  const eventAge = now.getTime() - event.getTime();
+
+  let currentStart: Date;
+  let currentEnd: Date;
+
+  if (afterDate) {
+    // User specified a custom "after" date — use 5 days after to 95 days after
+    const after = new Date(afterDate);
+    currentStart = new Date(after);
+    currentStart.setDate(currentStart.getDate() + 5);
+    currentEnd = new Date(after);
+    currentEnd.setDate(currentEnd.getDate() + 95);
+    // Cap at today if after date is recent
+    if (currentEnd > now) currentEnd = now;
+  } else if (eventAge > SIX_MONTHS_MS) {
+    // Historical event (>6 months old): compare right after the event
+    // This captures the terrain disruption before nature recovers it
+    currentStart = new Date(event);
+    currentStart.setDate(currentStart.getDate() + 5);
+    currentEnd = new Date(event);
+    currentEnd.setDate(currentEnd.getDate() + 95);
+    // Cap at today
+    if (currentEnd > now) currentEnd = now;
+  } else {
+    // Recent event: compare against today (original behavior)
+    currentEnd = now;
+    currentStart = new Date(now);
+    currentStart.setDate(currentStart.getDate() - 90);
+  }
+
   // Ensure current period doesn't overlap with baseline
   if (currentStart < baselineEnd) {
     currentStart.setTime(baselineEnd.getTime());

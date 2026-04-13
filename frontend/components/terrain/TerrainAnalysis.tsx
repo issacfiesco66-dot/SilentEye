@@ -89,6 +89,8 @@ export default function TerrainAnalysis({
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
   const [eventDate, setEventDate] = useState('');
+  const [afterDate, setAfterDate] = useState('');
+  const [useAfterDate, setUseAfterDate] = useState(false);
   const [radiusKm, setRadiusKm] = useState(2);
 
   // Analysis state
@@ -221,6 +223,7 @@ export default function TerrainAnalysis({
           longitude: lngNum,
           radiusKm,
           eventDate,
+          ...(useAfterDate && afterDate ? { afterDate } : {}),
         }),
       });
 
@@ -399,16 +402,55 @@ export default function TerrainAnalysis({
             )}
           </div>
 
-          {/* Date + Radius + Analyze */}
+          {/* Date + After Date + Radius + Analyze */}
           <div className="flex flex-wrap gap-2 items-end">
             <div className="flex-1 min-w-[140px]">
               <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">{t.terrain.eventDate}</label>
               <input
                 type="date"
                 value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
+                onChange={(e) => {
+                  setEventDate(e.target.value);
+                  // Auto-enable afterDate for historical events (>6 months old)
+                  if (e.target.value) {
+                    const age = Date.now() - new Date(e.target.value).getTime();
+                    const sixMonths = 180 * 24 * 3600 * 1000;
+                    if (age > sixMonths && !useAfterDate) {
+                      setUseAfterDate(true);
+                      // Suggest 30 days after the event as default
+                      const suggested = new Date(e.target.value);
+                      suggested.setDate(suggested.getDate() + 30);
+                      const today = new Date();
+                      if (suggested > today) suggested.setTime(today.getTime());
+                      setAfterDate(suggested.toISOString().slice(0, 10));
+                    }
+                  }
+                }}
                 className="w-full mt-0.5 px-2 py-1.5 text-xs border border-zinc-300 rounded-md focus:ring-1 focus:ring-amber-500 focus:border-amber-500 bg-white"
               />
+            </div>
+            {/* After-date toggle — for historical/forensic analysis */}
+            <div className="flex-1 min-w-[140px]">
+              <div className="flex items-center gap-1.5">
+                <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">{t.terrain.afterDate}</label>
+                <button
+                  onClick={() => setUseAfterDate(!useAfterDate)}
+                  className={`w-7 h-4 rounded-full transition-colors relative ${useAfterDate ? 'bg-amber-500' : 'bg-zinc-300'}`}
+                  title={t.terrain.afterDateHint}
+                >
+                  <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${useAfterDate ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+              {useAfterDate ? (
+                <input
+                  type="date"
+                  value={afterDate}
+                  onChange={(e) => setAfterDate(e.target.value)}
+                  className="w-full mt-0.5 px-2 py-1.5 text-xs border border-amber-300 rounded-md focus:ring-1 focus:ring-amber-500 focus:border-amber-500 bg-amber-50"
+                />
+              ) : (
+                <p className="text-[10px] text-zinc-400 mt-1">{t.terrain.comparesToday}</p>
+              )}
             </div>
             <div className="w-28">
               <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
@@ -439,6 +481,12 @@ export default function TerrainAnalysis({
               )}
             </button>
           </div>
+          {/* Historical event hint */}
+          {useAfterDate && (
+            <p className="text-[10px] text-amber-600 bg-amber-50 px-3 py-1.5 rounded-md">
+              {t.terrain.historicalHint}
+            </p>
+          )}
 
           {/* Error */}
           {error && (

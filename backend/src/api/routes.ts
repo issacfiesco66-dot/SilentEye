@@ -2372,7 +2372,7 @@ api.post('/terrain/analyze', terrainRateLimit, authMiddleware, asyncHandler(asyn
     return;
   }
 
-  const { latitude, longitude, radiusKm, eventDate } = req.body;
+  const { latitude, longitude, radiusKm, eventDate, afterDate } = req.body;
   if (typeof latitude !== 'number' || typeof longitude !== 'number') {
     res.status(400).json({ error: 'latitude and longitude are required (numbers)' });
     return;
@@ -2385,10 +2385,14 @@ api.post('/terrain/analyze', terrainRateLimit, authMiddleware, asyncHandler(asyn
     res.status(400).json({ error: 'eventDate is required (ISO date string)' });
     return;
   }
+  if (afterDate && isNaN(Date.parse(afterDate))) {
+    res.status(400).json({ error: 'afterDate must be a valid ISO date string' });
+    return;
+  }
   const radius = typeof radiusKm === 'number' && radiusKm > 0 && radiusKm <= 20 ? radiusKm : 2;
 
   try {
-    const result = await analyzeTerrainChange(latitude, longitude, radius, eventDate);
+    const result = await analyzeTerrainChange(latitude, longitude, radius, eventDate, afterDate || undefined);
     res.json(result);
   } catch (err: any) {
     if (err.message === 'NO_IMAGES_FOUND') {
