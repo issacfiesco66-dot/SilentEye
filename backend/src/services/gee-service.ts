@@ -32,6 +32,7 @@ interface SensitivityConfig {
   ndviThreshold: number;     // min NDVI drop to flag
   bsiThreshold: number;      // min BSI rise to flag
   saviThreshold: number;     // min SAVI drop to flag
+  minIndexHits: number;      // how many indices must trigger (1=OR, 2=AND-ish, 3=all)
   minClusterPixels: number;  // min connected pixels
   minAreaM2: number;         // post-filter min area
   minSeverity: number;       // post-filter min severity
@@ -42,48 +43,52 @@ interface SensitivityConfig {
 
 const SENSITIVITY_CONFIGS: Record<SensitivityLevel, SensitivityConfig> = {
   low: {
-    ndviThreshold: 0.30,
-    bsiThreshold: 0.25,
-    saviThreshold: 0.28,
-    minClusterPixels: 20,
-    minAreaM2: 800,
-    minSeverity: 45,
+    ndviThreshold: 0.25,
+    bsiThreshold: 0.20,
+    saviThreshold: 0.22,
+    minIndexHits: 2,           // must trigger 2 of 3 indices
+    minClusterPixels: 15,
+    minAreaM2: 500,
+    minSeverity: 40,
     windowDays: 90,
     cloudPct: 25,
     maxAnomalies: 10,
   },
   normal: {
-    ndviThreshold: 0.22,
-    bsiThreshold: 0.18,
-    saviThreshold: 0.20,
-    minClusterPixels: 12,
-    minAreaM2: 400,
-    minSeverity: 35,
+    ndviThreshold: 0.18,
+    bsiThreshold: 0.14,
+    saviThreshold: 0.16,
+    minIndexHits: 2,           // must trigger 2 of 3 indices
+    minClusterPixels: 8,
+    minAreaM2: 300,
+    minSeverity: 30,
     windowDays: 90,
     cloudPct: 30,
     maxAnomalies: 15,
   },
   high: {
-    ndviThreshold: 0.15,
-    bsiThreshold: 0.12,
-    saviThreshold: 0.13,
-    minClusterPixels: 6,
-    minAreaM2: 200,
-    minSeverity: 25,
+    ndviThreshold: 0.12,
+    bsiThreshold: 0.09,
+    saviThreshold: 0.10,
+    minIndexHits: 1,           // any single index can trigger
+    minClusterPixels: 4,
+    minAreaM2: 150,
+    minSeverity: 20,
     windowDays: 60,
     cloudPct: 35,
     maxAnomalies: 20,
   },
   max: {
-    ndviThreshold: 0.10,
-    bsiThreshold: 0.08,
-    saviThreshold: 0.09,
-    minClusterPixels: 3,
-    minAreaM2: 80,
-    minSeverity: 15,
+    ndviThreshold: 0.08,
+    bsiThreshold: 0.06,
+    saviThreshold: 0.07,
+    minIndexHits: 1,           // any single index can trigger
+    minClusterPixels: 2,
+    minAreaM2: 50,
+    minSeverity: 10,
     windowDays: 45,
     cloudPct: 40,
-    maxAnomalies: 30,
+    maxAnomalies: 25,
   },
 };
 
@@ -380,7 +385,8 @@ export async function analyzeTerrainChange(
     const indexCount = vegLoss.rename('flag')
       .add(soilExposure.rename('flag'))
       .add(saviLoss.rename('flag')); // 0-3
-    const anyAnomaly = indexCount.gte(2); // must trigger at least 2 indices
+    // minIndexHits: 1 = any single index triggers (OR), 2 = need 2 of 3 (stricter)
+    const anyAnomaly = indexCount.gte(cfg.minIndexHits);
 
     // Step 1: Count how many anomalous pixels exist (diagnostic)
     const pixelCountResult: number = await new Promise((resolve, reject) => {
