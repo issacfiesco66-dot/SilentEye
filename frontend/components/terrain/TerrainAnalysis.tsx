@@ -95,7 +95,7 @@ export default function TerrainAnalysis({
   const [afterDate, setAfterDate] = useState('');
   const [useAfterDate, setUseAfterDate] = useState(false);
   const [radiusKm, setRadiusKm] = useState(2);
-  const [sensitivity, setSensitivity] = useState<'low' | 'normal' | 'high' | 'max'>('high');
+  const [sensitivity, setSensitivity] = useState<'low' | 'normal' | 'high' | 'max'>('normal');
 
   // Analysis state
   const [loading, setLoading] = useState(false);

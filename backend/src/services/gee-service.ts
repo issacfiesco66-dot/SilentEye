@@ -42,48 +42,48 @@ interface SensitivityConfig {
 
 const SENSITIVITY_CONFIGS: Record<SensitivityLevel, SensitivityConfig> = {
   low: {
-    ndviThreshold: 0.20,
-    bsiThreshold: 0.15,
-    saviThreshold: 0.18,
-    minClusterPixels: 15,
-    minAreaM2: 500,
-    minSeverity: 30,
+    ndviThreshold: 0.30,
+    bsiThreshold: 0.25,
+    saviThreshold: 0.28,
+    minClusterPixels: 20,
+    minAreaM2: 800,
+    minSeverity: 45,
     windowDays: 90,
-    cloudPct: 30,
-    maxAnomalies: 20,
+    cloudPct: 25,
+    maxAnomalies: 10,
   },
   normal: {
-    ndviThreshold: 0.15,
-    bsiThreshold: 0.10,
-    saviThreshold: 0.12,
-    minClusterPixels: 10,
-    minAreaM2: 100,
-    minSeverity: 20,
+    ndviThreshold: 0.22,
+    bsiThreshold: 0.18,
+    saviThreshold: 0.20,
+    minClusterPixels: 12,
+    minAreaM2: 400,
+    minSeverity: 35,
     windowDays: 90,
     cloudPct: 30,
-    maxAnomalies: 30,
+    maxAnomalies: 15,
   },
   high: {
-    ndviThreshold: 0.08,
-    bsiThreshold: 0.05,
-    saviThreshold: 0.06,
-    minClusterPixels: 3,
-    minAreaM2: 50,
-    minSeverity: 10,
+    ndviThreshold: 0.15,
+    bsiThreshold: 0.12,
+    saviThreshold: 0.13,
+    minClusterPixels: 6,
+    minAreaM2: 200,
+    minSeverity: 25,
     windowDays: 60,
-    cloudPct: 40,
-    maxAnomalies: 40,
+    cloudPct: 35,
+    maxAnomalies: 20,
   },
   max: {
-    ndviThreshold: 0.04,
-    bsiThreshold: 0.03,
-    saviThreshold: 0.03,
-    minClusterPixels: 1,
-    minAreaM2: 0,
-    minSeverity: 5,
+    ndviThreshold: 0.10,
+    bsiThreshold: 0.08,
+    saviThreshold: 0.09,
+    minClusterPixels: 3,
+    minAreaM2: 80,
+    minSeverity: 15,
     windowDays: 45,
-    cloudPct: 50,
-    maxAnomalies: 50,
+    cloudPct: 40,
+    maxAnomalies: 30,
   },
 };
 
@@ -372,10 +372,12 @@ export async function analyzeTerrainChange(
   let anomalyError: string | undefined;
   try {
     // Multi-index thresholding with sensitivity-aware parameters
+    // Require at least 2 of 3 indices to flag — single-index hits are often noise
     const vegLoss = ndviDiff.lt(-cfg.ndviThreshold);       // NDVI drop
     const soilExposure = bsiDiff.gt(cfg.bsiThreshold);     // BSI rise
     const saviLoss = saviDiff.lt(-cfg.saviThreshold);      // SAVI drop
-    const anyAnomaly = vegLoss.or(soilExposure).or(saviLoss);
+    const indexCount = vegLoss.add(soilExposure).add(saviLoss); // 0-3
+    const anyAnomaly = indexCount.gte(2); // must trigger at least 2 indices
 
     // Step 1: Count how many anomalous pixels exist (diagnostic)
     const pixelCountResult: number = await new Promise((resolve, reject) => {
@@ -407,7 +409,7 @@ export async function analyzeTerrainChange(
         .addBands(ee.Image.pixelLonLat());
 
       // Step 3: Sample anomalous pixels directly (no connectedComponents)
-      const numSamples = sensitivity === 'max' ? 500 : sensitivity === 'high' ? 300 : 200;
+      const numSamples = sensitivity === 'max' ? 200 : sensitivity === 'high' ? 150 : 100;
       const sampled = anomalyImage.sample({
         region: aoi,
         scale: 10,
@@ -459,8 +461,9 @@ export async function analyzeTerrainChange(
         }
       }
 
-      // Step 5: Build anomalies from clusters
+      // Step 5: Build anomalies from clusters (filter small clusters first)
       anomalies = Array.from(clusters.values())
+        .filter((members) => members.length >= cfg.minClusterPixels)
         .map((members, i) => {
           const avgLon = members.reduce((s, m) => s + m.lon, 0) / members.length;
           const avgLat = members.reduce((s, m) => s + m.lat, 0) / members.length;
@@ -476,9 +479,12 @@ export async function analyzeTerrainChange(
 
           const maxChange = Math.max(Math.abs(avgNdvi), Math.abs(avgBsi), Math.abs(avgSavi));
           const combinedChange = (Math.abs(avgNdvi) + Math.abs(avgBsi) + Math.abs(avgSavi)) / 3;
-          const changeMagnitude = Math.min(1, (maxChange * 0.6 + combinedChange * 0.4) / 0.3);
-          const areaNorm = Math.min(1, areaM2 / 5000);
-          const severity = Math.round(changeMagnitude * 70 + areaNorm * 30);
+          // Harder severity curve: divisor 0.5 instead of 0.3 so only strong changes score high
+          const changeMagnitude = Math.min(1, (maxChange * 0.5 + combinedChange * 0.5) / 0.5);
+          const areaNorm = Math.min(1, areaM2 / 10000);
+          // Bonus for triggering all 3 indices (strongest signal)
+          const tripleHit = (hasVegLoss && hasSoilExp && members.some(m => Math.abs(m.savi) > cfg.saviThreshold)) ? 10 : 0;
+          const severity = Math.min(100, Math.round(changeMagnitude * 65 + areaNorm * 25 + tripleHit));
 
           const type: TerrainAnomaly['type'] = (hasVegLoss && hasSoilExp) ? 'both'
             : hasVegLoss ? 'vegetation_loss'
@@ -496,7 +502,7 @@ export async function analyzeTerrainChange(
             saviChange: Math.round(avgSavi * 1000) / 1000,
           };
         })
-        .filter((a) => a.severity >= cfg.minSeverity)
+        .filter((a) => a.severity >= cfg.minSeverity && a.areaM2 >= cfg.minAreaM2)
         .sort((a, b) => b.severity - a.severity)
         .slice(0, cfg.maxAnomalies);
     }
