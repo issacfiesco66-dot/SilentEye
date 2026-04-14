@@ -164,6 +164,7 @@ server.listen(HTTP_PORT, '0.0.0.0', async () => {
   }
   startOtpCleanup();
   startIncidentAutoTimeout();
+  startBiometricRetention();
   initializeGEE().catch(() => {}); // non-blocking — logs its own errors
 });
 
@@ -187,4 +188,30 @@ function startIncidentAutoTimeout() {
       logger.warn('Incident auto-timeout error:', err);
     }
   }, 30 * 60 * 1000); // every 30 min
+}
+
+// Biometric data retention — purge faces & media older than N days.
+// Runs once at boot (after a short delay) and then every 6 hours.
+const BIOMETRIC_RETENTION_DAYS = parseInt(process.env.BIOMETRIC_RETENTION_DAYS || '90', 10);
+function startBiometricRetention() {
+  const run = async () => {
+    try {
+      const { pool: dbPool } = await import('./db/pool.js');
+      const r = await dbPool.query(
+        `SELECT * FROM purge_expired_biometric_data($1)`,
+        [BIOMETRIC_RETENTION_DAYS]
+      );
+      const row = r.rows[0] || {};
+      const media = row.media_deleted ?? 0;
+      const faces = row.faces_deleted ?? 0;
+      if (Number(media) > 0 || Number(faces) > 0) {
+        logger.info(`Biometric retention: purged ${media} media rows + ${faces} face detections (> ${BIOMETRIC_RETENTION_DAYS}d)`);
+      }
+    } catch (err) {
+      logger.warn('Biometric retention error:', err);
+    }
+  };
+  // Delay initial run so migrations have time to register the function
+  setTimeout(run, 60 * 1000);
+  setInterval(run, 6 * 60 * 60 * 1000); // every 6 hours
 }

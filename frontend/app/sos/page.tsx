@@ -215,7 +215,7 @@ export default function SOSPage() {
     enabled: !!token,
     onMessage: useCallback((msg: { type: string; payload: unknown }) => {
       if (msg.type === 'panic' && msg.payload) {
-        const p = msg.payload as { incidentId?: string; plate?: string; latitude?: number; longitude?: number; timestamp?: number; vehicleId?: string; imei?: string; source?: string; activateCamera?: boolean };
+        const p = msg.payload as { incidentId?: string; plate?: string; latitude?: number; longitude?: number; timestamp?: number; vehicleId?: string; imei?: string; source?: string };
         if (p.incidentId && typeof p.latitude === 'number') {
           const alert: IncomingAlert = {
             incidentId: p.incidentId,
@@ -236,10 +236,15 @@ export default function SOSPage() {
           // Sound + vibrate to notify
           playAlarmSound();
           if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
-          // GPS panic with camera activation request
-          if (p.activateCamera && p.source === 'gps_panic') {
-            setGpsPanicPrompt({ incidentId: p.incidentId!, plate: p.plate });
-          }
+        }
+      }
+
+      // Camera activation — only the driver/owner of the vehicle in panic
+      // receive this message; it is NOT broadcast to nearby bystanders.
+      if (msg.type === 'camera_activation' && msg.payload) {
+        const p = msg.payload as { incidentId?: string; plate?: string; source?: string };
+        if (p.incidentId && p.source === 'gps_panic') {
+          setGpsPanicPrompt({ incidentId: p.incidentId, plate: p.plate });
         }
       }
 
@@ -771,7 +776,7 @@ export default function SOSPage() {
 
       {/* Suspect Gallery overlay */}
       {showSuspects && token && (
-        <SuspectGallery token={token} onClose={() => setShowSuspects(false)} />
+        <SuspectGallery token={token} onClose={() => setShowSuspects(false)} role={sessionUser?.role} />
       )}
 
       {/* SOS Camera overlay */}

@@ -9,7 +9,7 @@ import { pool } from '../db/pool.js';
 import { hasPostGis } from '../db/postgis-check.js';
 import type { AVLRecord } from '../gps/avl-decoder.js';
 import { logger } from '../utils/logger.js';
-import { broadcastLocation, broadcastPanic } from './websocket.js';
+import { broadcastLocation, broadcastPanic, sendCameraActivation } from './websocket.js';
 import { sendPushToUsers } from './push-service.js';
 
 const PANIC_TRACKING_INTERVAL_SEC = 4;
@@ -289,6 +289,7 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
       for (const uid of cameraTargetIds) {
         if (!allRecipientIds.includes(uid)) allRecipientIds.push(uid);
       }
+      // Broadcast panic event to all nearby / followers (no camera activation flag)
       broadcastPanic(
         {
           incidentId: incident.id,
@@ -300,10 +301,20 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
           timestamp,
           nearbyCount: nearbyDrivers.length,
           source: 'gps_panic',
-          activateCamera: true,
         },
         allRecipientIds
       );
+      // Camera activation is delivered ONLY to the driver and fleet owner of
+      // the vehicle that triggered the panic — never to nearby bystanders.
+      if (cameraTargetIds.length > 0) {
+        sendCameraActivation(cameraTargetIds, {
+          incidentId: incident.id,
+          plate: vehicle?.plate,
+          latitude,
+          longitude,
+          source: 'gps_panic',
+        });
+      }
       // Push to nearby users
       sendPushToUsers(
         nearbyDrivers.map((d: { id: string }) => d.id),
@@ -378,10 +389,18 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
           timestamp,
           nearbyCount: nearbyDrivers.length,
           source: 'gps_panic',
-          activateCamera: true,
         },
         allRecipientIds
       );
+      if (cameraTargetIds.length > 0) {
+        sendCameraActivation(cameraTargetIds, {
+          incidentId: incident.id,
+          plate: vehicle?.plate,
+          latitude,
+          longitude,
+          source: 'gps_panic',
+        });
+      }
       // Push to nearby users
       sendPushToUsers(
         nearbyDrivers.map((d: { id: string }) => d.id),

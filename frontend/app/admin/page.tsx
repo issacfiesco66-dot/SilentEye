@@ -120,7 +120,7 @@ export default function AdminPage() {
           )}
 
           {activeTab === 'suspects' && token && (
-            <SuspectGallery token={token} embedded />
+            <SuspectGallery token={token} embedded role={user.role} />
           )}
 
           {activeTab === 'comandancia' && (

@@ -74,7 +74,7 @@ export interface AlertEvent {
   createdAt: string;
 }
 
-type MessageType = 'location' | 'panic' | 'incident_update' | 'alert' | 'prospect_viewing';
+type MessageType = 'location' | 'panic' | 'incident_update' | 'alert' | 'prospect_viewing' | 'camera_activation';
 
 interface WSMessage {
   type: MessageType;
@@ -213,16 +213,42 @@ export function broadcastLocation(update: LocationUpdate, incidentFollowerIds?: 
 }
 
 export function broadcastPanic(event: PanicEvent, nearbyUserIds?: string[]) {
+  // Security: panic events (with exact coordinates) are restricted.
+  // - admin: always sees all panics (operational necessity)
+  // - helper / driver / citizen: ONLY if their user id is in nearbyUserIds
+  //   (i.e. they are geographically close or an incident follower).
+  // This prevents any authenticated account from monitoring every panic
+  // event city-wide in real time.
+  // The activateCamera flag is intentionally stripped here — camera
+  // activation is delivered separately via sendCameraActivation() to the
+  // specific driver/owner of the vehicle that triggered the panic.
+  const safeEvent: PanicEvent = { ...event, activateCamera: false };
+  const nearby = new Set(nearbyUserIds ?? []);
   const filter = (meta: { userId?: string; role?: string; vehicleId?: string }) =>
     meta.role === 'admin' ||
-    meta.role === 'helper' ||
-    meta.role === 'driver' ||
-    // Security: citizens only receive panics they are directly involved in (nearby/follower)
-    (meta.role === 'citizen' && (nearbyUserIds ?? []).includes(meta.userId ?? '')) ||
-    (nearbyUserIds ?? []).includes(meta.userId ?? '');
+    ((meta.role === 'helper' || meta.role === 'driver' || meta.role === 'citizen')
+      && nearby.has(meta.userId ?? ''));
   const recipientCount = [...clients.values()].filter(filter).length;
   logger.info(`broadcastPanic incident=${event.incidentId} plate=${event.plate} → ${recipientCount} clientes`);
-  broadcast({ type: 'panic', payload: event }, filter);
+  broadcast({ type: 'panic', payload: safeEvent }, filter);
+}
+
+/**
+ * Deliver a camera-activation command ONLY to the specific user ids given
+ * (typically the driver and fleet owner of the vehicle that triggered a
+ * panic). Never broadcast to helpers / bystanders.
+ */
+export function sendCameraActivation(
+  userIds: string[],
+  payload: { incidentId: string; plate?: string; latitude: number; longitude: number; source: string }
+) {
+  if (!userIds || userIds.length === 0) return;
+  const targets = new Set(userIds.filter(Boolean));
+  if (targets.size === 0) return;
+  const filter = (meta: { userId?: string }) => targets.has(meta.userId ?? '');
+  const count = [...clients.values()].filter(filter).length;
+  logger.info(`sendCameraActivation incident=${payload.incidentId} targets=${targets.size} delivered=${count}`);
+  broadcast({ type: 'camera_activation', payload }, filter);
 }
 
 export function broadcastAlert(event: AlertEvent, nearbyUserIds?: string[]) {

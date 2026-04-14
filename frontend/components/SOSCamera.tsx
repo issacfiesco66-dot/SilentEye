@@ -27,6 +27,26 @@ interface SOSCameraProps {
 
 let modelsLoaded = false;
 
+const CONSENT_KEY = 'silenteye.sos.cameraConsent.v1';
+
+function hasStoredConsent(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(CONSENT_KEY) === 'granted';
+  } catch {
+    return false;
+  }
+}
+
+function storeConsent(granted: boolean) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(CONSENT_KEY, granted ? 'granted' : 'denied');
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function SOSCamera({ token, incidentId, coords, active, onFaceDetected, onClose }: SOSCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -38,6 +58,12 @@ export default function SOSCamera({ token, incidentId, coords, active, onFaceDet
   const [faces, setFaces] = useState<DetectedFace[]>([]);
   const [frameCount, setFrameCount] = useState(0);
   const [modelsReady, setModelsReady] = useState(modelsLoaded);
+  const [consented, setConsented] = useState<boolean>(false);
+
+  // Load stored consent on mount
+  useEffect(() => {
+    setConsented(hasStoredConsent());
+  }, []);
 
   // Load face-api models
   useEffect(() => {
@@ -60,9 +86,13 @@ export default function SOSCamera({ token, incidentId, coords, active, onFaceDet
     load();
   }, []);
 
-  // Start/stop camera based on active prop
+  // Start/stop camera based on active prop — but ONLY after explicit consent.
+  // For GDPR/LFPDPPP: biometric capture (faces) is a "special category" that
+  // requires informed, explicit consent. The prompt is shown before the
+  // camera is opened for the very first time; the decision is persisted in
+  // localStorage so subsequent SOS events do not prompt again.
   useEffect(() => {
-    if (!active || !modelsReady) return;
+    if (!active || !modelsReady || !consented) return;
 
     const startCamera = async () => {
       try {
@@ -284,6 +314,58 @@ export default function SOSCamera({ token, incidentId, coords, active, onFaceDet
   }, [token, incidentId]);
 
   if (!active) return null;
+
+  // Consent gate — show before any camera access. No frames, no encoding,
+  // no upload happens until the user taps "Aceptar". The decision is saved
+  // so future SOS events don't re-prompt. This is required for biometric
+  // data under LFPDPPP (MX) and GDPR.
+  if (!consented) {
+    return (
+      <div className="fixed inset-0 z-[10000] bg-black/95 flex items-center justify-center p-5 safe-area-top safe-area-bottom">
+        <div className="max-w-md w-full bg-zinc-900 rounded-2xl p-5 border border-zinc-700">
+          <div className="flex items-center gap-2 mb-3">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg>
+            <h2 className="text-white text-base font-bold">Grabación de evidencia</h2>
+          </div>
+          <p className="text-zinc-300 text-sm leading-relaxed mb-2">
+            Para proteger tu vida en una emergencia, SilentEye puede activar la
+            cámara frontal y capturar rostros como evidencia.
+          </p>
+          <ul className="text-zinc-400 text-xs space-y-1 mb-3 list-disc pl-4">
+            <li>Se captura una imagen cada 3 segundos durante el SOS.</li>
+            <li>Los rostros detectados se guardan asociados al incidente.</li>
+            <li>Solo tú y personal autorizado pueden verlos.</li>
+            <li>Los datos se eliminan automáticamente tras 90 días.</li>
+            <li>Puedes cerrar la cámara en cualquier momento.</li>
+          </ul>
+          <p className="text-zinc-500 text-[11px] mb-4">
+            Al aceptar reconoces que se trata de <strong>datos biométricos</strong>{' '}
+            y autorizas su tratamiento conforme a la ley.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                storeConsent(false);
+                onClose();
+              }}
+              className="flex-1 py-3 bg-zinc-800 text-zinc-300 rounded-xl font-semibold text-sm border border-zinc-700"
+            >
+              Rechazar
+            </button>
+            <button
+              onClick={() => {
+                storeConsent(true);
+                setConsented(true);
+              }}
+              className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-sm"
+            >
+              Aceptar y grabar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black flex flex-col">

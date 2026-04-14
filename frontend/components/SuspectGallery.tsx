@@ -35,7 +35,7 @@ interface Sighting {
 }
 
 interface SuspectDetail extends Suspect {
-  primary_encoding: number[];
+  // primary_encoding is intentionally NOT exposed by the API (face-oracle risk).
   sightings: Sighting[];
   pattern: {
     total_incidents: number;
@@ -66,6 +66,8 @@ interface SuspectGalleryProps {
   onClose?: () => void;
   /** When true, render inline (no fixed overlay). Use in admin/dashboard sections. */
   embedded?: boolean;
+  /** Caller role — controls whether suspect marking / editing UI is shown. */
+  role?: string;
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
@@ -75,7 +77,8 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
   archived: { label: 'ARCHIVADO', color: 'text-amber-700', bg: 'bg-amber-100' },
 };
 
-export default function SuspectGallery({ token, onClose, embedded = false }: SuspectGalleryProps) {
+export default function SuspectGallery({ token, onClose, embedded = false, role }: SuspectGalleryProps) {
+  const canManageSuspects = role === 'admin' || role === 'helper';
   const rootClass = embedded
     ? 'bg-white rounded-xl border border-zinc-200 overflow-hidden flex flex-col min-h-[70vh]'
     : 'fixed inset-0 z-[9998] bg-white flex flex-col';
@@ -228,7 +231,8 @@ export default function SuspectGallery({ token, onClose, embedded = false }: Sus
             </div>
           </div>
 
-          {/* Edit alias/notes */}
+          {/* Edit alias/notes — admin/helper only */}
+          {canManageSuspects && (
           <div className="p-4 border-b border-zinc-100 space-y-2">
             <div>
               <label className="text-[10px] text-zinc-400 uppercase tracking-wider">Alias / Nombre</label>
@@ -284,6 +288,7 @@ export default function SuspectGallery({ token, onClose, embedded = false }: Sus
               })}
             </div>
           </div>
+          )}
 
           {/* Incident timeline */}
           <div className="p-4">
@@ -474,7 +479,7 @@ export default function SuspectGallery({ token, onClose, embedded = false }: Sus
                         >
                           Ver expediente
                         </button>
-                      ) : (
+                      ) : canManageSuspects ? (
                         <button
                           onClick={() => markFaceAsSuspect(f.id)}
                           disabled={markingFaceId === f.id}
@@ -482,6 +487,10 @@ export default function SuspectGallery({ token, onClose, embedded = false }: Sus
                         >
                           {markingFaceId === f.id ? 'Marcando...' : 'Marcar sospechoso'}
                         </button>
+                      ) : (
+                        <p className="mt-1.5 text-[9px] text-zinc-400 text-center">
+                          Evidencia registrada
+                        </p>
                       )}
                     </div>
                   </div>

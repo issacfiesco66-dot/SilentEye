@@ -509,17 +509,13 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
         }
       }
 
-      // GPS mode creates driver role (can add vehicles); citizen mode creates citizen role (SOS only)
-      const assignedRole = mode === 'gps' ? 'driver' : 'citizen';
-
-      // If existing user is a citizen upgrading to GPS, update their role
+      // New accounts are ALWAYS created as citizens. The driver role must be
+      // earned by actually associating a GPS device / vehicle — it is not
+      // granted by passing mode=gps in the request body. Promotion to driver
+      // happens later in /vehicles when a real vehicle (with IMEI) is added
+      // and ownership is confirmed.
       let user = existingUser;
-      if (user && mode === 'gps' && user.role === 'citizen') {
-        await pool.query('UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2', ['driver', user.id]);
-        user = { ...user, role: 'driver' };
-      }
-
-      user = user ?? await findOrCreateUser(cleanEmail, name?.trim(), assignedRole, cleanEmail);
+      user = user ?? await findOrCreateUser(cleanEmail, name?.trim(), 'citizen', cleanEmail);
       const token = signToken({ userId: user.id, role: user.role });
       res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role, email: user.email, plan: user.plan || 'free', permissions: getPermissions(user.role) } });
       return;
@@ -850,7 +846,7 @@ api.get('/vehicles/:id', authMiddleware, asyncHandler(async (req, res) => {
 // Plan vehicle limits
 const PLAN_LIMITS: Record<string, number> = { free: 1, personal: 3, flotillas: 999 };
 
-api.post('/vehicles', authMiddleware, requireRole('admin', 'driver', 'fleet_owner'), asyncHandler(async (req, res) => {
+api.post('/vehicles', authMiddleware, requireRole('admin', 'driver', 'fleet_owner', 'citizen'), asyncHandler(async (req, res) => {
   const { userId, role } = (req as any).user;
   const { plate, name, imei, driver_id } = req.body;
   if (!plate || !imei) {
@@ -898,7 +894,8 @@ api.post('/vehicles', authMiddleware, requireRole('admin', 'driver', 'fleet_owne
   if (role === 'fleet_owner') {
     ownerId = userId;
     // fleet_owner can optionally assign a sub-driver
-  } else if (role === 'driver') {
+  } else if (role === 'driver' || role === 'citizen') {
+    // citizen registering their first vehicle is implicitly becoming a driver
     ownerId = userId;
     assignedDriverId = userId; // driver is both owner and driver
   }
@@ -909,6 +906,19 @@ api.post('/vehicles', authMiddleware, requireRole('admin', 'driver', 'fleet_owne
       `INSERT INTO vehicles (plate, name, imei, driver_id, owner_id) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [plate, name || null, imei, assignedDriverId, ownerId]
     );
+
+    // Promote citizen → driver after successful vehicle registration. The
+    // IMEI is the gating condition: anyone registering a GPS device owns
+    // the panic-response flow for that vehicle. This is the only supported
+    // path from citizen to driver — it cannot be done via the OTP body.
+    if (role === 'citizen') {
+      await pool.query(
+        `UPDATE users SET role = 'driver', updated_at = NOW() WHERE id = $1 AND role = 'citizen'`,
+        [userId]
+      );
+      logger.info(`User ${userId} promoted citizen→driver after registering vehicle ${r.rows[0].id}`);
+    }
+
     res.status(201).json(r.rows[0]);
   } catch (err: unknown) {
     const e = err as { code?: string };
@@ -2906,10 +2916,40 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return denom === 0 ? 0 : dot / denom;
 }
 
-const FACE_MATCH_THRESHOLD = 0.6; // cosine similarity threshold for suspect matching
+const FACE_MATCH_THRESHOLD = 0.75; // cosine similarity threshold for suspect matching (raised from 0.6 to reduce false positives)
 
 // Rate limit media uploads (prevent abuse)
 const mediaUploadLimit = rateLimit({ windowMs: 60_000, max: 30, message: { error: 'Too many uploads' } });
+const suspectCreateLimit = rateLimit({ windowMs: 60_000, max: 10, message: { error: 'Too many suspect operations' } });
+
+// Validate base64 payload is actually a JPEG (magic bytes 0xFF 0xD8 0xFF)
+function isValidJpegBase64(b64: string): boolean {
+  try {
+    const head = Buffer.from(b64.slice(0, 16), 'base64');
+    return head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
+  } catch {
+    return false;
+  }
+}
+
+// Verify the caller has access to an incident (driver, follower, or admin).
+// Returns true if authorized, sends 403 and returns false otherwise.
+async function requireIncidentAccess(req: any, res: any, incidentId: string): Promise<boolean> {
+  const { userId, role } = req.user;
+  if (role === 'admin') return true;
+  const r = await pool.query(
+    `SELECT 1 FROM incidents
+     WHERE id = $1
+       AND (driver_id = $2
+            OR EXISTS (SELECT 1 FROM incident_followers WHERE incident_id = $1 AND user_id = $2))`,
+    [incidentId, userId]
+  );
+  if (!r.rows[0]) {
+    res.status(403).json({ error: 'Access denied' });
+    return false;
+  }
+  return true;
+}
 
 // ── Upload incident media (photo/video frame from phone camera) ──────────────
 api.post('/incidents/:id/media', authMiddleware, mediaUploadLimit, asyncHandler(async (req, res) => {
@@ -2925,13 +2965,12 @@ api.post('/incidents/:id/media', authMiddleware, mediaUploadLimit, asyncHandler(
   if (image_data.length > 700_000) {
     res.status(400).json({ error: 'Image too large (max 500KB)' }); return;
   }
+  // Validate JPEG magic bytes — reject anything that is not a real JPEG
+  if (!isValidJpegBase64(image_data)) {
+    res.status(400).json({ error: 'image_data must be a valid JPEG' }); return;
+  }
 
-  // Verify incident exists and user has access
-  const incCheck = await pool.query(
-    `SELECT id FROM incidents WHERE id = $1 AND (driver_id = $2 OR EXISTS (SELECT 1 FROM incident_followers WHERE incident_id = $1 AND user_id = $2))`,
-    [id, userId]
-  );
-  if (!incCheck.rows[0]) { res.status(404).json({ error: 'Incident not found' }); return; }
+  if (!(await requireIncidentAccess(req, res, id))) return;
 
   const r = await pool.query(
     `INSERT INTO incident_media (incident_id, user_id, media_type, image_data, latitude, longitude)
@@ -2947,6 +2986,8 @@ api.get('/incidents/:id/media', authMiddleware, asyncHandler(async (req, res) =>
   const { id } = req.params;
   if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid incident ID' }); return; }
 
+  if (!(await requireIncidentAccess(req, res, id))) return;
+
   const r = await pool.query(
     `SELECT id, media_type, image_data, latitude, longitude, captured_at
      FROM incident_media WHERE incident_id = $1 ORDER BY captured_at ASC`,
@@ -2956,17 +2997,39 @@ api.get('/incidents/:id/media', authMiddleware, asyncHandler(async (req, res) =>
 }));
 
 // ── Save detected face (encoding + crop from browser face-api.js) ────────────
-api.post('/incidents/:id/faces', authMiddleware, asyncHandler(async (req, res) => {
+api.post('/incidents/:id/faces', authMiddleware, mediaUploadLimit, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { userId } = (req as any).user;
   if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid incident ID' }); return; }
 
   const { media_id, face_crop, encoding, confidence, box } = req.body;
-  if (!media_id || !face_crop || !encoding || !Array.isArray(encoding)) {
-    res.status(400).json({ error: 'media_id, face_crop, encoding[] required' }); return;
+  if (!media_id || !isValidUuid(media_id) || !face_crop || !encoding || !Array.isArray(encoding)) {
+    res.status(400).json({ error: 'media_id (uuid), face_crop, encoding[] required' }); return;
   }
   if (encoding.length < 64 || encoding.length > 512) {
     res.status(400).json({ error: 'encoding must be 64-512 dimensions' }); return;
+  }
+  // Validate face crop is a real JPEG
+  if (typeof face_crop !== 'string' || face_crop.length > 700_000 || !isValidJpegBase64(face_crop)) {
+    res.status(400).json({ error: 'face_crop must be a valid JPEG (max 500KB)' }); return;
+  }
+  // Validate encoding values are finite numbers in [-2, 2] (normalized descriptors)
+  for (const v of encoding) {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < -2 || v > 2) {
+      res.status(400).json({ error: 'encoding must contain finite numbers in [-2, 2]' }); return;
+    }
+  }
+
+  if (!(await requireIncidentAccess(req, res, id))) return;
+
+  // Verify media_id belongs to this incident — prevent cross-incident contamination
+  const mediaCheck = await pool.query(
+    `SELECT 1 FROM incident_media WHERE id = $1 AND incident_id = $2`,
+    [media_id, id]
+  );
+  if (!mediaCheck.rows[0]) {
+    res.status(400).json({ error: 'media_id does not belong to this incident' });
+    return;
   }
 
   const r = await pool.query(
@@ -3013,6 +3076,8 @@ api.get('/incidents/:id/faces', authMiddleware, asyncHandler(async (req, res) =>
   const { id } = req.params;
   if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid incident ID' }); return; }
 
+  if (!(await requireIncidentAccess(req, res, id))) return;
+
   const r = await pool.query(
     `SELECT fd.id, fd.face_crop, fd.confidence, fd.box_x, fd.box_y, fd.box_w, fd.box_h, fd.created_at,
             s.id as suspect_id, s.alias as suspect_alias, ss.similarity_score
@@ -3052,7 +3117,9 @@ api.get('/faces/my', authMiddleware, asyncHandler(async (req, res) => {
 }));
 
 // ── Mark a face detection as suspect ─────────────────────────────────────────
-api.post('/suspects', authMiddleware, asyncHandler(async (req, res) => {
+// Only admin/helper can mark suspects — creating system-wide suspect records
+// is a privileged operation that affects every future face auto-match.
+api.post('/suspects', authMiddleware, requireRole('admin', 'helper'), suspectCreateLimit, asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const { face_detection_id, alias, notes } = req.body;
   if (!face_detection_id || !isValidUuid(face_detection_id)) {
@@ -3095,13 +3162,20 @@ api.post('/suspects', authMiddleware, asyncHandler(async (req, res) => {
       [matchedSuspect.id, notes || null]
     );
 
-    const updated = await pool.query(`SELECT * FROM suspects WHERE id = $1`, [matchedSuspect.id]);
+    const updated = await pool.query(
+      `SELECT id, alias, primary_face_crop, status, notes, incident_count,
+              first_seen_at, last_seen_at, created_at, created_by
+       FROM suspects WHERE id = $1`,
+      [matchedSuspect.id]
+    );
     res.json({ ...updated.rows[0], linked_to_existing: true, similarity: Math.round(matchedSuspect.similarity * 100) / 100 });
   } else {
     // Create new suspect
     const r = await pool.query(
       `INSERT INTO suspects (alias, primary_encoding, primary_face_crop, notes, created_by, first_seen_at, last_seen_at)
-       VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+       RETURNING id, alias, primary_face_crop, status, notes, incident_count,
+                 first_seen_at, last_seen_at, created_at, created_by`,
       [alias || null, face.encoding, face.face_crop, notes || null, userId]
     );
     const suspect = r.rows[0];
@@ -3118,7 +3192,9 @@ api.post('/suspects', authMiddleware, asyncHandler(async (req, res) => {
 }));
 
 // ── List all suspects with sighting stats ────────────────────────────────────
-api.get('/suspects', authMiddleware, asyncHandler(async (req, res) => {
+// Restricted to admin/helper — the suspect database is sensitive and should
+// not be enumerable by regular users.
+api.get('/suspects', authMiddleware, requireRole('admin', 'helper'), asyncHandler(async (req, res) => {
   const r = await pool.query(
     `SELECT s.id, s.alias, s.primary_face_crop, s.status, s.notes, s.incident_count,
             s.first_seen_at, s.last_seen_at, s.created_at,
@@ -3131,11 +3207,19 @@ api.get('/suspects', authMiddleware, asyncHandler(async (req, res) => {
 }));
 
 // ── Get suspect detail with full incident history ────────────────────────────
-api.get('/suspects/:id', authMiddleware, asyncHandler(async (req, res) => {
+api.get('/suspects/:id', authMiddleware, requireRole('admin', 'helper'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid suspect ID' }); return; }
 
-  const suspect = await pool.query(`SELECT * FROM suspects WHERE id = $1`, [id]);
+  // Explicit column list — NEVER return primary_encoding (128-dim face
+  // descriptor). Leaking the encoding would give an attacker a face-lookup
+  // oracle they could run offline against arbitrary photos.
+  const suspect = await pool.query(
+    `SELECT id, alias, primary_face_crop, status, notes, incident_count,
+            first_seen_at, last_seen_at, created_at, updated_at, created_by
+     FROM suspects WHERE id = $1`,
+    [id]
+  );
   if (!suspect.rows[0]) { res.status(404).json({ error: 'Suspect not found' }); return; }
 
   // Get all sightings with incident details
@@ -3173,7 +3257,7 @@ api.get('/suspects/:id', authMiddleware, asyncHandler(async (req, res) => {
 }));
 
 // ── Update suspect (alias, status, notes) ────────────────────────────────────
-api.put('/suspects/:id', authMiddleware, asyncHandler(async (req, res) => {
+api.put('/suspects/:id', authMiddleware, requireRole('admin', 'helper'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid suspect ID' }); return; }
 
@@ -3189,7 +3273,9 @@ api.put('/suspects/:id', authMiddleware, asyncHandler(async (req, res) => {
        status = COALESCE($3, status),
        notes = COALESCE($4, notes),
        updated_at = NOW()
-     WHERE id = $1 RETURNING *`,
+     WHERE id = $1
+     RETURNING id, alias, primary_face_crop, status, notes, incident_count,
+               first_seen_at, last_seen_at, created_at, updated_at, created_by`,
     [id, alias || null, status || null, notes || null]
   );
   if (!r.rows[0]) { res.status(404).json({ error: 'Suspect not found' }); return; }
@@ -3197,7 +3283,7 @@ api.put('/suspects/:id', authMiddleware, asyncHandler(async (req, res) => {
 }));
 
 // ── Match a face encoding against all suspects ──────────────────────────────
-api.post('/suspects/match', authMiddleware, asyncHandler(async (req, res) => {
+api.post('/suspects/match', authMiddleware, requireRole('admin', 'helper'), asyncHandler(async (req, res) => {
   const { encoding } = req.body;
   if (!encoding || !Array.isArray(encoding) || encoding.length < 64) {
     res.status(400).json({ error: 'encoding[] required (64-512 dims)' }); return;
