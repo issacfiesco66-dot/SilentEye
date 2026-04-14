@@ -123,6 +123,19 @@ export function getSession(): { token: string; user: SessionUser } | null {
 
 /** Clear session (explicit logout only) */
 export function clearSession() {
+  // Best-effort server-side revocation. Fire-and-forget so logout stays
+  // responsive even if the backend is unreachable.
+  const token = lsGet(TOKEN_KEY) || getCookie(COOKIE_TOKEN);
+  if (token && typeof window !== 'undefined') {
+    try {
+      // Use keepalive so the request survives page navigation after logout.
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        keepalive: true,
+      }).catch(() => { /* ignore */ });
+    } catch { /* ignore */ }
+  }
   lsRemove(TOKEN_KEY);
   lsRemove(USER_KEY);
   lsRemove(LOGIN_AT_KEY);

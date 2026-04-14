@@ -145,6 +145,20 @@ export default function SuspectGallery({ token, onClose, embedded = false, role 
     setMarkingFaceId(null);
   }, [token, fetchFaces, fetchSuspects]);
 
+  // Right to erasure — delete a captured face.
+  const deleteFace = useCallback(async (faceId: string) => {
+    if (typeof window !== 'undefined' && !window.confirm('¿Borrar este rostro? Esta acción no se puede deshacer.')) return;
+    try {
+      const res = await fetch(`${API}/api/faces/${faceId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        await fetchFaces();
+      }
+    } catch {}
+  }, [token, fetchFaces]);
+
   // Fetch suspect detail
   const openDetail = useCallback(async (id: string) => {
     setSelectedId(id);
@@ -492,6 +506,14 @@ export default function SuspectGallery({ token, onClose, embedded = false, role 
                           Evidencia registrada
                         </p>
                       )}
+                      {/* Right to erasure: any authorized caller can delete
+                          a captured face (bystander / false positive). */}
+                      <button
+                        onClick={() => deleteFace(f.id)}
+                        className="w-full mt-1 py-1 text-[9px] text-zinc-400 hover:text-red-600 transition-colors"
+                      >
+                        Borrar rostro
+                      </button>
                     </div>
                   </div>
                 ))}

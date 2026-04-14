@@ -17,6 +17,8 @@ import {
   findOrCreateUser,
   signToken,
   verifyToken,
+  revokeToken,
+  isTokenRevoked,
 } from './auth.js';
 import { getAlerts, deleteAlerts } from '../services/alert-service.js';
 import { broadcastLocation, broadcastPanic, broadcastIncidentUpdate, broadcastToAdmins } from '../services/websocket.js';
@@ -260,7 +262,7 @@ api.post('/setup/otp', asyncHandler(async (req, res) => {
   }
 }));
 
-function authMiddleware(req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) {
+function authMiddleware(req: import('express').Request, res: import('express').Response, next: import('express').NextFunction): void {
   const auth = req.headers.authorization;
   const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
   const payload = token ? verifyToken(token) : null;
@@ -268,8 +270,20 @@ function authMiddleware(req: import('express').Request, res: import('express').R
     res.status(401).json({ error: t(req, 'unauthorized') });
     return;
   }
-  (req as any).user = payload;
-  next();
+  // Check blacklist (fire-and-return path). Tokens without a jti bypass
+  // this check — they are legacy tokens signed before the revocation
+  // migration. Once the grace period ends we will reject them outright.
+  isTokenRevoked(payload).then((revoked) => {
+    if (revoked) {
+      res.status(401).json({ error: t(req, 'unauthorized') });
+      return;
+    }
+    (req as any).user = payload;
+    next();
+  }).catch(() => {
+    (req as any).user = payload;
+    next();
+  });
 }
 
 function requireRole(...roles: string[]) {
@@ -281,6 +295,44 @@ function requireRole(...roles: string[]) {
     }
     next();
   };
+}
+
+// ── Audit log helper ────────────────────────────────────────────────────────
+// Records privileged actions to the audit_log table. Best-effort: never
+// throws, never blocks the caller's response. Instrument at the point of
+// mutation (after the write succeeds, before the HTTP response).
+interface AuditEntry {
+  action: string;
+  targetType?: string;
+  targetId?: string | null;
+  details?: Record<string, unknown>;
+}
+async function writeAuditLog(req: import('express').Request, entry: AuditEntry): Promise<void> {
+  try {
+    const user = (req as any).user as { userId?: string; role?: string } | undefined;
+    const ip = (req.headers['cf-connecting-ip'] as string)
+      || (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+      || req.ip
+      || null;
+    const ua = (req.headers['user-agent'] as string) || null;
+    await pool.query(
+      `INSERT INTO audit_log (user_id, user_role, action, target_type, target_id, ip, user_agent, details)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        user?.userId ?? null,
+        user?.role ?? null,
+        entry.action.slice(0, 64),
+        entry.targetType?.slice(0, 32) ?? null,
+        entry.targetId != null ? String(entry.targetId).slice(0, 128) : null,
+        ip?.slice(0, 64) ?? null,
+        ua?.slice(0, 512) ?? null,
+        entry.details ? JSON.stringify(entry.details) : null,
+      ]
+    );
+  } catch (err) {
+    // Never break the request flow because of audit. Log at warn level.
+    logger.warn('audit log write failed:', err);
+  }
 }
 
 // Login: conductor con IMEI, admin/helper con teléfono, ciudadano con email+mode
@@ -593,6 +645,28 @@ api.post('/auth/login', authRateLimit, asyncHandler(async (req, res) => {
     logger.error('Login error:', err);
     res.status(500).json({ error: t(req, 'loginError') });
   }
+}));
+
+// ── Logout — revoke the current JWT server-side ─────────────────────────────
+// Takes the Bearer token from the caller and writes its jti into
+// token_blacklist. Subsequent requests with the same token are rejected by
+// authMiddleware. Idempotent — calling twice is a no-op.
+api.post('/auth/logout', asyncHandler(async (req, res) => {
+  const auth = req.headers.authorization;
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
+  const decoded = token ? verifyToken(token) : null;
+  if (decoded) {
+    await revokeToken(decoded, 'logout');
+    try {
+      await writeAuditLog(req, {
+        action: 'auth.logout',
+        targetType: 'user',
+        targetId: decoded.userId,
+      });
+    } catch { /* audit is best-effort */ }
+  }
+  // Always return 200 — do not leak whether the token was valid
+  res.json({ ok: true });
 }));
 
 api.get('/me', authMiddleware, asyncHandler(async (req, res) => {
@@ -917,8 +991,20 @@ api.post('/vehicles', authMiddleware, requireRole('admin', 'driver', 'fleet_owne
         [userId]
       );
       logger.info(`User ${userId} promoted citizen→driver after registering vehicle ${r.rows[0].id}`);
+      writeAuditLog(req, {
+        action: 'user.role_change',
+        targetType: 'user',
+        targetId: userId,
+        details: { from: 'citizen', to: 'driver', reason: 'vehicle_registration', vehicle_id: r.rows[0].id },
+      });
     }
 
+    writeAuditLog(req, {
+      action: 'vehicle.create',
+      targetType: 'vehicle',
+      targetId: r.rows[0].id,
+      details: { plate, imei: imei ? `***${String(imei).slice(-4)}` : null },
+    });
     res.status(201).json(r.rows[0]);
   } catch (err: unknown) {
     const e = err as { code?: string };
@@ -969,6 +1055,16 @@ api.put('/vehicles/:id', authMiddleware, requireRole('admin', 'fleet_owner'), as
     res.status(404).json({ error: t(req, 'vehicleNotFound') });
     return;
   }
+  writeAuditLog(req, {
+    action: 'vehicle.update',
+    targetType: 'vehicle',
+    targetId: id,
+    details: {
+      plate: plate ?? undefined,
+      driver_id: driverId,
+      imei_masked: imei ? `***${String(imei).slice(-4)}` : undefined,
+    },
+  });
   res.json(r.rows[0]);
 }));
 
@@ -984,11 +1080,17 @@ api.delete('/vehicles/:id', authMiddleware, requireRole('admin', 'fleet_owner'),
     }
   }
 
-  const r = await pool.query('DELETE FROM vehicles WHERE id = $1 RETURNING id', [id]);
+  const r = await pool.query('DELETE FROM vehicles WHERE id = $1 RETURNING id, plate', [id]);
   if (!r.rows[0]) {
     res.status(404).json({ error: t(req, 'vehicleNotFound') });
     return;
   }
+  writeAuditLog(req, {
+    action: 'vehicle.delete',
+    targetType: 'vehicle',
+    targetId: id,
+    details: { plate: r.rows[0].plate },
+  });
   res.json({ success: true });
 }));
 
@@ -3091,6 +3193,52 @@ api.get('/incidents/:id/faces', authMiddleware, asyncHandler(async (req, res) =>
   res.json(r.rows);
 }));
 
+// ── User self-service: delete a captured face ───────────────────────────────
+// Right to erasure (GDPR Art. 17 / LFPDPPP). A user can delete a face
+// detection tied to one of their incidents — typically a bystander who was
+// captured by accident during an SOS. The row is dropped outright; any
+// suspect_sightings pointing to it are left intact (face_detection_id →
+// NULL via ON DELETE SET NULL). Admins can delete any face.
+api.delete('/faces/:id', authMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { userId, role } = (req as any).user;
+  if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid face ID' }); return; }
+
+  // Fetch face + incident owner
+  const r = await pool.query(
+    `SELECT fd.id, fd.incident_id, i.driver_id
+     FROM face_detections fd
+     JOIN incidents i ON i.id = fd.incident_id
+     WHERE fd.id = $1`,
+    [id]
+  );
+  const face = r.rows[0];
+  if (!face) { res.status(404).json({ error: 'Face not found' }); return; }
+
+  // Authorization: admin, incident driver, or incident follower.
+  if (role !== 'admin') {
+    if (face.driver_id !== userId) {
+      const follow = await pool.query(
+        `SELECT 1 FROM incident_followers WHERE incident_id = $1 AND user_id = $2`,
+        [face.incident_id, userId]
+      );
+      if (!follow.rows[0]) {
+        res.status(403).json({ error: 'Access denied' });
+        return;
+      }
+    }
+  }
+
+  await pool.query(`DELETE FROM face_detections WHERE id = $1`, [id]);
+  writeAuditLog(req, {
+    action: 'face.delete',
+    targetType: 'face_detection',
+    targetId: id,
+    details: { incident_id: face.incident_id, reason: 'user_request' },
+  });
+  res.json({ ok: true });
+}));
+
 // ── List all faces detected across the user's incidents (admin sees all) ────
 api.get('/faces/my', authMiddleware, asyncHandler(async (req, res) => {
   const { userId, role } = (req as any).user;
@@ -3168,6 +3316,12 @@ api.post('/suspects', authMiddleware, requireRole('admin', 'helper'), suspectCre
        FROM suspects WHERE id = $1`,
       [matchedSuspect.id]
     );
+    writeAuditLog(req, {
+      action: 'suspect.link',
+      targetType: 'suspect',
+      targetId: matchedSuspect.id,
+      details: { face_detection_id, similarity: Math.round(matchedSuspect.similarity * 100) / 100 },
+    });
     res.json({ ...updated.rows[0], linked_to_existing: true, similarity: Math.round(matchedSuspect.similarity * 100) / 100 });
   } else {
     // Create new suspect
@@ -3187,6 +3341,12 @@ api.post('/suspects', authMiddleware, requireRole('admin', 'helper'), suspectCre
       [suspect.id, face.incident_id, face_detection_id, face.latitude, face.longitude, userId]
     );
 
+    writeAuditLog(req, {
+      action: 'suspect.create',
+      targetType: 'suspect',
+      targetId: suspect.id,
+      details: { face_detection_id, alias: alias || null },
+    });
     res.json({ ...suspect, linked_to_existing: false });
   }
 }));
@@ -3279,6 +3439,12 @@ api.put('/suspects/:id', authMiddleware, requireRole('admin', 'helper'), asyncHa
     [id, alias || null, status || null, notes || null]
   );
   if (!r.rows[0]) { res.status(404).json({ error: 'Suspect not found' }); return; }
+  writeAuditLog(req, {
+    action: 'suspect.update',
+    targetType: 'suspect',
+    targetId: id,
+    details: { alias: alias || null, status: status || null, has_notes: !!notes },
+  });
   res.json(r.rows[0]);
 }));
 

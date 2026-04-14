@@ -7,28 +7,31 @@ WORKDIR /app
 # ngrok: descargar binario (para túnel TCP GPS en producción)
 RUN apk add --no-cache curl && \
     curl -sSL -o /tmp/ngrok.tgz "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz" && \
-    tar xzf /tmp/ngrok.tgz -C /usr/local/bin && rm /tmp/ngrok.tgz && \
-    apk del curl
+    tar xzf /tmp/ngrok.tgz -C /usr/local/bin && rm /tmp/ngrok.tgz &&     apk del curl
 
-# Copiar solo backend e instalar dependencias
-COPY backend/package.json ./
-RUN npm install
+# Reproducible install via monorepo lockfile. We copy only the manifests
+# first to maximise layer caching, then run `npm ci --workspace backend`
+# against the repo-root lockfile. This locks every dependency version and
+# refuses to install anything not pinned in package-lock.json.
+COPY package.json package-lock.json ./
+COPY backend/package.json ./backend/package.json
+RUN npm ci --workspace backend --include-workspace-root=false
 
-# Copiar código del backend
-COPY backend/ .
+# Copiar código del backend dentro del workspace
+COPY backend/ ./backend/
 
-# Asegurar tipos para compilación
-RUN npm install --save-dev @types/pg @types/web-push @types/nodemailer @types/pdfkit
-
-# Compilar: usar TypeScript del proyecto (npx tsc puede instalar paquete equivocado)
-RUN node ./node_modules/typescript/bin/tsc
+# Compilar TypeScript dentro del workspace
+WORKDIR /app/backend
+RUN node ../node_modules/typescript/bin/tsc
 
 # Copiar schemas SQL y migraciones a dist (para migraciones)
 RUN cp src/db/schema.sql src/db/schema-simple.sql dist/db/ && \
     cp -r src/db/migrations dist/db/migrations
 
-# Quitar devDependencies para imagen final
-RUN npm prune --omit=dev
+# Pinea solo runtime deps en la imagen final
+WORKDIR /app
+RUN npm prune --workspace backend --omit=dev
+WORKDIR /app/backend
 
 ENV NODE_ENV=production
 ENV TCP_PORT=5000

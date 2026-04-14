@@ -233,8 +233,36 @@ export async function processGpsData(imei: string, record: AVLRecord): Promise<v
   }
 }
 
+// Per-IMEI panic cooldown — a single device cannot trigger more than one
+// panic per PANIC_COOLDOWN_MS. This prevents panic-flood attacks where a
+// compromised or misconfigured device hammers the server, which would
+// otherwise result in hundreds of incidents/sec plus nearby-user queries,
+// WebSocket broadcasts and push notifications.
+const PANIC_COOLDOWN_MS = parseInt(process.env.PANIC_COOLDOWN_MS || '60000', 10);
+const panicCooldowns = new Map<string, number>();
+
 export async function processPanicEvent(imei: string, record: AVLRecord): Promise<void> {
   const { latitude, longitude, timestamp } = record;
+
+  // Cooldown check — in-memory map, reset on process restart which is
+  // acceptable because panic events are already persisted in incidents.
+  const now = Date.now();
+  const last = panicCooldowns.get(imei) ?? 0;
+  if (now - last < PANIC_COOLDOWN_MS) {
+    logger.warn(`[panic-cooldown] IMEI=${imei} dropped (last ${Math.round((now - last) / 1000)}s ago)`);
+    return;
+  }
+  panicCooldowns.set(imei, now);
+
+  // Periodically garbage-collect the map to avoid unbounded growth if many
+  // unique IMEIs connect over the process lifetime.
+  if (panicCooldowns.size > 10_000) {
+    const cutoff = now - PANIC_COOLDOWN_MS * 2;
+    for (const [k, v] of panicCooldowns) {
+      if (v < cutoff) panicCooldowns.delete(k);
+    }
+  }
+
   const postgis = await hasPostGis();
 
   const client = await pool.connect();

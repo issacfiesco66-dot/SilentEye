@@ -13,7 +13,7 @@ import rateLimit from 'express-rate-limit';
 import { createTeltonikaTcpServer } from './gps/tcp-server.js';
 import { createWebSocketServer, getWebSocketClientCount } from './services/websocket.js';
 import { api } from './api/routes.js';
-import { startOtpCleanup } from './api/auth.js';
+import { startOtpCleanup, startBlacklistCleanup } from './api/auth.js';
 import { logger } from './utils/logger.js';
 import { initializeGEE } from './services/gee-service.js';
 
@@ -163,6 +163,7 @@ server.listen(HTTP_PORT, '0.0.0.0', async () => {
     logger.warn('Auto-migrate error (non-fatal):', err);
   }
   startOtpCleanup();
+  startBlacklistCleanup();
   startIncidentAutoTimeout();
   startBiometricRetention();
   initializeGEE().catch(() => {}); // non-blocking — logs its own errors

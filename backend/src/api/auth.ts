@@ -6,7 +6,7 @@
  */
 
 import jwt from 'jsonwebtoken';
-import { randomInt } from 'crypto';
+import { randomInt, randomUUID } from 'crypto';
 import { pool } from '../db/pool.js';
 import { logger } from '../utils/logger.js';
 import { t as _t } from '../i18n.js';
@@ -152,14 +152,87 @@ function getJwtExpiresInSeconds(): number {
 }
 
 export function signToken(payload: { userId: string; role: string }): string {
-  return jwt.sign(payload, JWT_SECRET, { algorithm: 'HS256', expiresIn: getJwtExpiresInSeconds() });
+  // Every token carries a unique jti claim so it can be revoked server-side
+  // (token_blacklist table). Without a jti, logout would require rotating
+  // JWT_SECRET which invalidates every session globally.
+  return jwt.sign(
+    { ...payload, jti: randomUUID() },
+    JWT_SECRET,
+    { algorithm: 'HS256', expiresIn: getJwtExpiresInSeconds() }
+  );
 }
 
-export function verifyToken(token: string): { userId: string; role: string } | null {
+export interface DecodedToken {
+  userId: string;
+  role: string;
+  jti?: string;
+  exp?: number;
+  iat?: number;
+}
+
+export function verifyToken(token: string): DecodedToken | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as { userId: string; role: string };
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as DecodedToken;
     return decoded;
   } catch {
     return null;
   }
+}
+
+/**
+ * Revoke a decoded token by inserting its jti into token_blacklist. Safe to
+ * call multiple times for the same token (idempotent via ON CONFLICT).
+ * Tokens without a jti (legacy, pre-migration) cannot be revoked and the
+ * caller should handle that case.
+ */
+export async function revokeToken(decoded: DecodedToken, reason: string = 'logout'): Promise<boolean> {
+  if (!decoded?.jti || !decoded?.exp) return false;
+  const expiresAt = new Date(decoded.exp * 1000);
+  try {
+    await pool.query(
+      `INSERT INTO token_blacklist (jti, user_id, reason, expires_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (jti) DO NOTHING`,
+      [decoded.jti, decoded.userId, reason.slice(0, 32), expiresAt]
+    );
+    return true;
+  } catch (err) {
+    logger.warn('revokeToken error:', err);
+    return false;
+  }
+}
+
+/**
+ * Returns true if the token has been revoked (jti in blacklist).
+ * Legacy tokens without a jti are treated as NOT revocable and the check
+ * returns false — caller may choose to reject legacy tokens outright once
+ * the grace period is over.
+ */
+export async function isTokenRevoked(decoded: DecodedToken): Promise<boolean> {
+  if (!decoded?.jti) return false;
+  try {
+    const r = await pool.query(
+      `SELECT 1 FROM token_blacklist WHERE jti = $1 AND expires_at > NOW() LIMIT 1`,
+      [decoded.jti]
+    );
+    return (r.rowCount ?? 0) > 0;
+  } catch {
+    // Table may not exist yet during the migration window — fail open so
+    // existing sessions don't break. Once migrated, this is never reached.
+    return false;
+  }
+}
+
+// Periodic cleanup of expired blacklist entries
+let _blacklistCleanupStarted = false;
+export function startBlacklistCleanup(): void {
+  if (_blacklistCleanupStarted) return;
+  _blacklistCleanupStarted = true;
+  setInterval(async () => {
+    try {
+      await pool.query('SELECT purge_expired_blacklist()');
+    } catch {
+      /* purge function may not exist yet — ignore */
+    }
+  }, 60 * 60 * 1000); // hourly
 }
