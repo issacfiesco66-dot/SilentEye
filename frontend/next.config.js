@@ -16,7 +16,7 @@ module.exports = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-XSS-Protection', value: '0' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'geolocation=(self), camera=(), microphone=()' },
+          { key: 'Permissions-Policy', value: 'geolocation=(self), camera=(self), microphone=(self)' },
           {
             key: 'Content-Security-Policy',
             value: [
