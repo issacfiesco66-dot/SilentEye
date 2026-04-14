@@ -151,9 +151,17 @@ if (TCP_PORT_ALT2 != null && TCP_PORT_ALT2 !== TCP_PORT && TCP_PORT_ALT2 !== TCP
 const server = http.createServer(app);
 createWebSocketServer(server);
 
-server.listen(HTTP_PORT, '0.0.0.0', () => {
+server.listen(HTTP_PORT, '0.0.0.0', async () => {
   logger.info(`API HTTP + WebSocket en 0.0.0.0:${HTTP_PORT} (path /ws)`);
   logger.info(`TCP Teltonika: 0.0.0.0:${TCP_PORT} | HTTP: ${HTTP_PORT}`);
+  // Auto-run migrations on startup (idempotent — uses IF NOT EXISTS)
+  try {
+    const { runMigrate } = await import('./db/run-migrate.js');
+    const result = await runMigrate();
+    logger.info(`Migraciones: ${result.message}`);
+  } catch (err) {
+    logger.warn('Auto-migrate error (non-fatal):', err);
+  }
   startOtpCleanup();
   startIncidentAutoTimeout();
   initializeGEE().catch(() => {}); // non-blocking — logs its own errors
