@@ -2888,3 +2888,312 @@ api.post('/prospects/bulk-ingest', authMiddleware, requireRole('admin'), asyncHa
     res.status(500).json({ error: t(req, 'prospectIngestError') });
   }
 }));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Facial Recognition & Suspect Tracking ─────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Cosine similarity between two face encoding vectors
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0, magA = 0, magB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(magA) * Math.sqrt(magB);
+  return denom === 0 ? 0 : dot / denom;
+}
+
+const FACE_MATCH_THRESHOLD = 0.6; // cosine similarity threshold for suspect matching
+
+// Rate limit media uploads (prevent abuse)
+const mediaUploadLimit = rateLimit({ windowMs: 60_000, max: 30, message: { error: 'Too many uploads' } });
+
+// ── Upload incident media (photo/video frame from phone camera) ──────────────
+api.post('/incidents/:id/media', authMiddleware, mediaUploadLimit, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { userId } = (req as any).user;
+  if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid incident ID' }); return; }
+
+  const { image_data, media_type, latitude, longitude } = req.body;
+  if (!image_data || typeof image_data !== 'string') {
+    res.status(400).json({ error: 'image_data (base64) required' }); return;
+  }
+  // Limit size: ~500KB base64 max
+  if (image_data.length > 700_000) {
+    res.status(400).json({ error: 'Image too large (max 500KB)' }); return;
+  }
+
+  // Verify incident exists and user has access
+  const incCheck = await pool.query(
+    `SELECT id FROM incidents WHERE id = $1 AND (driver_id = $2 OR EXISTS (SELECT 1 FROM incident_followers WHERE incident_id = $1 AND user_id = $2))`,
+    [id, userId]
+  );
+  if (!incCheck.rows[0]) { res.status(404).json({ error: 'Incident not found' }); return; }
+
+  const r = await pool.query(
+    `INSERT INTO incident_media (incident_id, user_id, media_type, image_data, latitude, longitude)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, media_type, captured_at`,
+    [id, userId, media_type || 'photo', image_data, latitude || null, longitude || null]
+  );
+
+  res.json(r.rows[0]);
+}));
+
+// ── Get media for an incident ────────────────────────────────────────────────
+api.get('/incidents/:id/media', authMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid incident ID' }); return; }
+
+  const r = await pool.query(
+    `SELECT id, media_type, image_data, latitude, longitude, captured_at
+     FROM incident_media WHERE incident_id = $1 ORDER BY captured_at ASC`,
+    [id]
+  );
+  res.json(r.rows);
+}));
+
+// ── Save detected face (encoding + crop from browser face-api.js) ────────────
+api.post('/incidents/:id/faces', authMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { userId } = (req as any).user;
+  if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid incident ID' }); return; }
+
+  const { media_id, face_crop, encoding, confidence, box } = req.body;
+  if (!media_id || !face_crop || !encoding || !Array.isArray(encoding)) {
+    res.status(400).json({ error: 'media_id, face_crop, encoding[] required' }); return;
+  }
+  if (encoding.length < 64 || encoding.length > 512) {
+    res.status(400).json({ error: 'encoding must be 64-512 dimensions' }); return;
+  }
+
+  const r = await pool.query(
+    `INSERT INTO face_detections (incident_id, media_id, user_id, face_crop, encoding, confidence, box_x, box_y, box_w, box_h)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, confidence, created_at`,
+    [id, media_id, userId, face_crop, encoding, confidence || 0, box?.x || null, box?.y || null, box?.w || null, box?.h || null]
+  );
+
+  // Auto-match against existing suspects
+  const suspects = await pool.query(
+    `SELECT id, alias, primary_encoding FROM suspects WHERE status = 'active'`
+  );
+  const matches: { suspect_id: string; alias: string | null; similarity: number }[] = [];
+  for (const suspect of suspects.rows) {
+    const sim = cosineSimilarity(encoding, suspect.primary_encoding);
+    if (sim >= FACE_MATCH_THRESHOLD) {
+      matches.push({ suspect_id: suspect.id, alias: suspect.alias, similarity: Math.round(sim * 100) / 100 });
+
+      // Auto-create sighting if not already linked
+      await pool.query(
+        `INSERT INTO suspect_sightings (suspect_id, incident_id, face_detection_id, similarity_score, latitude, longitude)
+         SELECT $1, $2, $3, $4, i.latitude, i.longitude FROM incidents i WHERE i.id = $2
+         ON CONFLICT (suspect_id, incident_id) DO UPDATE SET similarity_score = GREATEST(suspect_sightings.similarity_score, $4)`,
+        [suspect.id, id, r.rows[0].id, sim]
+      );
+
+      // Update suspect stats
+      await pool.query(
+        `UPDATE suspects SET last_seen_at = NOW(), incident_count = (SELECT COUNT(DISTINCT incident_id) FROM suspect_sightings WHERE suspect_id = $1), updated_at = NOW() WHERE id = $1`,
+        [suspect.id]
+      );
+    }
+  }
+
+  res.json({
+    ...r.rows[0],
+    matches: matches.length > 0 ? matches : undefined,
+    matchCount: matches.length,
+  });
+}));
+
+// ── Get faces for an incident ────────────────────────────────────────────────
+api.get('/incidents/:id/faces', authMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid incident ID' }); return; }
+
+  const r = await pool.query(
+    `SELECT fd.id, fd.face_crop, fd.confidence, fd.box_x, fd.box_y, fd.box_w, fd.box_h, fd.created_at,
+            s.id as suspect_id, s.alias as suspect_alias, ss.similarity_score
+     FROM face_detections fd
+     LEFT JOIN suspect_sightings ss ON ss.face_detection_id = fd.id
+     LEFT JOIN suspects s ON ss.suspect_id = s.id
+     WHERE fd.incident_id = $1
+     ORDER BY fd.created_at ASC`,
+    [id]
+  );
+  res.json(r.rows);
+}));
+
+// ── Mark a face detection as suspect ─────────────────────────────────────────
+api.post('/suspects', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId } = (req as any).user;
+  const { face_detection_id, alias, notes } = req.body;
+  if (!face_detection_id || !isValidUuid(face_detection_id)) {
+    res.status(400).json({ error: 'face_detection_id required' }); return;
+  }
+
+  // Get the face detection
+  const fd = await pool.query(
+    `SELECT fd.*, i.latitude, i.longitude, i.id as incident_id
+     FROM face_detections fd JOIN incidents i ON i.id = fd.incident_id
+     WHERE fd.id = $1`,
+    [face_detection_id]
+  );
+  if (!fd.rows[0]) { res.status(404).json({ error: 'Face detection not found' }); return; }
+  const face = fd.rows[0];
+
+  // Check if this face already matches an existing suspect
+  const existingSuspects = await pool.query(
+    `SELECT id, alias, primary_encoding FROM suspects WHERE status = 'active'`
+  );
+  let matchedSuspect: { id: string; similarity: number } | null = null;
+  for (const s of existingSuspects.rows) {
+    const sim = cosineSimilarity(face.encoding, s.primary_encoding);
+    if (sim >= FACE_MATCH_THRESHOLD) {
+      matchedSuspect = { id: s.id, similarity: sim };
+      break;
+    }
+  }
+
+  if (matchedSuspect) {
+    // Link to existing suspect — new sighting
+    await pool.query(
+      `INSERT INTO suspect_sightings (suspect_id, incident_id, face_detection_id, similarity_score, latitude, longitude, confirmed_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (suspect_id, incident_id) DO UPDATE SET similarity_score = GREATEST(suspect_sightings.similarity_score, $4), confirmed_by = $7`,
+      [matchedSuspect.id, face.incident_id, face_detection_id, matchedSuspect.similarity, face.latitude, face.longitude, userId]
+    );
+    await pool.query(
+      `UPDATE suspects SET last_seen_at = NOW(), incident_count = (SELECT COUNT(DISTINCT incident_id) FROM suspect_sightings WHERE suspect_id = $1), updated_at = NOW(), notes = COALESCE($2, notes) WHERE id = $1`,
+      [matchedSuspect.id, notes || null]
+    );
+
+    const updated = await pool.query(`SELECT * FROM suspects WHERE id = $1`, [matchedSuspect.id]);
+    res.json({ ...updated.rows[0], linked_to_existing: true, similarity: Math.round(matchedSuspect.similarity * 100) / 100 });
+  } else {
+    // Create new suspect
+    const r = await pool.query(
+      `INSERT INTO suspects (alias, primary_encoding, primary_face_crop, notes, created_by, first_seen_at, last_seen_at)
+       VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) RETURNING *`,
+      [alias || null, face.encoding, face.face_crop, notes || null, userId]
+    );
+    const suspect = r.rows[0];
+
+    // Create first sighting
+    await pool.query(
+      `INSERT INTO suspect_sightings (suspect_id, incident_id, face_detection_id, similarity_score, latitude, longitude, confirmed_by)
+       VALUES ($1, $2, $3, 1.0, $4, $5, $6)`,
+      [suspect.id, face.incident_id, face_detection_id, face.latitude, face.longitude, userId]
+    );
+
+    res.json({ ...suspect, linked_to_existing: false });
+  }
+}));
+
+// ── List all suspects with sighting stats ────────────────────────────────────
+api.get('/suspects', authMiddleware, asyncHandler(async (req, res) => {
+  const r = await pool.query(
+    `SELECT s.id, s.alias, s.primary_face_crop, s.status, s.notes, s.incident_count,
+            s.first_seen_at, s.last_seen_at, s.created_at,
+            u.name as created_by_name
+     FROM suspects s
+     LEFT JOIN users u ON s.created_by = u.id
+     ORDER BY s.last_seen_at DESC`
+  );
+  res.json(r.rows);
+}));
+
+// ── Get suspect detail with full incident history ────────────────────────────
+api.get('/suspects/:id', authMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid suspect ID' }); return; }
+
+  const suspect = await pool.query(`SELECT * FROM suspects WHERE id = $1`, [id]);
+  if (!suspect.rows[0]) { res.status(404).json({ error: 'Suspect not found' }); return; }
+
+  // Get all sightings with incident details
+  const sightings = await pool.query(
+    `SELECT ss.*, i.latitude as inc_lat, i.longitude as inc_lng, i.started_at as inc_date,
+            i.status as inc_status, i.source as inc_source,
+            v.plate, fd.face_crop, fd.confidence,
+            u.name as confirmed_by_name
+     FROM suspect_sightings ss
+     JOIN incidents i ON i.id = ss.incident_id
+     LEFT JOIN vehicles v ON v.id = i.vehicle_id
+     LEFT JOIN face_detections fd ON fd.id = ss.face_detection_id
+     LEFT JOIN users u ON u.id = ss.confirmed_by
+     WHERE ss.suspect_id = $1
+     ORDER BY i.started_at DESC`,
+    [id]
+  );
+
+  // Build pattern analysis
+  const locations = sightings.rows
+    .filter((s: any) => s.latitude && s.longitude)
+    .map((s: any) => ({ lat: s.latitude || s.inc_lat, lng: s.longitude || s.inc_lng, date: s.inc_date }));
+
+  res.json({
+    ...suspect.rows[0],
+    sightings: sightings.rows,
+    pattern: {
+      total_incidents: sightings.rows.length,
+      locations,
+      date_range: sightings.rows.length > 0
+        ? { first: sightings.rows[sightings.rows.length - 1].inc_date, last: sightings.rows[0].inc_date }
+        : null,
+    },
+  });
+}));
+
+// ── Update suspect (alias, status, notes) ────────────────────────────────────
+api.put('/suspects/:id', authMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid suspect ID' }); return; }
+
+  const { alias, status, notes } = req.body;
+  const validStatuses = ['active', 'captured', 'cleared', 'archived'];
+  if (status && !validStatuses.includes(status)) {
+    res.status(400).json({ error: `Invalid status. Valid: ${validStatuses.join(', ')}` }); return;
+  }
+
+  const r = await pool.query(
+    `UPDATE suspects SET
+       alias = COALESCE($2, alias),
+       status = COALESCE($3, status),
+       notes = COALESCE($4, notes),
+       updated_at = NOW()
+     WHERE id = $1 RETURNING *`,
+    [id, alias || null, status || null, notes || null]
+  );
+  if (!r.rows[0]) { res.status(404).json({ error: 'Suspect not found' }); return; }
+  res.json(r.rows[0]);
+}));
+
+// ── Match a face encoding against all suspects ──────────────────────────────
+api.post('/suspects/match', authMiddleware, asyncHandler(async (req, res) => {
+  const { encoding } = req.body;
+  if (!encoding || !Array.isArray(encoding) || encoding.length < 64) {
+    res.status(400).json({ error: 'encoding[] required (64-512 dims)' }); return;
+  }
+
+  const suspects = await pool.query(
+    `SELECT id, alias, primary_encoding, primary_face_crop, status, incident_count, last_seen_at
+     FROM suspects WHERE status = 'active'`
+  );
+
+  const matches = suspects.rows
+    .map((s: any) => ({
+      suspect_id: s.id,
+      alias: s.alias,
+      face_crop: s.primary_face_crop,
+      incident_count: s.incident_count,
+      last_seen_at: s.last_seen_at,
+      similarity: Math.round(cosineSimilarity(encoding, s.primary_encoding) * 100) / 100,
+    }))
+    .filter((m: any) => m.similarity >= FACE_MATCH_THRESHOLD)
+    .sort((a: any, b: any) => b.similarity - a.similarity);
+
+  res.json({ matches, threshold: FACE_MATCH_THRESHOLD });
+}));
