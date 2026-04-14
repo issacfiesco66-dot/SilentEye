@@ -35,3 +35,7 @@ coverage/
 .vercel/
 .cloudflared/
 .fly/
+
+# Google Cloud service account keys
+*-service-account*.json
+silenteye-*.json

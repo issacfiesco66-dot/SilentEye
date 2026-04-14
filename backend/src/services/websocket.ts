@@ -55,6 +55,7 @@ export interface PanicEvent {
   timestamp: number;
   nearbyCount: number;
   source?: string;
+  activateCamera?: boolean;
 }
 
 export interface AlertEvent {
