@@ -373,10 +373,13 @@ export async function analyzeTerrainChange(
   try {
     // Multi-index thresholding with sensitivity-aware parameters
     // Require at least 2 of 3 indices to flag — single-index hits are often noise
-    const vegLoss = ndviDiff.lt(-cfg.ndviThreshold);       // NDVI drop
-    const soilExposure = bsiDiff.gt(cfg.bsiThreshold);     // BSI rise
-    const saviLoss = saviDiff.lt(-cfg.saviThreshold);      // SAVI drop
-    const indexCount = vegLoss.add(soilExposure).add(saviLoss); // 0-3
+    const vegLoss = ndviDiff.lt(-cfg.ndviThreshold);       // NDVI drop (binary)
+    const soilExposure = bsiDiff.gt(cfg.bsiThreshold);     // BSI rise (binary)
+    const saviLoss = saviDiff.lt(-cfg.saviThreshold);      // SAVI drop (binary)
+    // Rename to common band before adding (GEE .add() requires matching band names)
+    const indexCount = vegLoss.rename('flag')
+      .add(soilExposure.rename('flag'))
+      .add(saviLoss.rename('flag')); // 0-3
     const anyAnomaly = indexCount.gte(2); // must trigger at least 2 indices
 
     // Step 1: Count how many anomalous pixels exist (diagnostic)
