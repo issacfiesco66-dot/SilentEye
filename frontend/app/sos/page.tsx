@@ -93,6 +93,7 @@ export default function SOSPage() {
   const [cameraActive, setCameraActive] = useState(false);
   const [detectedFaces, setDetectedFaces] = useState(0);
   const [showSuspects, setShowSuspects] = useState(false);
+  const [gpsPanicPrompt, setGpsPanicPrompt] = useState<{ incidentId: string; plate?: string } | null>(null);
   const watchRef = useRef<number | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const locationReportRef = useRef<NodeJS.Timeout | null>(null);
@@ -137,6 +138,12 @@ export default function SOSPage() {
         }
       })
       .catch(() => {});
+
+    // If push notification included activateCamera, show camera prompt
+    const wantCamera = params.get('activateCamera');
+    if (wantCamera && incidentId) {
+      setGpsPanicPrompt({ incidentId });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -208,7 +215,7 @@ export default function SOSPage() {
     enabled: !!token,
     onMessage: useCallback((msg: { type: string; payload: unknown }) => {
       if (msg.type === 'panic' && msg.payload) {
-        const p = msg.payload as { incidentId?: string; plate?: string; latitude?: number; longitude?: number; timestamp?: number; vehicleId?: string; imei?: string; source?: string };
+        const p = msg.payload as { incidentId?: string; plate?: string; latitude?: number; longitude?: number; timestamp?: number; vehicleId?: string; imei?: string; source?: string; activateCamera?: boolean };
         if (p.incidentId && typeof p.latitude === 'number') {
           const alert: IncomingAlert = {
             incidentId: p.incidentId,
@@ -229,6 +236,10 @@ export default function SOSPage() {
           // Sound + vibrate to notify
           playAlarmSound();
           if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
+          // GPS panic with camera activation request
+          if (p.activateCamera && p.source === 'gps_panic') {
+            setGpsPanicPrompt({ incidentId: p.incidentId!, plate: p.plate });
+          }
         }
       }
 
@@ -609,6 +620,41 @@ export default function SOSPage() {
           </button>
         </div>
       </main>}
+
+      {/* GPS Panic — Camera activation banner */}
+      {gpsPanicPrompt && (
+        <div className="fixed inset-x-0 top-0 z-[10000] safe-area-top">
+          <div className="bg-red-600 animate-pulse">
+            <button
+              onClick={() => {
+                // Set result so SOSCamera renders, then activate camera
+                setResult({ incidentId: gpsPanicPrompt.incidentId, nearbyCount: 0 });
+                setCameraActive(true);
+                setDetectedFaces(0);
+                setGpsPanicPrompt(null);
+              }}
+              className="w-full px-4 py-5 flex flex-col items-center gap-2 text-white"
+            >
+              <div className="flex items-center gap-2">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg>
+                <span className="text-lg font-bold tracking-wide">PÁNICO GPS DETECTADO</span>
+              </div>
+              <span className="text-white/90 text-sm font-medium">
+                {gpsPanicPrompt.plate ? `Vehículo: ${gpsPanicPrompt.plate}` : 'Botón de pánico activado'}
+              </span>
+              <span className="mt-1 bg-white text-red-600 font-bold text-sm px-6 py-2 rounded-full">
+                TOCA PARA GRABAR
+              </span>
+            </button>
+            <button
+              onClick={() => setGpsPanicPrompt(null)}
+              className="absolute top-3 right-3 text-white/70 hover:text-white"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Incoming alerts banner — tap to open tracking map */}
       {activeTab === 'emergency' && incomingAlerts.length > 0 && !trackingIncident && (

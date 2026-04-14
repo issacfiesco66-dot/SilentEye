@@ -240,10 +240,15 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
   const client = await pool.connect();
   try {
     const vehicleResult = await client.query(
-      'SELECT id, driver_id, plate FROM vehicles WHERE imei = $1',
+      'SELECT id, driver_id, owner_id, plate FROM vehicles WHERE imei = $1',
       [imei]
     );
     const vehicle = vehicleResult.rows[0];
+
+    // Collect driver + owner IDs for camera activation notifications
+    const cameraTargetIds: string[] = [];
+    if (vehicle?.driver_id) cameraTargetIds.push(vehicle.driver_id);
+    if (vehicle?.owner_id && !cameraTargetIds.includes(vehicle.owner_id)) cameraTargetIds.push(vehicle.owner_id);
 
     if (postgis) {
       const incidentResult = await client.query(
@@ -266,11 +271,23 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
         [latitude, longitude, NEARBY_DRIVERS_RADIUS_M, vehicle?.driver_id ?? null]
       );
       const nearbyDrivers = nearbyResult.rows;
+      // Include driver + owner as incident followers
+      for (const uid of cameraTargetIds) {
+        await client.query(
+          'INSERT INTO incident_followers (incident_id, user_id, status) VALUES ($1, $2, $3) ON CONFLICT (incident_id, user_id) DO NOTHING',
+          [incident.id, uid, 'notified']
+        );
+      }
       for (const driver of nearbyDrivers) {
         await client.query(
           'INSERT INTO incident_followers (incident_id, user_id, status) VALUES ($1, $2, $3) ON CONFLICT (incident_id, user_id) DO NOTHING',
           [incident.id, driver.id, 'notified']
         );
+      }
+      // Merge nearby + camera targets for broadcast
+      const allRecipientIds = [...nearbyDrivers.map((d: { id: string }) => d.id)];
+      for (const uid of cameraTargetIds) {
+        if (!allRecipientIds.includes(uid)) allRecipientIds.push(uid);
       }
       broadcastPanic(
         {
@@ -282,10 +299,12 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
           longitude,
           timestamp,
           nearbyCount: nearbyDrivers.length,
+          source: 'gps_panic',
+          activateCamera: true,
         },
-        nearbyDrivers.map((d: { id: string }) => d.id)
+        allRecipientIds
       );
-      // Push notifications (non-blocking)
+      // Push to nearby users
       sendPushToUsers(
         nearbyDrivers.map((d: { id: string }) => d.id),
         {
@@ -297,7 +316,21 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
           data: { url: '/sos', incidentId: incident.id, latitude, longitude },
         }
       ).catch((err) => logger.error('Push send error (GPS panic):', err));
-      logger.info(`PANIC IMEI=${imei} conductores_cercanos=${nearbyDrivers.length}`);
+      // Push to driver + owner: activate camera
+      if (cameraTargetIds.length > 0) {
+        sendPushToUsers(
+          cameraTargetIds,
+          {
+            title: 'PÁNICO GPS — ACTIVA TU CÁMARA',
+            body: `Botón de pánico activado en ${vehicle?.plate ?? imei}. Toca para grabar evidencia.`,
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            tag: `panic-camera-${incident.id}`,
+            data: { url: '/sos', incidentId: incident.id, latitude, longitude, activateCamera: true },
+          }
+        ).catch((err) => logger.error('Push send error (GPS panic camera):', err));
+      }
+      logger.info(`PANIC IMEI=${imei} conductores_cercanos=${nearbyDrivers.length} camera_targets=${cameraTargetIds.length}`);
     } else {
       const incidentResult = await client.query(
         `INSERT INTO incidents (vehicle_id, driver_id, imei, status, latitude, longitude, started_at)
@@ -318,11 +351,21 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
         [latitude, longitude, NEARBY_DRIVERS_RADIUS_M, vehicle?.driver_id ?? null]
       );
       const nearbyDrivers = nearbyResult.rows;
+      for (const uid of cameraTargetIds) {
+        await client.query(
+          'INSERT INTO incident_followers (incident_id, user_id, status) VALUES ($1, $2, $3) ON CONFLICT (incident_id, user_id) DO NOTHING',
+          [incident.id, uid, 'notified']
+        );
+      }
       for (const driver of nearbyDrivers) {
         await client.query(
           'INSERT INTO incident_followers (incident_id, user_id, status) VALUES ($1, $2, $3) ON CONFLICT (incident_id, user_id) DO NOTHING',
           [incident.id, driver.id, 'notified']
         );
+      }
+      const allRecipientIds = [...nearbyDrivers.map((d: { id: string }) => d.id)];
+      for (const uid of cameraTargetIds) {
+        if (!allRecipientIds.includes(uid)) allRecipientIds.push(uid);
       }
       broadcastPanic(
         {
@@ -334,10 +377,12 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
           longitude,
           timestamp,
           nearbyCount: nearbyDrivers.length,
+          source: 'gps_panic',
+          activateCamera: true,
         },
-        nearbyDrivers.map((d: { id: string }) => d.id)
+        allRecipientIds
       );
-      // Push notifications (non-blocking)
+      // Push to nearby users
       sendPushToUsers(
         nearbyDrivers.map((d: { id: string }) => d.id),
         {
@@ -349,7 +394,20 @@ export async function processPanicEvent(imei: string, record: AVLRecord): Promis
           data: { url: '/sos', incidentId: incident.id, latitude, longitude },
         }
       ).catch((err) => logger.error('Push send error (GPS panic simple):', err));
-      logger.info(`PANIC IMEI=${imei} conductores_cercanos=${nearbyDrivers.length}`);
+      if (cameraTargetIds.length > 0) {
+        sendPushToUsers(
+          cameraTargetIds,
+          {
+            title: 'PÁNICO GPS — ACTIVA TU CÁMARA',
+            body: `Botón de pánico activado en ${vehicle?.plate ?? imei}. Toca para grabar evidencia.`,
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            tag: `panic-camera-${incident.id}`,
+            data: { url: '/sos', incidentId: incident.id, latitude, longitude, activateCamera: true },
+          }
+        ).catch((err) => logger.error('Push send error (GPS panic camera simple):', err));
+      }
+      logger.info(`PANIC IMEI=${imei} conductores_cercanos=${nearbyDrivers.length} camera_targets=${cameraTargetIds.length}`);
     }
   } finally {
     client.release();

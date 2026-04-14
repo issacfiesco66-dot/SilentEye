@@ -52,6 +52,10 @@ self.addEventListener('notificationclick', (event) => {
     const sep = fallbackUrl.includes('?') ? '&' : '?';
     fallbackUrl = `${fallbackUrl}${sep}incident=${data.incidentId}`;
   }
+  if (data.activateCamera) {
+    const sep = fallbackUrl.includes('?') ? '&' : '?';
+    fallbackUrl = `${fallbackUrl}${sep}activateCamera=1`;
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
