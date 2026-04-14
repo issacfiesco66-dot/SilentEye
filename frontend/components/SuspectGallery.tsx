@@ -44,9 +44,28 @@ interface SuspectDetail extends Suspect {
   };
 }
 
+interface CapturedFace {
+  id: string;
+  incident_id: string;
+  face_crop: string;
+  confidence: number;
+  created_at: string;
+  inc_date: string;
+  inc_status: string;
+  inc_source: string | null;
+  inc_lat: number | null;
+  inc_lng: number | null;
+  plate: string | null;
+  suspect_id: string | null;
+  suspect_alias: string | null;
+  similarity_score: number | null;
+}
+
 interface SuspectGalleryProps {
   token: string;
-  onClose: () => void;
+  onClose?: () => void;
+  /** When true, render inline (no fixed overlay). Use in admin/dashboard sections. */
+  embedded?: boolean;
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
@@ -56,14 +75,24 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
   archived: { label: 'ARCHIVADO', color: 'text-amber-700', bg: 'bg-amber-100' },
 };
 
-export default function SuspectGallery({ token, onClose }: SuspectGalleryProps) {
+export default function SuspectGallery({ token, onClose, embedded = false }: SuspectGalleryProps) {
+  const rootClass = embedded
+    ? 'bg-white rounded-xl border border-zinc-200 overflow-hidden flex flex-col min-h-[70vh]'
+    : 'fixed inset-0 z-[9998] bg-white flex flex-col';
+  const detailRootClass = embedded
+    ? 'bg-white rounded-xl border border-zinc-200 overflow-hidden flex flex-col min-h-[70vh]'
+    : 'fixed inset-0 z-[9998] bg-white flex flex-col';
+  const [tab, setTab] = useState<'suspects' | 'faces'>('suspects');
   const [suspects, setSuspects] = useState<Suspect[]>([]);
+  const [faces, setFaces] = useState<CapturedFace[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingFaces, setLoadingFaces] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SuspectDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [editAlias, setEditAlias] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [markingFaceId, setMarkingFaceId] = useState<string | null>(null);
 
   // Fetch all suspects
   const fetchSuspects = useCallback(async () => {
@@ -79,7 +108,39 @@ export default function SuspectGallery({ token, onClose }: SuspectGalleryProps) 
     setLoading(false);
   }, [token]);
 
+  // Fetch all captured faces
+  const fetchFaces = useCallback(async () => {
+    setLoadingFaces(true);
+    try {
+      const res = await fetch(`${API}/api/faces/my`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFaces(data);
+      }
+    } catch {}
+    setLoadingFaces(false);
+  }, [token]);
+
   useEffect(() => { fetchSuspects(); }, [fetchSuspects]);
+  useEffect(() => { if (tab === 'faces') fetchFaces(); }, [tab, fetchFaces]);
+
+  // Mark a captured face as suspect
+  const markFaceAsSuspect = useCallback(async (faceId: string) => {
+    setMarkingFaceId(faceId);
+    try {
+      const res = await fetch(`${API}/api/suspects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ face_detection_id: faceId }),
+      });
+      if (res.ok) {
+        await Promise.all([fetchFaces(), fetchSuspects()]);
+      }
+    } catch {}
+    setMarkingFaceId(null);
+  }, [token, fetchFaces, fetchSuspects]);
 
   // Fetch suspect detail
   const openDetail = useCallback(async (id: string) => {
@@ -123,9 +184,9 @@ export default function SuspectGallery({ token, onClose }: SuspectGalleryProps) 
   if (selectedId && detail) {
     const st = STATUS_LABELS[detail.status] || STATUS_LABELS.active;
     return (
-      <div className="fixed inset-0 z-[9998] bg-white flex flex-col">
+      <div className={detailRootClass}>
         {/* Header */}
-        <div className="bg-zinc-900 text-white px-4 py-3 flex items-center gap-3 safe-area-top">
+        <div className={`bg-zinc-900 text-white px-4 py-3 flex items-center gap-3 ${embedded ? '' : 'safe-area-top'}`}>
           <button onClick={() => { setSelectedId(null); setDetail(null); }} className="text-sm flex items-center gap-1">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
           </button>
@@ -314,7 +375,7 @@ export default function SuspectGallery({ token, onClose }: SuspectGalleryProps) 
   // ── Loading detail ─────────────────────────────────────────────────────────
   if (selectedId && loadingDetail) {
     return (
-      <div className="fixed inset-0 z-[9998] bg-white flex items-center justify-center">
+      <div className={`${detailRootClass} items-center justify-center`}>
         <div className="text-center">
           <svg width="24" height="24" viewBox="0 0 24 24" className="animate-spin mx-auto text-zinc-400 mb-2" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" /></svg>
           <p className="text-zinc-400 text-xs">Cargando expediente...</p>
@@ -325,17 +386,114 @@ export default function SuspectGallery({ token, onClose }: SuspectGalleryProps) 
 
   // ── Gallery view ───────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-[9998] bg-white flex flex-col">
+    <div className={rootClass}>
       {/* Header */}
-      <div className="bg-zinc-900 text-white px-4 py-3 flex items-center justify-between safe-area-top">
-        <button onClick={onClose} className="text-sm flex items-center gap-1.5">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-          Cerrar
-        </button>
-        <span className="font-bold text-sm">Sospechosos</span>
-        <span className="text-zinc-400 text-xs">{suspects.length}</span>
+      <div className={`bg-zinc-900 text-white px-4 py-3 flex items-center justify-between ${embedded ? '' : 'safe-area-top'}`}>
+        {embedded ? (
+          <span className="text-zinc-400 text-xs uppercase tracking-wider">Evidencia</span>
+        ) : (
+          <button onClick={onClose} className="text-sm flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+            Cerrar
+          </button>
+        )}
+        <span className="font-bold text-sm">Evidencia facial</span>
+        <span className="text-zinc-400 text-xs">
+          {tab === 'suspects' ? suspects.length : faces.length}
+        </span>
       </div>
 
+      {/* Tabs */}
+      <div className="bg-zinc-900 border-t border-zinc-800 flex">
+        <button
+          onClick={() => setTab('suspects')}
+          className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors ${
+            tab === 'suspects' ? 'text-white border-b-2 border-red-500' : 'text-zinc-500'
+          }`}
+        >
+          Sospechosos
+        </button>
+        <button
+          onClick={() => setTab('faces')}
+          className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors ${
+            tab === 'faces' ? 'text-white border-b-2 border-red-500' : 'text-zinc-500'
+          }`}
+        >
+          Rostros capturados
+        </button>
+      </div>
+
+      {/* Faces tab */}
+      {tab === 'faces' && (
+        <div className="flex-1 overflow-y-auto">
+          {loadingFaces && (
+            <div className="flex items-center justify-center h-32">
+              <svg width="20" height="20" viewBox="0 0 24 24" className="animate-spin text-zinc-300" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" opacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" /></svg>
+            </div>
+          )}
+
+          {!loadingFaces && faces.length === 0 && (
+            <div className="text-center py-12 px-6">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#d4d4d8" strokeWidth="1.5" className="mx-auto mb-3"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg>
+              <p className="text-zinc-400 text-sm">Sin rostros capturados</p>
+              <p className="text-zinc-300 text-xs mt-1">Los rostros detectados durante un SOS aparecerán aquí</p>
+            </div>
+          )}
+
+          {!loadingFaces && faces.length > 0 && (
+            <div className="p-4">
+              <p className="text-[10px] text-zinc-400 uppercase tracking-wider mb-3">
+                Toca "Marcar" para registrar un rostro como sospechoso
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {faces.map(f => (
+                  <div key={f.id} className="border border-zinc-200 rounded-xl overflow-hidden bg-white">
+                    <div className="relative aspect-square bg-zinc-100">
+                      <img
+                        src={`data:image/jpeg;base64,${f.face_crop}`}
+                        alt="Rostro capturado"
+                        className="w-full h-full object-cover"
+                      />
+                      {f.suspect_id && (
+                        <div className="absolute top-1 right-1 bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                          SOSPECHOSO
+                        </div>
+                      )}
+                      <div className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded">
+                        {Math.round(f.confidence * 100)}%
+                      </div>
+                    </div>
+                    <div className="p-2">
+                      <p className="text-[10px] text-zinc-500 truncate">
+                        {f.plate ? `${f.plate} · ` : ''}{formatDate(f.inc_date)}
+                      </p>
+                      {f.suspect_id ? (
+                        <button
+                          onClick={() => openDetail(f.suspect_id!)}
+                          className="w-full mt-1.5 py-1.5 bg-orange-50 text-orange-700 text-[10px] font-bold rounded-lg border border-orange-200"
+                        >
+                          Ver expediente
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => markFaceAsSuspect(f.id)}
+                          disabled={markingFaceId === f.id}
+                          className="w-full mt-1.5 py-1.5 bg-red-600 text-white text-[10px] font-bold rounded-lg disabled:opacity-50"
+                        >
+                          {markingFaceId === f.id ? 'Marcando...' : 'Marcar sospechoso'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Suspects tab */}
+      {tab === 'suspects' && (
       <div className="flex-1 overflow-y-auto">
         {loading && (
           <div className="flex items-center justify-center h-32">
@@ -396,6 +554,7 @@ export default function SuspectGallery({ token, onClose }: SuspectGalleryProps) 
           })}
         </div>
       </div>
+      )}
     </div>
   );
 }

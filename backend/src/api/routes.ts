@@ -3026,6 +3026,31 @@ api.get('/incidents/:id/faces', authMiddleware, asyncHandler(async (req, res) =>
   res.json(r.rows);
 }));
 
+// ── List all faces detected across the user's incidents (admin sees all) ────
+api.get('/faces/my', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId, role } = (req as any).user;
+  const isAdmin = role === 'admin';
+  const r = await pool.query(
+    `SELECT fd.id, fd.incident_id, fd.face_crop, fd.confidence, fd.created_at,
+            i.started_at as inc_date, i.status as inc_status, i.source as inc_source,
+            i.latitude as inc_lat, i.longitude as inc_lng,
+            v.plate,
+            s.id as suspect_id, s.alias as suspect_alias, ss.similarity_score
+     FROM face_detections fd
+     JOIN incidents i ON i.id = fd.incident_id
+     LEFT JOIN vehicles v ON v.id = i.vehicle_id
+     LEFT JOIN suspect_sightings ss ON ss.face_detection_id = fd.id
+     LEFT JOIN suspects s ON ss.suspect_id = s.id
+     WHERE $2::boolean
+        OR i.driver_id = $1
+        OR EXISTS (SELECT 1 FROM incident_followers WHERE incident_id = i.id AND user_id = $1)
+     ORDER BY fd.created_at DESC
+     LIMIT 500`,
+    [userId, isAdmin]
+  );
+  res.json(r.rows);
+}));
+
 // ── Mark a face detection as suspect ─────────────────────────────────────────
 api.post('/suspects', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;

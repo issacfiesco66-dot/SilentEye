@@ -227,6 +227,13 @@ export default function SOSCamera({ token, incidentId, coords, active, onFaceDet
     captureIntervalRef.current = setInterval(captureFrame, 3000);
   }, [captureFrame]);
 
+  // Auto-start capture as soon as camera is ready (no extra tap needed)
+  useEffect(() => {
+    if (status === 'ready' && active && !captureIntervalRef.current) {
+      startCapture();
+    }
+  }, [status, active, startCapture]);
+
   const stopCapture = useCallback(() => {
     if (captureIntervalRef.current) {
       clearInterval(captureIntervalRef.current);
@@ -344,15 +351,11 @@ export default function SOSCamera({ token, incidentId, coords, active, onFaceDet
 
       {/* Controls */}
       <div className="bg-zinc-900 px-4 py-3 safe-area-bottom">
-        {/* Capture button */}
+        {/* Ready state (transitional — auto-capture kicks in immediately) */}
         {status === 'ready' && (
-          <button
-            onClick={startCapture}
-            className="w-full py-3 bg-red-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2"
-          >
-            <div className="w-3 h-3 rounded-full bg-white" />
-            Iniciar captura de rostros
-          </button>
+          <div className="w-full py-3 text-center text-zinc-400 text-xs">
+            Iniciando captura automática...
+          </div>
         )}
 
         {status === 'capturing' && (

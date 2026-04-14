@@ -20,7 +20,7 @@ export default function LoginPage() {
 
 function LoginContent() {
   const router = useRouter();
-  const [method, setMethod] = useState<LoginMethod>('gps');
+  const [method, setMethod] = useState<LoginMethod>('email');
   const [step, setStep] = useState<'input' | 'otp'>('input');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');

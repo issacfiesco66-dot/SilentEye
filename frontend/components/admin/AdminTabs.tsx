@@ -2,7 +2,7 @@
 
 import { useLocale } from '@/hooks/useLocale';
 
-export type Tab = 'incidents' | 'alerts' | 'gps_activity' | 'map' | 'vehicles' | 'drivers' | 'comandancia';
+export type Tab = 'incidents' | 'alerts' | 'gps_activity' | 'map' | 'vehicles' | 'drivers' | 'suspects' | 'comandancia';
 
 interface AdminTabsProps {
   activeTab: Tab;
@@ -19,6 +19,7 @@ export default function AdminTabs({ activeTab, onTabChange }: AdminTabsProps) {
     { id: 'map', label: t.common.realTime },
     { id: 'vehicles', label: t.common.vehicles },
     { id: 'drivers', label: t.admin.tabs.drivers },
+    { id: 'suspects', label: 'Sospechosos' },
     { id: 'comandancia', label: t.admin.tabs.comandancia },
   ];
 
