@@ -19,7 +19,11 @@ import {
   verifyToken,
   revokeToken,
   isTokenRevoked,
+  setAuthCookie,
+  clearAuthCookie,
+  extractToken,
 } from './auth.js';
+import { issueTicket } from '../services/ws-ticket-store.js';
 import { getAlerts, deleteAlerts } from '../services/alert-service.js';
 import { broadcastLocation, broadcastPanic, broadcastIncidentUpdate, broadcastToAdmins } from '../services/websocket.js';
 import { sendPushToUsers, saveSubscription, removeSubscription, getVapidPublicKey } from '../services/push-service.js';
@@ -263,10 +267,18 @@ api.post('/setup/otp', asyncHandler(async (req, res) => {
 }));
 
 function authMiddleware(req: import('express').Request, res: import('express').Response, next: import('express').NextFunction): void {
-  const auth = req.headers.authorization;
-  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
+  // Dual-mode: prefer the HttpOnly cookie, fall back to Authorization
+  // header so the legacy frontend (and any client still on the old auth
+  // model) keeps working during the migration window.
+  const { token, source } = extractToken(req);
   const payload = token ? verifyToken(token) : null;
   if (!payload) {
+    // Diagnostic log for iOS Safari ITP debugging — when the cookie is
+    // unexpectedly absent we want to know whether ANY cookie made it
+    // through and which UA we are dealing with.
+    const hasCookieHeader = !!req.headers.cookie;
+    const ua = (req.headers['user-agent'] as string | undefined)?.slice(0, 80) || '';
+    logger.warn(`[auth] reject path=${req.path} cookieHeader=${hasCookieHeader} bearer=${!!req.headers.authorization} ua="${ua}"`);
     res.status(401).json({ error: t(req, 'unauthorized') });
     return;
   }
@@ -279,9 +291,11 @@ function authMiddleware(req: import('express').Request, res: import('express').R
       return;
     }
     (req as any).user = payload;
+    (req as any).authSource = source;
     next();
   }).catch(() => {
     (req as any).user = payload;
+    (req as any).authSource = source;
     next();
   });
 }
@@ -534,6 +548,9 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
       const token = signToken({ userId: user.id, role: user.role });
+      setAuthCookie(res, token);
+      // Token is still returned in the body so the legacy frontend (and
+      // any third-party client) keeps working during the migration.
       res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role, permissions: getPermissions(user.role) } });
       return;
     }
@@ -569,6 +586,7 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
       let user = existingUser;
       user = user ?? await findOrCreateUser(cleanEmail, name?.trim(), 'citizen', cleanEmail);
       const token = signToken({ userId: user.id, role: user.role });
+      setAuthCookie(res, token);
       res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role, email: user.email, plan: user.plan || 'free', permissions: getPermissions(user.role) } });
       return;
     }
@@ -591,6 +609,7 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
       const token = signToken({ userId: existingUser.id, role: existingUser.role });
+      setAuthCookie(res, token);
       res.json({ token, user: { id: existingUser.id, phone: existingUser.phone, name: existingUser.name, role: existingUser.role, permissions: getPermissions(existingUser.role) } });
       return;
     }
@@ -630,6 +649,7 @@ api.post('/auth/login', authRateLimit, asyncHandler(async (req, res) => {
       return;
     }
     const token = signToken({ userId: user.id, role: user.role });
+    setAuthCookie(res, token);
     res.json({
       token,
       user: {
@@ -648,12 +668,11 @@ api.post('/auth/login', authRateLimit, asyncHandler(async (req, res) => {
 }));
 
 // ── Logout — revoke the current JWT server-side ─────────────────────────────
-// Takes the Bearer token from the caller and writes its jti into
-// token_blacklist. Subsequent requests with the same token are rejected by
-// authMiddleware. Idempotent — calling twice is a no-op.
+// Reads the token from cookie OR Bearer (whichever the caller has) and
+// writes its jti into token_blacklist. Always clears the auth cookie even
+// if the token was already invalid. Idempotent.
 api.post('/auth/logout', asyncHandler(async (req, res) => {
-  const auth = req.headers.authorization;
-  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
+  const { token } = extractToken(req);
   const decoded = token ? verifyToken(token) : null;
   if (decoded) {
     await revokeToken(decoded, 'logout');
@@ -665,8 +684,26 @@ api.post('/auth/logout', asyncHandler(async (req, res) => {
       });
     } catch { /* audit is best-effort */ }
   }
-  // Always return 200 — do not leak whether the token was valid
+  // Clear the HttpOnly cookie no matter what — never leak whether the
+  // caller was actually authenticated.
+  clearAuthCookie(res);
   res.json({ ok: true });
+}));
+
+// ── WebSocket ticket — single-use, short-lived handshake credential ─────────
+// The HttpOnly auth cookie cannot be read by JavaScript, so the frontend
+// can't put the JWT into the WebSocket subprotocol. Instead it calls this
+// endpoint (cookie-authenticated) and receives a fresh ticket, then opens
+// `wss://.../ws?ticket=<ticket>`. The ticket lives 30s and is consumed
+// atomically on WS upgrade — replay-resistant.
+api.post('/auth/ws-ticket', authMiddleware, asyncHandler(async (req, res) => {
+  const { userId, role } = (req as any).user;
+  const ticket = issueTicket(userId, role);
+  // Mild diagnostic for ITP triage — we want to know which auth source
+  // produced the ticket so we can correlate cookie-loss events.
+  const source = (req as any).authSource;
+  logger.info(`[ws-ticket] issued userId=${userId} via=${source}`);
+  res.json({ ticket });
 }));
 
 api.get('/me', authMiddleware, asyncHandler(async (req, res) => {

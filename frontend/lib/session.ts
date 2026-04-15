@@ -124,14 +124,19 @@ export function getSession(): { token: string; user: SessionUser } | null {
 /** Clear session (explicit logout only) */
 export function clearSession() {
   // Best-effort server-side revocation. Fire-and-forget so logout stays
-  // responsive even if the backend is unreachable.
+  // responsive even if the backend is unreachable. Sends both the legacy
+  // Bearer token (if present in localStorage) AND the HttpOnly cookie via
+  // credentials:'include' so the server can revoke whichever it has.
   const token = lsGet(TOKEN_KEY) || getCookie(COOKIE_TOKEN);
-  if (token && typeof window !== 'undefined') {
+  if (typeof window !== 'undefined') {
     try {
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
       // Use keepalive so the request survives page navigation after logout.
       fetch('/api/auth/logout', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        headers,
         keepalive: true,
       }).catch(() => { /* ignore */ });
     } catch { /* ignore */ }

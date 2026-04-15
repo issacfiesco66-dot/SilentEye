@@ -9,11 +9,13 @@ import './env.js';
 import http from 'http';
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { createTeltonikaTcpServer } from './gps/tcp-server.js';
 import { createWebSocketServer, getWebSocketClientCount } from './services/websocket.js';
 import { api } from './api/routes.js';
 import { startOtpCleanup, startBlacklistCleanup } from './api/auth.js';
+import { startTicketGc } from './services/ws-ticket-store.js';
 import { logger } from './utils/logger.js';
 import { initializeGEE } from './services/gee-service.js';
 
@@ -57,11 +59,20 @@ app.use(cors({
         return cb(null, false);
       }
     : true, // desarrollo: permitir cualquier origin
+  // credentials:true is required for the browser to send the HttpOnly auth
+  // cookie cross-origin (frontend on vercel.app → backend on fly.dev).
+  // Without this, fetch with credentials:'include' silently drops the cookie.
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
   optionsSuccessStatus: 204,
   preflightContinue: false,
 }));
+
+// cookie-parser MUST run before any route that reads req.cookies. We don't
+// pass a secret here because the JWT itself is the integrity proof — the
+// cookie just transports the signed token.
+app.use(cookieParser());
 
 // Security headers
 app.use((_req, res, next) => {
@@ -164,6 +175,7 @@ server.listen(HTTP_PORT, '0.0.0.0', async () => {
   }
   startOtpCleanup();
   startBlacklistCleanup();
+  startTicketGc();
   startIncidentAutoTimeout();
   startBiometricRetention();
   initializeGEE().catch(() => {}); // non-blocking — logs its own errors

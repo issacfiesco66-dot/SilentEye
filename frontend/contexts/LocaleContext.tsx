@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import es from '@/i18n/es';
 import en from '@/i18n/en';
 import type { Translations } from '@/i18n/es';
+import { installFetchCredentials } from '@/lib/fetch-credentials';
 
 export type Locale = 'es' | 'en';
 
@@ -34,6 +35,9 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // Patch the global fetch so every /api/* call sends credentials.
+    // Idempotent, safe under React strict mode + HMR.
+    installFetchCredentials();
     setLocaleState(detectLocale());
     setMounted(true);
   }, []);

@@ -10,6 +10,7 @@ import { WebSocketServer, type WebSocket as WsSocket } from 'ws';
 import { pool } from '../db/pool.js';
 import { hasPostGis } from '../db/postgis-check.js';
 import { verifyToken } from '../api/auth.js';
+import { consumeTicket } from './ws-ticket-store.js';
 import { logger } from '../utils/logger.js';
 
 // Throttle DB writes per user (relay every WS msg, but save to DB less often)
@@ -95,7 +96,7 @@ export function createWebSocketServer(portOrServer: number | HttpServer): WebSoc
     ? new WebSocketServer({ port: portOrServer, host: '0.0.0.0', maxPayload: 64 * 1024 })
     : new WebSocketServer({ server: portOrServer, path: '/ws', maxPayload: 64 * 1024 });
 
-  wss.on('connection', (ws, req) => {
+  wss.on('connection', async (ws, req) => {
     // Extract client IP for rate limiting
     const forwarded = req.headers['x-forwarded-for'];
     const clientIp = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress || 'unknown';
@@ -108,6 +109,66 @@ export function createWebSocketServer(portOrServer: number | HttpServer): WebSoc
       return;
     }
 
+    // ── Ticket-based authentication (preferred path) ────────────────────
+    // The client opens wss://.../ws?ticket=<uuid>. The ticket was obtained
+    // via POST /api/auth/ws-ticket which is itself authenticated by the
+    // HttpOnly cookie. A ticket is single-use and lives 30s.
+    let ticketAuth: { userId: string; role: string } | null = null;
+    try {
+      const url = req.url ?? '';
+      // Use a placeholder host so URL() can parse a path-only string.
+      const parsed = new URL(url, 'http://x.invalid');
+      const ticket = parsed.searchParams.get('ticket');
+      if (ticket) {
+        const consumed = consumeTicket(ticket);
+        if (consumed) {
+          ticketAuth = { userId: consumed.userId, role: consumed.role };
+          logger.info(`[ws] ticket-auth ok userId=${consumed.userId} ip=${clientIp}`);
+        } else {
+          logger.warn(`[ws] ticket-auth FAILED ip=${clientIp} (consumed/expired/invalid)`);
+          ws.close(4001, 'Invalid or expired ticket');
+          return;
+        }
+      }
+    } catch (err) {
+      logger.warn(`[ws] failed to parse upgrade url: ${err}`);
+    }
+
+    // If we authenticated via ticket, finish the handshake immediately —
+    // skip the legacy {type:"auth"} message flow entirely.
+    if (ticketAuth) {
+      const userCount = [...clients.values()].filter(m => m.userId === ticketAuth!.userId).length;
+      if (userCount >= MAX_WS_PER_USER) {
+        logger.warn(`WebSocket: usuario ${ticketAuth.userId} excede límite (${MAX_WS_PER_USER} conexiones)`);
+        ws.close(4429, 'Too many connections for user');
+        return;
+      }
+      const meta = await resolveUserMeta(ticketAuth.userId);
+      if (!meta || !VALID_ROLES.includes(meta.role)) {
+        logger.warn(`WebSocket: usuario no encontrado o rol inválido: ${ticketAuth.userId}`);
+        ws.close(4003, 'Usuario no autorizado');
+        return;
+      }
+      clients.set(ws as WsSocket, {
+        userId: ticketAuth.userId,
+        role: meta.role,
+        vehicleId: meta.vehicleId,
+        ip: clientIp,
+      });
+      ws.send(JSON.stringify({ type: 'auth_ok' }));
+      logger.info(`WebSocket: cliente autenticado por ticket userId=${ticketAuth.userId} role=${meta.role}`);
+      ws.on('message', (data) => {
+        handleClientMessage(ws as WsSocket, data);
+      });
+      ws.on('close', () => { clients.delete(ws as WsSocket); });
+      ws.on('error', () => { clients.delete(ws as WsSocket); });
+      return;
+    }
+
+    // ── Legacy fallback: {type:"auth", token:"..."} message ────────────
+    // Kept during the migration window so older clients (and any that
+    // still have a localStorage token) keep working. To be removed once
+    // the cookie+ticket flow is fully rolled out.
     // Auth timeout: close unauthenticated connections after AUTH_TIMEOUT_MS
     const authTimeout = setTimeout(() => {
       if (!clients.has(ws as WsSocket)) {
@@ -164,7 +225,7 @@ export function createWebSocketServer(portOrServer: number | HttpServer): WebSoc
       });
 
       ws.send(JSON.stringify({ type: 'auth_ok' }));
-      logger.info(`WebSocket: cliente autenticado userId=${payload.userId} role=${meta.role}`);
+      logger.info(`WebSocket: cliente autenticado por mensaje (legacy) userId=${payload.userId} role=${meta.role}`);
 
       // Switch to normal message handler
       ws.on('message', (data) => {

@@ -7,6 +7,7 @@
 
 import jwt from 'jsonwebtoken';
 import { randomInt, randomUUID } from 'crypto';
+import type { Request, Response } from 'express';
 import { pool } from '../db/pool.js';
 import { logger } from '../utils/logger.js';
 import { t as _t } from '../i18n.js';
@@ -221,6 +222,75 @@ export async function isTokenRevoked(decoded: DecodedToken): Promise<boolean> {
     // existing sessions don't break. Once migrated, this is never reached.
     return false;
   }
+}
+
+// ── Auth cookie helpers ─────────────────────────────────────────────────────
+// We store the JWT in an HttpOnly cookie named `jwt`. This cannot be read
+// by JavaScript on the page, neutralising the XSS-token-theft attack.
+//
+// Architecture note: the frontend (silenteye.mx, *.vercel.app) talks to
+// its own /api/* path, which Next.js rewrites server-side to the Fly.io
+// backend. From the browser's perspective every request is same-site, so
+// the cookie can be SameSite=Lax. We do NOT need SameSite=None.
+//
+// SameSite=Lax is preferable because it provides automatic CSRF protection
+// for state-changing requests from arbitrary cross-site contexts. Combined
+// with the Origin/Referer checks Next.js adds to its rewrites, it is a
+// strong default.
+//
+// iOS Safari ITP note: SameSite=Lax + same-site requests are NOT affected
+// by ITP. The WebSocket flow could be cross-site (it connects directly to
+// fly.dev), but we sidestep that entirely with the ticket system: the
+// ticket is fetched via the same-site /api proxy and embedded in the WS
+// URL, so the WS upgrade itself never depends on cookies. We still log
+// every cookie set/read so we can correlate any "had to log in again"
+// reports from iOS users.
+
+export const AUTH_COOKIE_NAME = 'jwt';
+
+export function setAuthCookie(res: Response, token: string): void {
+  const isProd = process.env.NODE_ENV === 'production';
+  const maxAge = getJwtExpiresInSeconds() * 1000;
+  res.cookie(AUTH_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    path: '/',
+    maxAge,
+    // Do NOT set domain — let the browser scope to the exact origin so
+    // cookies don't leak to *.fly.dev neighbours.
+  });
+  logger.info(`[auth-cookie] issued sameSite=lax secure=${isProd} maxAgeSec=${maxAge / 1000}`);
+}
+
+export function clearAuthCookie(res: Response): void {
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    path: '/',
+  });
+  logger.info('[auth-cookie] cleared');
+}
+
+/**
+ * Extract a token from either the HttpOnly cookie (preferred) or the
+ * Authorization: Bearer header (legacy fallback during the dual-mode
+ * grace period). Returns the raw JWT string or null.
+ */
+export function extractToken(req: Request): { token: string | null; source: 'cookie' | 'header' | null } {
+  // Prefer the cookie — it's tamper-resistant and not visible to JS.
+  const cookieToken = (req as any).cookies?.[AUTH_COOKIE_NAME];
+  if (typeof cookieToken === 'string' && cookieToken.length > 0) {
+    return { token: cookieToken, source: 'cookie' };
+  }
+  const auth = req.headers.authorization;
+  if (auth?.startsWith('Bearer ')) {
+    const headerToken = auth.slice(7);
+    if (headerToken.length > 0) return { token: headerToken, source: 'header' };
+  }
+  return { token: null, source: null };
 }
 
 // Periodic cleanup of expired blacklist entries
