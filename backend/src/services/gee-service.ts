@@ -114,13 +114,18 @@ export interface TerrainAnalysisResult {
  * Initialize Google Earth Engine with service account credentials.
  * Called once at startup — non-blocking, logs success/failure.
  */
+let geeLastError: string | null = null;
+let geeInitAttemptedAt: Date | null = null;
+
 export async function initializeGEE(): Promise<void> {
+  geeInitAttemptedAt = new Date();
   const email = process.env.GEE_SERVICE_ACCOUNT_EMAIL;
   const privateKey = process.env.GEE_PRIVATE_KEY;
   const projectId = process.env.GEE_PROJECT_ID;
 
   if (!email || !privateKey) {
-    logger.warn('[GEE] GEE_SERVICE_ACCOUNT_EMAIL or GEE_PRIVATE_KEY not set — terrain analysis disabled');
+    geeLastError = `Missing env: GEE_SERVICE_ACCOUNT_EMAIL=${!!email}, GEE_PRIVATE_KEY=${!!privateKey}`;
+    logger.warn(`[GEE] ${geeLastError} — terrain analysis disabled. Set these in fly secrets.`);
     return;
   }
 
@@ -139,6 +144,7 @@ export async function initializeGEE(): Promise<void> {
             null,
             () => {
               geeReady = true;
+              geeLastError = null;
               logger.info(`[GEE] Initialized successfully (project: ${projectId || 'default'})`);
               resolve();
             },
@@ -151,13 +157,33 @@ export async function initializeGEE(): Promise<void> {
       );
     });
   } catch (err) {
-    logger.error('[GEE] Initialization failed:', err);
+    const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    geeLastError = msg;
+    logger.error(`[GEE] Initialization FAILED: ${msg}`);
+    if (err instanceof Error && err.stack) {
+      logger.error(`[GEE] Stack: ${err.stack.split('\n').slice(0, 5).join(' | ')}`);
+    }
     geeReady = false;
   }
 }
 
 export function isGeeReady(): boolean {
   return geeReady;
+}
+
+/** Returns a JSON-safe snapshot of GEE state for diagnostic endpoints. */
+export function getGeeDiagnostics() {
+  return {
+    ready: geeReady,
+    lastError: geeLastError,
+    initAttemptedAt: geeInitAttemptedAt?.toISOString() || null,
+    env: {
+      hasEmail: !!process.env.GEE_SERVICE_ACCOUNT_EMAIL,
+      hasPrivateKey: !!process.env.GEE_PRIVATE_KEY,
+      hasProjectId: !!process.env.GEE_PROJECT_ID,
+      projectId: process.env.GEE_PROJECT_ID || null,
+    },
+  };
 }
 
 /**

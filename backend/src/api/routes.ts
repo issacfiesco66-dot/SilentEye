@@ -2527,10 +2527,17 @@ const terrainRateLimit = rateLimit({
 });
 
 api.post('/terrain/analyze', terrainRateLimit, authMiddleware, asyncHandler(async (req, res) => {
-  const { analyzeTerrainChange, isGeeReady } = await import('../services/gee-service.js');
+  const { analyzeTerrainChange, isGeeReady, getGeeDiagnostics } = await import('../services/gee-service.js');
 
   if (!isGeeReady()) {
-    res.status(503).json({ error: 'Terrain analysis service not configured. Set GEE_SERVICE_ACCOUNT_EMAIL and GEE_PRIVATE_KEY.' });
+    const diag = getGeeDiagnostics();
+    logger.warn(`[terrain] 503 — GEE not ready. lastError="${diag.lastError}" env=${JSON.stringify(diag.env)}`);
+    res.status(503).json({
+      error: 'El servicio de análisis satelital no está disponible en este momento.',
+      detail: diag.lastError
+        ? 'Error de inicialización GEE registrado en logs.'
+        : 'GEE_SERVICE_ACCOUNT_EMAIL / GEE_PRIVATE_KEY no configurados en el servidor.',
+    });
     return;
   }
 
@@ -2553,18 +2560,42 @@ api.post('/terrain/analyze', terrainRateLimit, authMiddleware, asyncHandler(asyn
   }
   const radius = typeof radiusKm === 'number' && radiusKm > 0 && radiusKm <= 20 ? radiusKm : 2;
 
+  // Early date sanity: Sentinel-2 SR_HARMONIZED began ~March 2017. Before
+  // that, the collection is empty for any location and the query throws
+  // NO_IMAGES_FOUND. Surface this upfront with a helpful message instead
+  // of running the whole pipeline just to 404 at the end.
+  const SENTINEL2_START = new Date('2017-03-28');
+  const eventParsed = new Date(eventDate);
+  if (eventParsed < SENTINEL2_START) {
+    res.status(400).json({
+      error: 'Fecha anterior a la cobertura satelital disponible',
+      detail: 'Sentinel-2 (el satélite que usamos) comenzó a operar el 28 de marzo de 2017. ' +
+              'Para eventos anteriores, no hay imágenes para comparar. ' +
+              'Elige una fecha posterior o reduce el rango de análisis.',
+      earliestSupported: '2017-03-28',
+    });
+    return;
+  }
+
   try {
     const validSensitivities = ['low', 'normal', 'high', 'max'];
     const sens = validSensitivities.includes(sensitivity) ? sensitivity : 'normal';
     const result = await analyzeTerrainChange(latitude, longitude, radius, eventDate, afterDate || undefined, sens);
     res.json(result);
   } catch (err: any) {
-    if (err.message === 'NO_IMAGES_FOUND') {
-      res.status(404).json({ error: 'No satellite images found for the selected dates and location' });
+    if (err?.message === 'NO_IMAGES_FOUND') {
+      // Could be region-specific sparseness (e.g. Mexico had full
+      // Sentinel-2 L2A coverage only from mid-2018). Give an actionable
+      // message so the user can widen the window or pick another date.
+      res.status(404).json({
+        error: 'No hay imágenes satelitales para esta fecha y ubicación',
+        detail: 'Sentinel-2 tiene cobertura completa desde mediados de 2018 en la mayor parte de México. ' +
+                'Prueba con una fecha posterior, un radio mayor, o revisa que no sea una zona con nubosidad persistente.',
+      });
       return;
     }
-    logger.error('POST /terrain/analyze error:', err);
-    res.status(500).json({ error: 'Terrain analysis failed' });
+    logger.error(`[terrain] analyze failed: ${err?.name || 'Error'}: ${err?.message || err}`);
+    res.status(500).json({ error: 'Análisis de terreno falló. Revisa los logs del servidor.' });
   }
 }));
 
@@ -3421,14 +3452,22 @@ api.get('/faces/my', authMiddleware, asyncHandler(async (req, res) => {
     const r = await pool.query(withHiddenFilter, [userId, isAdmin]);
     res.json(r.rows);
   } catch (err: unknown) {
+    const msg = (err as { message?: string })?.message || String(err);
+    const code = (err as { code?: string })?.code || '';
+    logger.error(`[faces/my] primary query failed: code=${code} msg=${msg}`);
     // Fallback: if the face_hidden_by table is somehow missing, still
     // return the gallery so evidence remains visible to the caller.
-    const msg = (err as { message?: string })?.message || String(err);
-    if (msg.includes('face_hidden_by') || msg.includes('does not exist') || msg.includes('no existe')) {
-      logger.warn('[faces/my] face_hidden_by unavailable, falling back to unfiltered query');
-      const r = await pool.query(withoutHiddenFilter, [userId, isAdmin]);
-      res.json(r.rows);
-      return;
+    if (msg.includes('face_hidden_by') || msg.includes('does not exist') || msg.includes('no existe') || code === '42P01') {
+      logger.warn('[faces/my] falling back to unfiltered query');
+      try {
+        const r = await pool.query(withoutHiddenFilter, [userId, isAdmin]);
+        res.json(r.rows);
+        return;
+      } catch (err2: unknown) {
+        const msg2 = (err2 as { message?: string })?.message || String(err2);
+        logger.error(`[faces/my] fallback query also failed: ${msg2}`);
+        throw err2;
+      }
     }
     throw err;
   }

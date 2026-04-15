@@ -144,8 +144,83 @@ app.get('/health/ws', (_req, res) => {
   res.json({ status: 'ok', websocket: { clients: total } });
 });
 
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error('Error no capturado:', err);
+// ── Diagnostic endpoint — admin only ────────────────────────────────────────
+// Returns a deep snapshot of the runtime so we can triage production issues
+// without needing fly logs access. Protected by a shared-secret header that
+// must match DIAG_TOKEN (set via `fly secrets set DIAG_TOKEN=<uuid>`).
+app.get('/health/diag', async (req, res) => {
+  const expected = process.env.DIAG_TOKEN;
+  const got = req.headers['x-diag-token'];
+  if (!expected || got !== expected) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
+  try {
+    const { pool } = await import('./db/pool.js');
+    const { getGeeDiagnostics } = await import('./services/gee-service.js');
+    const { isStrictCookieAuth, isStripTokenFromBody } = await import('./api/auth.js');
+
+    // Verify critical tables exist
+    const tableCheck = await pool.query(`
+      SELECT
+        to_regclass('public.face_detections') AS face_detections,
+        to_regclass('public.incident_media') AS incident_media,
+        to_regclass('public.face_hidden_by') AS face_hidden_by,
+        to_regclass('public.suspects') AS suspects,
+        to_regclass('public.suspect_sightings') AS suspect_sightings,
+        to_regclass('public.token_blacklist') AS token_blacklist,
+        to_regclass('public.audit_log') AS audit_log,
+        to_regclass('public.incidents') AS incidents,
+        to_regclass('public.vehicles') AS vehicles,
+        to_regclass('public.users') AS users
+    `);
+    const tables = tableCheck.rows[0] || {};
+
+    // Row counts for the tables we actually care about
+    const faceCount = await pool.query('SELECT COUNT(*) FROM face_detections');
+    const mediaCount = await pool.query('SELECT COUNT(*) FROM incident_media');
+    const incidentCount = await pool.query('SELECT COUNT(*) FROM incidents');
+
+    res.json({
+      ok: true,
+      timestamp: new Date().toISOString(),
+      auth: {
+        strictCookie: isStrictCookieAuth(),
+        stripBody: isStripTokenFromBody(),
+      },
+      gee: getGeeDiagnostics(),
+      tables: {
+        face_detections: !!tables.face_detections,
+        incident_media: !!tables.incident_media,
+        face_hidden_by: !!tables.face_hidden_by,
+        suspects: !!tables.suspects,
+        suspect_sightings: !!tables.suspect_sightings,
+        token_blacklist: !!tables.token_blacklist,
+        audit_log: !!tables.audit_log,
+        incidents: !!tables.incidents,
+        vehicles: !!tables.vehicles,
+        users: !!tables.users,
+      },
+      counts: {
+        face_detections: parseInt(faceCount.rows[0]?.count || '0', 10),
+        incident_media: parseInt(mediaCount.rows[0]?.count || '0', 10),
+        incidents: parseInt(incidentCount.rows[0]?.count || '0', 10),
+      },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const user = (req as any).user as { userId?: string; role?: string } | undefined;
+  const userStr = user ? `${user.userId}/${user.role}` : 'anon';
+  const stack = err.stack ? err.stack.split('\n').slice(0, 6).join(' | ') : '(no stack)';
+  logger.error(
+    `[unhandled] ${req.method} ${req.path} user=${userStr} ` +
+    `err=${err.name}:${err.message} stack=${stack}`
+  );
   res.status(500).json({ error: 'Error interno del servidor' });
 });
 
@@ -212,7 +287,11 @@ server.listen(HTTP_PORT, '0.0.0.0', async () => {
   startTicketGc();
   startIncidentAutoTimeout();
   startBiometricRetention();
-  initializeGEE().catch(() => {}); // non-blocking — logs its own errors
+  // Fire and log — the function writes its own error details, this just
+  // ensures the outer promise rejection doesn't get eaten silently.
+  initializeGEE().catch((err) => {
+    logger.error('[GEE] Top-level init rejection:', err);
+  });
 });
 
 // Auto-resolve incidents stuck in 'active' or 'attending' for > 2 hours
