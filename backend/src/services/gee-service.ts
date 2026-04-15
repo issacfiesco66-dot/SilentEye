@@ -133,7 +133,29 @@ export async function initializeGEE(): Promise<void> {
     const eeModule = await import('@google/earthengine');
     ee = eeModule.default || eeModule;
 
-    const key = privateKey.replace(/\\n/g, '\n');
+    // Robust key extraction. The secret CAN legitimately be just the PEM
+    // body, but we've also seen production cases where a paste error put
+    // adjacent JSON fields into the secret — e.g. the secret actually
+    // contains a chunk like `"<key_id>", "private_key": "-----BEGIN..."`.
+    // We pull the PEM block out with a regex so the surrounding garbage
+    // doesn't reach OpenSSL's decoder.
+    //
+    // Supports both PKCS#8 ("PRIVATE KEY") and PKCS#1 ("RSA PRIVATE KEY").
+    // Google service accounts use PKCS#8.
+    const pemRegex = /-----BEGIN (?:RSA )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA )?PRIVATE KEY-----/;
+    const match = privateKey.match(pemRegex);
+    if (!match) {
+      throw new Error(
+        `GEE_PRIVATE_KEY does not contain a valid PEM block. ` +
+        `Expected "-----BEGIN PRIVATE KEY-----...-----END PRIVATE KEY-----" ` +
+        `(got len=${privateKey.length}, starts with: ${JSON.stringify(privateKey.slice(0, 30))})`
+      );
+    }
+    // Convert literal \n to real newlines. Works whether the secret was
+    // set from a JSON-escaped string (\\n in source → \n in env) or from
+    // a raw PEM paste (already contains real newlines — replace is a no-op).
+    const key = match[0].replace(/\\n/g, '\n');
+    logger.info(`[GEE] Extracted ${key.length}-byte PEM body from ${privateKey.length}-byte secret`);
 
     await new Promise<void>((resolve, reject) => {
       ee.data.authenticateViaPrivateKey(
