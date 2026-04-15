@@ -28,6 +28,36 @@ process.on('unhandledRejection', (reason) => {
   logger.error('UNHANDLED REJECTION (process kept alive):', reason);
 });
 
+// ── Hard-fail on missing critical secrets in production ──────────────
+// Previously these fell back to empty strings or defaults, which let
+// misconfigured deploys boot silently into an insecure state. A process
+// that refuses to start is easier to notice than one that starts
+// without auth enforcement.
+if (process.env.NODE_ENV === 'production') {
+  const critical: Record<string, string | undefined> = {
+    JWT_SECRET: process.env.JWT_SECRET,
+    DATABASE_URL: process.env.DATABASE_URL,
+  };
+  const missing = Object.entries(critical).filter(([, v]) => !v || v.length < 16).map(([k]) => k);
+  if (missing.length > 0) {
+    // eslint-disable-next-line no-console
+    console.error(`\n[BOOT] ❌ Missing or too-short critical secrets: ${missing.join(', ')}\n` +
+                  `Set them in fly secrets (\`fly secrets set KEY=value\`) and redeploy.\n`);
+    process.exit(1);
+  }
+  // Refuse to boot with known-leaked dev fallback secrets. The hash
+  // below is the dev default that historically lived in .env — if it
+  // ever ends up in prod, stop.
+  const LEAKED_DEV_SECRET_HASHES = new Set([
+    'f6ef784f3c61815e12e0380d96035e9d4a0b10cda21012fde196d36a8c449687',
+  ]);
+  if (LEAKED_DEV_SECRET_HASHES.has(process.env.JWT_SECRET || '')) {
+    // eslint-disable-next-line no-console
+    console.error('\n[BOOT] ❌ JWT_SECRET matches a known-leaked development value. Rotate it before starting.\n');
+    process.exit(1);
+  }
+}
+
 const TCP_PORT = parseInt(process.env.TCP_PORT || '5000', 10);
 const TCP_PORT_ALT = process.env.TCP_PORT_ALT ? parseInt(process.env.TCP_PORT_ALT, 10) : null;
 const TCP_PORT_ALT2 = process.env.TCP_PORT_ALT2 ? parseInt(process.env.TCP_PORT_ALT2, 10) : null;
@@ -40,16 +70,26 @@ const app = express();
 // Fly.io / Cloudflare: trust only the IMMEDIATE proxy (1 hop). Never use `true` — it trusts ALL X-Forwarded-For headers.
 app.set('trust proxy', 1);
 
-// CORS: en producción solo dominios explícitos; nunca origin: true
+// CORS: en producción solo dominios explícitos; nunca origin: true.
+//
+// SECURITY: we removed the Vercel-preview regex that accepted any
+// `silent-eye-frontend-*.vercel.app`. That pattern let a malicious
+// Vercel preview deploy (from the same or a different Vercel account)
+// send authenticated requests to our API with cookies, enabling CSRF
+// against logged-in users. Now the allow-list is purely CORS_ORIGINS —
+// every environment must be enumerated explicitly in fly secrets.
 const isProd = process.env.NODE_ENV === 'production';
 const corsOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
   : [];
-// Añadir vercel.app (incluye previews: silent-eye-frontend-xxx.vercel.app)
-const allowOrigin = (origin: string) =>
-  corsOrigins.includes(origin) || /^https:\/\/silent-eye-frontend(-[\w-]+)?\.vercel\.app$/.test(origin);
+const allowOrigin = (origin: string) => corsOrigins.includes(origin);
 if (isProd && corsOrigins.length === 0) {
-  logger.warn('⚠️  CORS_ORIGINS no configurado en producción — solo se permitirán dominios *.vercel.app');
+  // This is a hard error — with no whitelist the API refuses every
+  // cross-origin request, effectively breaking the frontend. Fail fast
+  // so the operator notices and sets CORS_ORIGINS.
+  // eslint-disable-next-line no-console
+  console.error('\n[BOOT] ❌ CORS_ORIGINS is empty in production. Set it to a comma-separated list of allowed frontend URLs.\n');
+  process.exit(1);
 }
 app.use(cors({
   origin: isProd
@@ -148,7 +188,25 @@ app.get('/health/ws', (_req, res) => {
 // Returns a deep snapshot of the runtime so we can triage production issues
 // without needing fly logs access. Protected by a shared-secret header that
 // must match DIAG_TOKEN (set via `fly secrets set DIAG_TOKEN=<uuid>`).
-app.get('/health/diag', async (req, res) => {
+//
+// SECURITY: rate-limited to slow down any brute-force of DIAG_TOKEN. Five
+// attempts per hour per IP is plenty for legitimate operators and brutal
+// for attackers trying to guess a token.
+const diagRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { error: 'too many requests' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const cfIp = req.headers['cf-connecting-ip'];
+    if (typeof cfIp === 'string') return cfIp;
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
+    return req.ip || req.socket?.remoteAddress || 'unknown';
+  },
+});
+app.get('/health/diag', diagRateLimit, async (req, res) => {
   const expected = process.env.DIAG_TOKEN;
   const got = req.headers['x-diag-token'];
   if (!expected || got !== expected) {

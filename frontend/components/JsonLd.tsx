@@ -8,10 +8,20 @@ interface JsonLdProps {
 }
 
 export default function JsonLd({ data }: JsonLdProps) {
+  // SECURITY: `dangerouslySetInnerHTML` is the standard way to emit
+  // JSON-LD in React (React would otherwise HTML-escape the JSON
+  // quotes, breaking the schema). The attack vector is a `</script>`
+  // substring inside the serialized data — a hostile or sloppy value
+  // would close the script tag and let arbitrary HTML execute. We
+  // neutralize that by escaping `<` to its unicode form before
+  // emitting. `\u003c` is identical to `<` when the JSON parser reads
+  // it back, so consumers see the same object, but the browser's HTML
+  // tokenizer never sees a literal `<`.
+  const safeJson = JSON.stringify(data).replace(/</g, '\\u003c');
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{ __html: safeJson }}
     />
   );
 }

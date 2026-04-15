@@ -99,8 +99,22 @@ function renderMarkdown(content: string) {
     }
   };
 
+  // SECURITY: we use `dangerouslySetInnerHTML` below to render **bold**
+  // and *italic* inside markdown paragraphs. If the markdown source ever
+  // contains raw HTML (accidentally or maliciously), that HTML would
+  // execute in the user's browser and could steal the JWT from
+  // localStorage. We defend by escaping ALL HTML characters FIRST, then
+  // applying the bold/italic substitutions on the escaped output. The
+  // bold/italic replacement generates its own `<strong>` and `<em>`
+  // tags, which are safe because they contain only the escaped text.
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, '&amp;')
+     .replace(/</g, '&lt;')
+     .replace(/>/g, '&gt;')
+     .replace(/"/g, '&quot;')
+     .replace(/'/g, '&#39;');
   const inlineFormat = (text: string) => {
-    return text
+    return escapeHtml(text)
       .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-zinc-900">$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>');
   };

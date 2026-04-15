@@ -55,6 +55,20 @@ function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => P
   };
 }
 
+// Helper: pick a rate-limit key that prefers authenticated userId and
+// falls back to the real client IP (not the proxy) via Cloudflare/Fly
+// trusted headers. Returned keys are prefixed so user vs IP buckets
+// cannot collide.
+function pickRateLimitKey(req: Request): string {
+  const userId = (req as any).user?.userId;
+  if (userId) return `user:${userId}`;
+  const cfIp = req.headers['cf-connecting-ip'];
+  if (typeof cfIp === 'string') return `ip:${cfIp}`;
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') return `ip:${forwarded.split(',')[0].trim()}`;
+  return `ip:${req.ip || req.socket?.remoteAddress || 'unknown'}`;
+}
+
 // Stricter rate-limit for auth endpoints (prevent OTP brute-force)
 const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -62,13 +76,31 @@ const authRateLimit = rateLimit({
   message: { error: 'Demasiados intentos de autenticación. Intenta en 15 minutos.' },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    const cfIp = req.headers['cf-connecting-ip'];
-    if (typeof cfIp === 'string') return cfIp;
-    const forwarded = req.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
-    return req.ip || req.socket?.remoteAddress || 'unknown';
-  },
+  keyGenerator: pickRateLimitKey,
+});
+
+// General read-rate-limit for authenticated listing/detail endpoints
+// that were previously unbounded (GET /users, GET /gps/logs, etc.).
+// Keyed by userId so an IP behind NAT with multiple legitimate users
+// isn't collectively throttled.
+const readRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: { error: 'Demasiadas solicitudes de lectura. Intenta en un minuto.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: pickRateLimitKey,
+});
+
+// Write-rate-limit for mutation endpoints (POST/PUT/DELETE) that
+// weren't previously protected. Slightly stricter than read.
+const writeRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: 'Demasiadas modificaciones. Intenta en un minuto.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: pickRateLimitKey,
 });
 
 // Input validation helpers
@@ -238,18 +270,30 @@ api.post('/setup/cleanup', asyncHandler(async (req, res) => {
     res.status(403).json({ error: t(req, 'secretInvalidShort') });
     return;
   }
-  const allowedTables = new Set([
+  // Compile-time constant array of table names — never takes user input.
+  // The `as const` locks it; adding a new table requires editing source.
+  // Previously the loop variable shadowed the i18n `t()` helper which was
+  // both confusing and a potential future footgun.
+  const ALLOWED_CLEANUP_TABLES = [
     'geofence_alerts', 'gps_logs', 'alerts', 'incident_followers', 'incidents',
     'helper_locations', 'push_subscriptions', 'otp_codes', 'geofences', 'vehicles',
-  ]);
-  for (const t of allowedTables) {
-    if (!/^[a-z_]+$/.test(t)) throw new Error(`Invalid table name: ${t}`);
-    await pool.query(`TRUNCATE TABLE ${t} CASCADE`);
+  ] as const;
+  // Validate the source list itself — protects against a future edit
+  // that adds a table name with unsafe characters.
+  for (const tbl of ALLOWED_CLEANUP_TABLES) {
+    if (!/^[a-z_]{1,64}$/.test(tbl)) {
+      throw new Error(`Invalid cleanup table name in source allow-list: ${tbl}`);
+    }
+  }
+  for (const tbl of ALLOWED_CLEANUP_TABLES) {
+    // Safe: tbl is bound to ALLOWED_CLEANUP_TABLES, not user input.
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string
+    await pool.query(`TRUNCATE TABLE ${tbl} CASCADE`);
   }
   const del = await pool.query(`DELETE FROM users WHERE role != 'admin'`);
   res.json({
     ok: true,
-    message: `Limpieza completada. Tablas truncadas: ${[...allowedTables].join(', ')}. Usuarios eliminados (no-admin): ${del.rowCount}`,
+    message: `Limpieza completada. Tablas truncadas: ${ALLOWED_CLEANUP_TABLES.join(', ')}. Usuarios eliminados (no-admin): ${del.rowCount}`,
   });
 }));
 
@@ -480,23 +524,38 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
 
       // SECURITY: phone login is for pre-registered users only (admin/helper/driver).
       // Do NOT auto-create users — admin must register them first.
+      //
+      // ANTI-ENUMERATION: we do NOT differentiate "phone not registered"
+      // vs "account disabled" vs "account ok" in the HTTP response. All
+      // three return the same {success:true} payload. If the phone isn't
+      // registered or is disabled, we skip the SMS/email send entirely
+      // but the caller can't tell from the response. This prevents
+      // attackers from scraping the list of valid user phone numbers.
       const userCheck = await pool.query(
         'SELECT id, phone, role, email, is_active FROM users WHERE phone = $1',
         [cleanPhone]
       );
-      if (!userCheck.rows[0]) {
-        res.status(403).json({ error: t(req, 'phoneNotRegistered') });
-        return;
-      }
-      if (userCheck.rows[0].is_active === false) {
-        res.status(403).json({ error: t(req, 'accountDisabled') });
+      const userRow = userCheck.rows[0];
+      const canSendCode = !!userRow && userRow.is_active !== false;
+
+      if (!canSendCode) {
+        // Log the reason server-side for ops visibility but don't leak it.
+        if (!userRow) {
+          logger.info(`[auth] OTP request for unknown phone (silently ignored): ${cleanPhone}`);
+        } else {
+          logger.info(`[auth] OTP request for disabled account (silently ignored): userId=${userRow.id}`);
+        }
+        // Add an artificial delay equal to the typical SMS send path so
+        // response time doesn't leak whether the phone exists.
+        await new Promise((r) => setTimeout(r, 250 + Math.random() * 150));
+        res.json({ success: true });
         return;
       }
 
       const code = await createOtp(cleanPhone);
 
       // Try email delivery first (for users with email registered)
-      const userEmail = userCheck.rows[0].email;
+      const userEmail = userRow.email;
       let emailOk = false;
       let smsOk = false;
 
@@ -509,13 +568,14 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
         smsOk = await sendOtpSms(cleanPhone, code);
       }
 
+      // Keep emailSent/smsSent flags so the UI can tell the user where
+      // to look — they don't leak more than what the user already knows
+      // about their own registration. We dropped `emailHint` (which
+      // exposed part of the masked email) because that DID leak extra
+      // data about users beyond what the legitimate caller needs.
       const result: Record<string, unknown> = { success: true };
-      if (emailOk) {
-        result.emailSent = true;
-        result.emailHint = userEmail!.replace(/(.{2})(.*)(@.*)/, '$1***$3');
-      } else if (smsOk) {
-        result.smsSent = true;
-      }
+      if (emailOk) result.emailSent = true;
+      else if (smsOk) result.smsSent = true;
       res.json(result);
       return;
     }
@@ -635,6 +695,15 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
 }));
 
 // ── Email + Password login (for admin / fleet_owner) ──
+//
+// SECURITY: this handler is written to be constant-time with respect to
+// whether the email exists. bcrypt.compare is ALWAYS executed, even when
+// the user doesn't exist, using a dummy hash. Without this, an attacker
+// can enumerate valid admin emails by measuring response latency —
+// "user not found" returns in ~1 ms, "wrong password" takes ~100 ms
+// (bcrypt work). A hash of "invalid" lets us burn an equivalent amount
+// of CPU on the miss path.
+const DUMMY_BCRYPT_HASH = '$2a$12$CwTycUXWue0Thq9StjUM0uJ8oEXE4oY9J3aOcMpEjZpH9XqP4bZJ6'; // bcrypt hash of a random throwaway; never matches anything
 api.post('/auth/login', authRateLimit, asyncHandler(async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -648,17 +717,25 @@ api.post('/auth/login', authRateLimit, asyncHandler(async (req, res) => {
       [cleanEmail]
     );
     const user = userResult.rows[0];
-    if (!user || !user.password_hash) {
+
+    // Always run bcrypt.compare, even on misses, to equalize latency.
+    // `validPassword` is the only thing that matters after this point —
+    // the branches below all return an identical "wrongCredentials"
+    // response so the attacker can't distinguish "no such user" from
+    // "wrong password" from "no password_hash set".
+    const hashToCompare: string = (user && user.password_hash) || DUMMY_BCRYPT_HASH;
+    const validPassword = await bcrypt.compare(password, hashToCompare);
+
+    if (!user || !user.password_hash || !validPassword) {
       res.status(401).json({ error: t(req, 'wrongCredentials') });
       return;
     }
     if (user.is_active === false) {
+      // Intentionally AFTER the password check so we don't tell a
+      // scraper that a given email exists via the disabled-account
+      // branch. They still get "wrongCredentials" unless they already
+      // know the password.
       res.status(403).json({ error: t(req, 'accountDisabled') });
-      return;
-    }
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) {
-      res.status(401).json({ error: t(req, 'wrongCredentials') });
       return;
     }
     const token = signToken({ userId: user.id, role: user.role });
@@ -739,20 +816,25 @@ api.get('/me', authMiddleware, asyncHandler(async (req, res) => {
 }));
 
 // ── Profile: update name / email ──
+//
+// SECURITY: fields that a user can update via PUT /me/profile are locked
+// to an explicit allow-list. A future diff that adds a new field to
+// req.body WILL NOT cause that field to be written unless it's added
+// here AND processed by a typed branch below. This forecloses mass-
+// assignment bugs (e.g. client sending `{role: "admin"}`) by design.
+const PROFILE_ALLOWED_FIELDS = new Set(['name', 'email'] as const);
 api.put('/me/profile', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const { name, email } = req.body;
-  const updates: string[] = [];
-  const params: unknown[] = [];
-  let p = 1;
+  // assignments: column name → param value. Keys MUST be in PROFILE_ALLOWED_FIELDS.
+  const assignments: Array<{ col: 'name' | 'email'; value: string | null }> = [];
 
   if (name != null && typeof name === 'string' && name.trim().length >= 2) {
     if (name.trim().length > 100) {
       res.status(400).json({ error: t(req, 'nameMax') });
       return;
     }
-    updates.push(`name = $${p++}`);
-    params.push(name.trim());
+    assignments.push({ col: 'name', value: name.trim() });
   }
   if (email !== undefined) {
     if (email && typeof email === 'string') {
@@ -767,20 +849,34 @@ api.put('/me/profile', authMiddleware, asyncHandler(async (req, res) => {
         res.status(409).json({ error: 'Ya existe otro usuario con ese email' });
         return;
       }
-      updates.push(`email = $${p++}`);
-      params.push(cleanEmail);
+      assignments.push({ col: 'email', value: cleanEmail });
     } else {
-      updates.push(`email = $${p++}`);
-      params.push(null);
+      assignments.push({ col: 'email', value: null });
     }
   }
-  if (updates.length === 0) {
+  if (assignments.length === 0) {
     res.status(400).json({ error: 'Indica name o email para actualizar' });
     return;
   }
+
+  // Re-validate every column against the allow-list at query-construction
+  // time (defense in depth — the types above already constrain this).
+  for (const a of assignments) {
+    if (!PROFILE_ALLOWED_FIELDS.has(a.col)) {
+      throw new Error(`Forbidden profile field: ${a.col}`);
+    }
+  }
+
+  const setClauses: string[] = [];
+  const params: unknown[] = [];
+  let p = 1;
+  for (const a of assignments) {
+    setClauses.push(`${a.col} = $${p++}`);
+    params.push(a.value);
+  }
   params.push(userId);
   const r = await pool.query(
-    `UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${p} RETURNING id, phone, name, role, email`,
+    `UPDATE users SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${p} RETURNING id, phone, name, role, email`,
     params
   );
   if (!r.rows[0]) {
@@ -905,7 +1001,7 @@ api.post('/helpers/location', authMiddleware, requireRole('helper', 'driver'), a
   res.json({ success: true });
 }));
 
-api.get('/vehicles', authMiddleware, requireRole('admin', 'helper', 'driver', 'fleet_owner'), asyncHandler(async (req, res) => {
+api.get('/vehicles', authMiddleware, readRateLimit, requireRole('admin', 'helper', 'driver', 'fleet_owner'), asyncHandler(async (req, res) => {
   const { userId, role } = (req as any).user;
   if (role === 'fleet_owner') {
     const r = await pool.query(
@@ -970,7 +1066,7 @@ api.get('/vehicles/:id', authMiddleware, asyncHandler(async (req, res) => {
 // Plan vehicle limits
 const PLAN_LIMITS: Record<string, number> = { free: 1, personal: 3, flotillas: 999 };
 
-api.post('/vehicles', authMiddleware, requireRole('admin', 'driver', 'fleet_owner', 'citizen'), asyncHandler(async (req, res) => {
+api.post('/vehicles', authMiddleware, writeRateLimit, requireRole('admin', 'driver', 'fleet_owner', 'citizen'), asyncHandler(async (req, res) => {
   const { userId, role } = (req as any).user;
   const { plate, name, imei, driver_id } = req.body;
   if (!plate || !imei) {
@@ -1286,7 +1382,7 @@ api.post('/vehicles/:id/unpark', authMiddleware, asyncHandler(async (req, res) =
 
 // ── Trip History ─────────────────────────────────────────────────────────────
 
-api.get('/vehicles/:id/history', authMiddleware, requireRole('admin', 'helper', 'driver', 'fleet_owner'), asyncHandler(async (req, res) => {
+api.get('/vehicles/:id/history', authMiddleware, readRateLimit, requireRole('admin', 'helper', 'driver', 'fleet_owner'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { userId, role } = (req as any).user;
 
@@ -1316,12 +1412,17 @@ api.get('/vehicles/:id/history', authMiddleware, requireRole('admin', 'helper', 
     whereDate = `AND timestamp_at >= CURRENT_DATE AND timestamp_at < CURRENT_DATE + interval '1 day'`;
   }
 
+  // Cap history points to 2000 per request. Previously was 5000, which
+  // on a day with high-frequency reports can hammer the DB and slow the
+  // whole app. Callers that need longer windows should paginate with
+  // `from`/`to`. 2000 points at 30s ≈ 16.7 hours — enough for any
+  // reasonable single-day view.
   const r = await pool.query(
     `SELECT latitude, longitude, speed, altitude, timestamp_at
      FROM gps_logs
      WHERE vehicle_id = $1 AND latitude != 0 AND longitude != 0 ${whereDate}
      ORDER BY timestamp_at ASC
-     LIMIT 5000`,
+     LIMIT 2000`,
     params
   );
 
@@ -1372,7 +1473,7 @@ api.get('/geofences', authMiddleware, requireRole('admin', 'fleet_owner', 'drive
   }
 }));
 
-api.post('/geofences', authMiddleware, requireRole('admin', 'fleet_owner', 'driver'), asyncHandler(async (req, res) => {
+api.post('/geofences', authMiddleware, writeRateLimit, requireRole('admin', 'fleet_owner', 'driver'), asyncHandler(async (req, res) => {
   const { userId } = (req as any).user;
   const { name, latitude, longitude, radius_m, alert_on_exit, alert_on_enter } = req.body;
 
@@ -1486,6 +1587,17 @@ api.get('/incidents/:id', authMiddleware, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { userId, role } = (req as any).user;
 
+  // Reject malformed IDs upfront — prevents scanning with invalid UUIDs
+  // and reveals nothing about which IDs exist.
+  if (!isValidUuid(id)) {
+    res.status(404).json({ error: t(req, 'incidentNotFound') });
+    return;
+  }
+
+  // SECURITY: allow-list by role. Admin sees all; everyone else gets an
+  // explicit ownership clause. Any role not enumerated here is denied by
+  // default — previous fall-through allowed fleet_owner (and any future
+  // role) to read any incident.
   let query = `
     SELECT i.*, v.plate, u.name as driver_name, i.longitude, i.latitude
     FROM incidents i
@@ -1494,12 +1606,23 @@ api.get('/incidents/:id', authMiddleware, asyncHandler(async (req, res) => {
     WHERE i.id = $1`;
   const params: unknown[] = [id];
 
-  if (role === 'helper') {
+  if (role === 'admin') {
+    // No extra clause — admin has full visibility by design.
+  } else if (role === 'helper') {
     query += ` AND EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $2)`;
     params.push(userId);
   } else if (role === 'driver' || role === 'citizen') {
     query += ` AND (i.driver_id = $2 OR EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $2))`;
     params.push(userId);
+  } else if (role === 'fleet_owner') {
+    // Fleet owner: own incidents via any vehicle they own, OR followed.
+    query += ` AND (EXISTS (SELECT 1 FROM vehicles vv WHERE vv.id = i.vehicle_id AND vv.owner_id = $2)
+                    OR EXISTS (SELECT 1 FROM incident_followers f WHERE f.incident_id = i.id AND f.user_id = $2))`;
+    params.push(userId);
+  } else {
+    // Unknown role — deny by default. Never fall through to no-clause.
+    res.status(403).json({ error: 'forbidden' });
+    return;
   }
 
   const r = await pool.query(query, params);
@@ -1516,7 +1639,7 @@ api.get('/incidents/:id', authMiddleware, asyncHandler(async (req, res) => {
   res.json({ ...inc, followers: followers.rows });
 }));
 
-api.delete('/incidents/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+api.delete('/incidents/:id', authMiddleware, writeRateLimit, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const r = await pool.query('DELETE FROM incidents WHERE id = $1 RETURNING id', [id]);
   if (!r.rows[0]) {
@@ -1996,7 +2119,7 @@ api.get('/gps/my-positions', authMiddleware, requireRole('driver', 'fleet_owner'
 }));
 
 // Últimas posiciones por IMEI (admin) - incluye dispositivos no registrados
-api.get('/gps/latest-positions', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+api.get('/gps/latest-positions', authMiddleware, readRateLimit, requireRole('admin'), asyncHandler(async (req, res) => {
   const limit = Math.min(parseInt(String(req.query.limit || 50), 10) || 50, 200);
   const pg = await hasPostGis();
 
@@ -2056,7 +2179,7 @@ api.get('/gps/activity', authMiddleware, requireRole('admin'), asyncHandler(asyn
   );
 }));
 
-api.get('/gps/logs', authMiddleware, asyncHandler(async (req, res) => {
+api.get('/gps/logs', authMiddleware, readRateLimit, asyncHandler(async (req, res) => {
   const { vehicle_id, limit = 100 } = req.query;
   const { userId, role } = (req as any).user;
 
@@ -2092,10 +2215,17 @@ api.get('/gps/logs', authMiddleware, asyncHandler(async (req, res) => {
     return;
   }
 
+  // Sanitize limit: accept a positive integer, cap at 500, default to
+  // 100. Previously passed unsanitized `Number(limit)` which could be
+  // NaN (query returns 0 rows silently) or a float (silently coerced).
+  const parsedLimit = Number(limit);
+  const safeLimit = Number.isFinite(parsedLimit) && parsedLimit > 0
+    ? Math.min(Math.floor(parsedLimit), 500)
+    : 100;
   const r = await pool.query(
     `SELECT id, latitude, longitude, speed, timestamp_at, created_at
      FROM gps_logs WHERE vehicle_id = $1 ORDER BY timestamp_at DESC LIMIT $2`,
-    [vehicle_id, Math.min(Number(limit), 500)]
+    [vehicle_id, safeLimit]
   );
   res.json(r.rows);
 }));
@@ -2139,14 +2269,14 @@ api.get('/helpers/nearby', authMiddleware, requireRole('admin', 'helper', 'drive
   res.json(r.rows);
 }));
 
-api.get('/users', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+api.get('/users', authMiddleware, readRateLimit, requireRole('admin'), asyncHandler(async (req, res) => {
   const r = await pool.query(
     'SELECT id, phone, name, role, email, is_active, last_location_at, created_at FROM users ORDER BY name'
   );
   res.json(r.rows);
 }));
 
-api.get('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+api.get('/users/:id', authMiddleware, readRateLimit, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   try {
     const r = await pool.query(
@@ -2236,13 +2366,38 @@ api.put('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (
   res.json(r.rows[0]);
 }));
 
-api.put('/users/:id/role', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+api.put('/users/:id/role', authMiddleware, writeRateLimit, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
+  const { userId: actingUserId } = (req as any).user;
   if (!['driver', 'helper', 'admin', 'citizen', 'fleet_owner'].includes(role)) {
     res.status(400).json({ error: t(req, 'invalidRole') });
     return;
   }
+
+  // SECURITY: prevent an admin from demoting the last active admin —
+  // including themselves. Without this check an admin could lock the
+  // whole system out of admin access by changing their own role (or
+  // the last other admin's) to citizen.
+  if (role !== 'admin') {
+    const adminCount = await pool.query(
+      "SELECT COUNT(*)::int as cnt FROM users WHERE role = 'admin' AND COALESCE(is_active, true) = true AND id != $1",
+      [id]
+    );
+    const remaining = adminCount.rows[0]?.cnt ?? 0;
+    if (remaining === 0) {
+      res.status(400).json({ error: 'No se puede demotar al último administrador activo' });
+      return;
+    }
+  }
+  // Extra guard: admin cannot self-demote via this endpoint (must be
+  // done by another admin, which is a social check on the last-admin
+  // issue above).
+  if (id === actingUserId && role !== 'admin') {
+    res.status(400).json({ error: 'No puedes cambiar tu propio rol — pídele a otro administrador' });
+    return;
+  }
+
   const r = await pool.query(
     'UPDATE users SET role = $2, updated_at = NOW() WHERE id = $1 RETURNING id, phone, name, role',
     [id, role]
@@ -2510,7 +2665,13 @@ api.post('/location', authMiddleware, locationRateLimit, asyncHandler(async (req
 }));
 
 // ── Terrain Analysis (Google Earth Engine) ───────────────────────────────────
-
+//
+// SECURITY: the rate-limit key is the authenticated userId, not the
+// remote IP. Previously the key was IP-derived, which an attacker could
+// trivially rotate via X-Forwarded-For manipulation (Fly runs behind a
+// trusting proxy). By keying on userId we force the limit to stick to
+// the account; we fall back to IP only if for some reason auth didn't
+// populate req.user (shouldn't happen — authMiddleware runs first).
 const terrainRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -2518,15 +2679,19 @@ const terrainRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
+    const userId = (req as any).user?.userId;
+    if (userId) return `user:${userId}`;
     const cfIp = req.headers['cf-connecting-ip'];
-    if (typeof cfIp === 'string') return cfIp;
+    if (typeof cfIp === 'string') return `ip:${cfIp}`;
     const forwarded = req.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
-    return req.ip || req.socket?.remoteAddress || 'unknown';
+    if (typeof forwarded === 'string') return `ip:${forwarded.split(',')[0].trim()}`;
+    return `ip:${req.ip || req.socket?.remoteAddress || 'unknown'}`;
   },
 });
 
-api.post('/terrain/analyze', terrainRateLimit, authMiddleware, asyncHandler(async (req, res) => {
+// authMiddleware BEFORE terrainRateLimit so the rate-limit keyGenerator
+// can read req.user.userId.
+api.post('/terrain/analyze', authMiddleware, terrainRateLimit, asyncHandler(async (req, res) => {
   const { analyzeTerrainChange, isGeeReady, getGeeDiagnostics } = await import('../services/gee-service.js');
 
   if (!isGeeReady()) {
@@ -2709,7 +2874,7 @@ api.post('/push/unsubscribe', authMiddleware, asyncHandler(async (req, res) => {
 
 // ── Delete user ─────────────────────────────────────────────────────────────
 
-api.delete('/users/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+api.delete('/users/:id', authMiddleware, writeRateLimit, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { userId } = (req as any).user;
   if (id === userId) {

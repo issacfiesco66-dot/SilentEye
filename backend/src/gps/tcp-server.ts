@@ -27,12 +27,22 @@ const MAX_AVL_DATA_LENGTH = 512 * 1024; // 512 KB
 const MAX_IMEI_LENGTH = 64;
 const MAX_CONNECTION_BUFFER = 1024 * 1024; // 1 MB
 const IMEI_LOGIN_TIMEOUT_MS = 30000;   // 30s para recibir IMEI
-const AVL_IDLE_TIMEOUT_MS = 600000;    // 10 min sin datos AVL → desconectar
+const AVL_IDLE_TIMEOUT_MS = 300000;    // 5 min sin datos AVL → desconectar
+                                        // (was 10min — 5 is tight enough for live
+                                        //  devices and short enough to reap dead
+                                        //  sockets held by an attacker)
 
 // Security: IMEI whitelist is ENABLED by default (only registered devices accepted).
 // Set TELTONIKA_SKIP_WHITELIST=true to accept any IMEI (dev/testing only).
+// In production this MUST be false. The whitelist is what keeps random
+// devices from spoofing GPS data to seed fake reports.
 const _skip = (process.env.TELTONIKA_SKIP_WHITELIST || '').toLowerCase();
 const SKIP_WHITELIST = _skip === 'true' || _skip === '1' || _skip === 'yes';
+// Loud alert if skip is active in production — easy to miss in fly logs.
+if (SKIP_WHITELIST && process.env.NODE_ENV === 'production') {
+  // eslint-disable-next-line no-console
+  console.error('\n[TCP] ⚠️  SECURITY: TELTONIKA_SKIP_WHITELIST=true in PRODUCTION — any device can send GPS data. This must be false for real deployments.\n');
+}
 
 type ConnectionState = 'imei' | 'validating' | 'avl';
 type ProtocolType = 'unknown' | 'teltonika' | 'queclink' | 'concox';
@@ -59,8 +69,14 @@ async function isImeiWhitelisted(imei: string): Promise<boolean> {
     const r = await pool.query('SELECT 1 FROM vehicles WHERE imei = $1 LIMIT 1', [imei]);
     return r.rowCount !== null && r.rowCount > 0;
   } catch (err) {
-    logger.warn('Error verificando whitelist IMEI, aceptando conexión:', err);
-    return SKIP_WHITELIST;
+    // FAIL CLOSED: if we can't verify the IMEI against the whitelist,
+    // refuse the device. An attacker who can DoS the vehicles table
+    // must NOT gain the ability to inject GPS data for arbitrary IMEIs.
+    // (Previous behavior returned SKIP_WHITELIST with a misleading log
+    // that read "aceptando conexión" — technically it was false, but
+    // the log lied about what happened.)
+    logger.warn(`[TCP] Error verificando whitelist IMEI ${imei} — rechazando conexión por seguridad:`, err);
+    return false;
   }
 }
 
@@ -89,8 +105,16 @@ function logAvlRecord(imei: string, record: AVLRecord, index: number): void {
   const ign = record.io[78] ?? record.io[0x004E];
   const din1 = record.io[1] ?? record.io[0x0001];
   const ioKeys = Object.keys(record.io).map(k => `${k}=${record.io[Number(k)]}`).join(',');
+  // PRIVACY: logs go to fly's collector where anyone with log access
+  // can read them. Truncate lat/lng to 2 decimals (~1.1 km precision)
+  // so they're useful for debugging "is this device moving?" without
+  // exposing a user's exact street address or home. If a full-precision
+  // position is needed for investigation, it lives in the DB — that's
+  // the authoritative source and has access control.
+  const latRedacted = record.latitude.toFixed(2);
+  const lngRedacted = record.longitude.toFixed(2);
   logger.info(
-    `[AVL][${imei}][rec=${index}] ts=${ts} lat=${record.latitude.toFixed(5)} lng=${record.longitude.toFixed(5)} ` +
+    `[AVL][${imei}][rec=${index}] ts=${ts} lat≈${latRedacted} lng≈${lngRedacted} ` +
     `speed=${record.speed} sat=${record.satellites} priority=${record.priority} eventIoId=${record.eventIoId} ignition=${ign ?? '-'} din1=${din1 ?? '-'} isPanic=${record.isPanic} io={${ioKeys}}`
   );
 }
@@ -362,13 +386,14 @@ export function createTeltonikaTcpServer(port: number, onData?: (imei: string, r
                 sendAck(socket, true);
                 logger.info(`[TCP][${addr}] ACK IMEI 0x01 enviado (handshake OK) | IMEI=${imei} | socket abierto para AVL`);
               }).catch((err) => {
-                logger.warn(`[TCP] Error whitelist (aceptando conexión):`, err);
-                conn.imei = imei;
-                conn.state = 'avl';
-                conn.imeiReceivedAt = Date.now();
-                conn.buffer = rest;
-                sendAck(socket, true);
-                logger.info(`[TCP][${addr}] ACK IMEI 0x01 (DB error, conexión aceptada) | IMEI=${imei}`);
+                // FAIL CLOSED: if the whitelist check itself throws
+                // (shouldn't happen because isImeiWhitelisted catches
+                // its own errors, but defense in depth), we refuse.
+                // Accepting on error would let an attacker bypass the
+                // whitelist by triggering errors on purpose.
+                logger.error(`[TCP][${addr}] Unexpected error in whitelist check — rechazando conexión:`, err);
+                sendAck(socket, false);
+                socket.destroy();
               });
             }
           }
