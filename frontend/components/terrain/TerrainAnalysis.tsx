@@ -55,6 +55,10 @@ interface AnalysisResult {
     sarBaselineImages?: number;
     sarCurrentImages?: number;
     sarError?: string;
+    // Source sensor metadata (multi-sensor pipeline: S2 / L9 / L8 / L5)
+    sourceSensor?: 's2' | 'landsat9' | 'landsat8' | 'landsat5';
+    sourceSensorDisplay?: string;
+    sourcePixelScale?: number;
   };
 }
 
@@ -798,11 +802,26 @@ export default function TerrainAnalysis({
             {result.metadata && (
               <div className="p-3 border-b border-zinc-100">
                 <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1">{t.terrain.metadata}</p>
+                {/* Source sensor badge — critical context for interpreting results */}
+                {result.metadata.sourceSensorDisplay && (
+                  <div className={`mb-1.5 rounded px-2 py-1 text-[10px] ${
+                    result.metadata.sourceSensor === 's2' ? 'bg-blue-50 text-blue-800 border border-blue-200' :
+                    result.metadata.sourceSensor === 'landsat9' || result.metadata.sourceSensor === 'landsat8' ? 'bg-orange-50 text-orange-800 border border-orange-200' :
+                    'bg-amber-50 text-amber-800 border border-amber-200'
+                  }`}>
+                    🛰️ {t.terrain.sourceSensor}: <span className="font-semibold">{result.metadata.sourceSensorDisplay}</span>
+                    {result.metadata.sourcePixelScale && (
+                      <span className="ml-1 opacity-75">({result.metadata.sourcePixelScale}m/px)</span>
+                    )}
+                  </div>
+                )}
                 <div className="text-[10px] text-zinc-500 space-y-0.5">
                   <p>{t.terrain.imagesBefore(result.metadata.baselineImages)}</p>
                   <p>{t.terrain.imagesAfter(result.metadata.currentImages)}</p>
                   <p>{t.terrain.dateRange}: {result.metadata.baselineStart} → {result.metadata.currentEnd}</p>
-                  <p className="text-zinc-400">{t.terrain.resolution}</p>
+                  <p className="text-zinc-400">
+                    {t.terrain.resolutionLabel}: {result.metadata.sourcePixelScale ?? 10}m/px ({result.metadata.sourceSensorDisplay ?? 'Sentinel-2'})
+                  </p>
                   {typeof result.metadata.anomalyPixelCount === 'number' && (
                     <p className="text-zinc-400 mt-1">
                       Píxeles anómalos: <span className="font-medium text-zinc-600">{result.metadata.anomalyPixelCount.toLocaleString()}</span>

@@ -129,6 +129,10 @@ export interface TerrainAnalysisResult {
     sensitivity: SensitivityLevel;
     anomalyPixelCount?: number;
     anomalyError?: string;
+    // Which optical sensor was used (auto-picked based on event date)
+    sourceSensor: SensorId;
+    sourceSensorDisplay: string;   // "Sentinel-2" | "Landsat 8" | ...
+    sourcePixelScale: number;       // meters — 10 for S2, 30 for Landsat
     // Sentinel-1 SAR (validator channel)
     sarAvailable: boolean;
     sarBaselineImages: number;
@@ -235,47 +239,190 @@ export function getGeeDiagnostics() {
   };
 }
 
-/**
- * Mask clouds and cirrus from a Sentinel-2 SR image using the QA60 band.
- */
-function maskS2Clouds(image: any): any {
-  const qa = image.select('QA60');
-  // Bits 10 = opaque clouds, 11 = cirrus
-  const cloudBitMask = 1 << 10;
-  const cirrusBitMask = 1 << 11;
-  const mask = qa.bitwiseAnd(cloudBitMask).eq(0).and(qa.bitwiseAnd(cirrusBitMask).eq(0));
-  return image.updateMask(mask).divide(10000);
+// ── Sensor adapters ──────────────────────────────────────────────────
+//
+// Each optical satellite we support is wrapped in a SensorAdapter. The
+// adapter's job is to return an ImageCollection whose bands have been
+// cloud-masked, scaled to [0,1] surface reflectance, and renamed to a
+// harmonized vocabulary: BLUE, GREEN, RED, NIR, SWIR1. Downstream code
+// (index computation, anomaly detection, visualization) works on those
+// harmonized names and is sensor-agnostic.
+//
+// Adding a new sensor = one adapter. Removing one = delete the adapter
+// and the picker will route elsewhere.
+
+export type SensorId = 's2' | 'landsat9' | 'landsat8' | 'landsat5';
+
+interface SensorAdapter {
+  id: SensorId;
+  displayName: string;
+  pixelScale: number;     // meters per pixel — used for GEE sampling + clustering
+  areaPerPixel: number;   // m² per pixel — used for area estimation
+  startDate: Date;        // earliest date with coverage
+  endDate: Date | null;   // latest date (null = still active)
+  /**
+   * Build a cloud-masked, scaled, band-harmonized ImageCollection for the
+   * given AOI and date window. Every returned image has exactly the bands
+   * BLUE, GREEN, RED, NIR, SWIR1 in [0,1] reflectance.
+   */
+  buildCollection(aoi: any, startDate: string, endDate: string, cloudPct: number): any;
 }
 
 /**
- * Calculate NDVI: (NIR - Red) / (NIR + Red) = (B8 - B4) / (B8 + B4)
+ * Sentinel-2 adapter — COPERNICUS/S2_SR_HARMONIZED.
+ * 10 m optical, 5-day revisit, since 2017-03-28 (L2A harmonized).
  */
+const S2Adapter: SensorAdapter = {
+  id: 's2',
+  displayName: 'Sentinel-2',
+  pixelScale: 10,
+  areaPerPixel: 100,
+  startDate: new Date('2017-03-28'),
+  endDate: null,
+  buildCollection(aoi, startDate, endDate, cloudPct) {
+    return ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+      .filterBounds(aoi)
+      .filterDate(startDate, endDate)
+      .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', cloudPct))
+      .map((img: any) => {
+        // QA60 cloud/cirrus mask
+        const qa = img.select('QA60');
+        const cloudBit = 1 << 10;
+        const cirrusBit = 1 << 11;
+        const mask = qa.bitwiseAnd(cloudBit).eq(0).and(qa.bitwiseAnd(cirrusBit).eq(0));
+        // Scale: raw DN / 10000 → reflectance
+        const scaled = img.select(['B2', 'B3', 'B4', 'B8', 'B11'])
+          .divide(10000)
+          .rename(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1']);
+        return scaled.updateMask(mask).copyProperties(img, ['system:time_start']);
+      });
+  },
+};
+
+/**
+ * Helper for Landsat 8 / 9 — both use the OLI instrument with identical
+ * band layouts, so they only differ in collection ID and start date.
+ */
+function makeLandsatOliAdapter(id: 'landsat8' | 'landsat9', collectionId: string, displayName: string, startDate: Date): SensorAdapter {
+  return {
+    id,
+    displayName,
+    pixelScale: 30,   // OLI optical bands are 30m
+    areaPerPixel: 900,
+    startDate,
+    endDate: null,
+    buildCollection(aoi, startDate_, endDate_, cloudPct) {
+      return ee.ImageCollection(collectionId)
+        .filterBounds(aoi)
+        .filterDate(startDate_, endDate_)
+        .filter(ee.Filter.lt('CLOUD_COVER', cloudPct))
+        .map((img: any) => {
+          // Collection 2 QA_PIXEL bits: 3=cloud, 4=shadow, 2=cirrus
+          const qa = img.select('QA_PIXEL');
+          const cloudBit = 1 << 3;
+          const shadowBit = 1 << 4;
+          const cirrusBit = 1 << 2;
+          const mask = qa.bitwiseAnd(cloudBit).eq(0)
+            .and(qa.bitwiseAnd(shadowBit).eq(0))
+            .and(qa.bitwiseAnd(cirrusBit).eq(0));
+          // L2 SR scaling: DN * 0.0000275 - 0.2 → reflectance
+          // OLI: SR_B2=Blue, B3=Green, B4=Red, B5=NIR, B6=SWIR1
+          const scaled = img.select(['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6'])
+            .multiply(0.0000275).add(-0.2)
+            .rename(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1']);
+          return scaled.updateMask(mask).copyProperties(img, ['system:time_start']);
+        });
+    },
+  };
+}
+
+const L8Adapter = makeLandsatOliAdapter('landsat8', 'LANDSAT/LC08/C02/T1_L2', 'Landsat 8', new Date('2013-04-11'));
+const L9Adapter = makeLandsatOliAdapter('landsat9', 'LANDSAT/LC09/C02/T1_L2', 'Landsat 9', new Date('2021-10-31'));
+
+/**
+ * Landsat 5 adapter — TM instrument. Different band numbering from OLI:
+ * SR_B1=Blue, B2=Green, B3=Red, B4=NIR, B5=SWIR1. Operational 1984-2011.
+ * Critical for cold cases predating every other sensor we have.
+ */
+const L5Adapter: SensorAdapter = {
+  id: 'landsat5',
+  displayName: 'Landsat 5',
+  pixelScale: 30,
+  areaPerPixel: 900,
+  startDate: new Date('1984-03-01'),
+  endDate: new Date('2011-11-30'),   // TM sensor final shutdown
+  buildCollection(aoi, startDate_, endDate_, cloudPct) {
+    return ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
+      .filterBounds(aoi)
+      .filterDate(startDate_, endDate_)
+      .filter(ee.Filter.lt('CLOUD_COVER', cloudPct))
+      .map((img: any) => {
+        const qa = img.select('QA_PIXEL');
+        const cloudBit = 1 << 3;
+        const shadowBit = 1 << 4;
+        const mask = qa.bitwiseAnd(cloudBit).eq(0)
+          .and(qa.bitwiseAnd(shadowBit).eq(0));
+        // TM: SR_B1=Blue, B2=Green, B3=Red, B4=NIR, B5=SWIR1
+        const scaled = img.select(['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5'])
+          .multiply(0.0000275).add(-0.2)
+          .rename(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1']);
+        return scaled.updateMask(mask).copyProperties(img, ['system:time_start']);
+      });
+  },
+};
+
+// Ordered newest-to-oldest. pickSensor walks this list and returns the
+// first adapter whose coverage window contains the event date.
+const ALL_ADAPTERS: SensorAdapter[] = [S2Adapter, L9Adapter, L8Adapter, L5Adapter];
+
+/**
+ * Pick the best sensor for an event date. Returns null if no sensor
+ * covers it (dates before 1984 or in the 2011-11 → 2013-04 gap).
+ */
+function pickSensor(eventDate: Date): SensorAdapter | null {
+  for (const a of ALL_ADAPTERS) {
+    if (eventDate >= a.startDate && (!a.endDate || eventDate <= a.endDate)) {
+      return a;
+    }
+  }
+  return null;
+}
+
+/** Sentinel-1 SAR data availability — launched Oct 2014. Relevant for
+ *  the SAR validator channel: events before this must run optical-only. */
+const S1_START_DATE = new Date('2014-10-03');
+
+// ── Harmonized index computation ─────────────────────────────────────
+// All three indices operate on the harmonized band names. Identical
+// formulas to the original S2-specific implementations, just using
+// RED/NIR/BLUE/SWIR1 instead of B4/B8/B2/B11.
+
+/** NDVI = (NIR - Red) / (NIR + Red). +1 = dense vegetation, -1 = none. */
 function computeNDVI(image: any): any {
-  return image.normalizedDifference(['B8', 'B4']).rename('NDVI');
+  return image.normalizedDifference(['NIR', 'RED']).rename('NDVI');
 }
 
 /**
- * Calculate BSI (Bare Soil Index):
+ * BSI (Bare Soil Index):
  * ((SWIR1 + Red) - (NIR + Blue)) / ((SWIR1 + Red) + (NIR + Blue))
- * = ((B11 + B4) - (B8 + B2)) / ((B11 + B4) + (B8 + B2))
+ * High values = exposed soil.
  */
 function computeBSI(image: any): any {
-  const numerator = image.select('B11').add(image.select('B4'))
-    .subtract(image.select('B8').add(image.select('B2')));
-  const denominator = image.select('B11').add(image.select('B4'))
-    .add(image.select('B8').add(image.select('B2')));
+  const numerator = image.select('SWIR1').add(image.select('RED'))
+    .subtract(image.select('NIR').add(image.select('BLUE')));
+  const denominator = image.select('SWIR1').add(image.select('RED'))
+    .add(image.select('NIR').add(image.select('BLUE')));
   return numerator.divide(denominator).rename('BSI');
 }
 
 /**
- * Calculate SAVI (Soil-Adjusted Vegetation Index):
+ * SAVI (Soil-Adjusted Vegetation Index):
  * ((NIR - Red) / (NIR + Red + L)) * (1 + L)  where L = 0.5
- * Better than NDVI in areas with sparse vegetation or exposed soil.
- * Critical for detecting small terrain disturbances in semi-arid regions.
+ * Better than NDVI in semi-arid / sparsely vegetated regions.
  */
 function computeSAVI(image: any): any {
-  const nir = image.select('B8');
-  const red = image.select('B4');
+  const nir = image.select('NIR');
+  const red = image.select('RED');
   const L = 0.5;
   return nir.subtract(red).divide(nir.add(red).add(L)).multiply(1 + L).rename('SAVI');
 }
@@ -308,7 +455,7 @@ async function countImages(collection: any): Promise<number> {
 const NDVI_VIS = { min: -0.2, max: 0.8, palette: ['d73027', 'fc8d59', 'fee08b', 'd9ef8b', '91cf60', '1a9850'] };
 const BSI_VIS = { min: -0.5, max: 0.5, palette: ['1a9850', '91cf60', 'fee08b', 'fc8d59', 'd73027', '7f0000'] };
 const DIFF_VIS = { min: -0.5, max: 0.5, palette: ['2166ac', '67a9cf', 'd1e5f0', 'f7f7f7', 'fddbc7', 'ef8a62', 'b2182b'] };
-const TRUE_COLOR_VIS = { bands: ['B4', 'B3', 'B2'], min: 0, max: 0.3 };
+const TRUE_COLOR_VIS = { bands: ['RED', 'GREEN', 'BLUE'], min: 0, max: 0.3 };
 // Sentinel-1 GRD backscatter is in dB. Typical land values: -25 to 0 dB.
 // Grayscale ramp makes it read like a traditional SAR image.
 const SAR_VV_VIS = { min: -25, max: 0, palette: ['000000', '303030', '707070', 'a0a0a0', 'd0d0d0', 'ffffff'] };
@@ -391,16 +538,18 @@ export async function analyzeTerrainChange(
 
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
-  const s2 = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
-    .filterBounds(aoi)
-    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', cfg.cloudPct));
+  // ── Sensor selection ────────────────────────────────────────────────
+  // Pick the best optical sensor for this event date. Preference order:
+  // Sentinel-2 (10m) → Landsat 9 (30m) → Landsat 8 (30m) → Landsat 5 (30m).
+  // Pre-1984 or the 2011-11→2013-04 gap will return null and error out.
+  const sensor = pickSensor(event);
+  if (!sensor) {
+    throw new Error('NO_SENSOR_COVERAGE');
+  }
+  logger.info(`[GEE] Sensor selected: ${sensor.displayName} (scale=${sensor.pixelScale}m) for event ${fmt(event)}`);
 
-  const baselineCollection = s2
-    .filterDate(fmt(baselineStart), fmt(baselineEnd))
-    .map(maskS2Clouds);
-  const currentCollection = s2
-    .filterDate(fmt(currentStart), fmt(currentEnd))
-    .map(maskS2Clouds);
+  const baselineCollection = sensor.buildCollection(aoi, fmt(baselineStart), fmt(baselineEnd), cfg.cloudPct);
+  const currentCollection = sensor.buildCollection(aoi, fmt(currentStart), fmt(currentEnd), cfg.cloudPct);
 
   // Count images for metadata
   const [baselineCount, currentCount] = await Promise.all([
@@ -412,11 +561,11 @@ export async function analyzeTerrainChange(
     throw new Error('NO_IMAGES_FOUND');
   }
 
-  // Median composites
+  // Median composites — harmonized bands: BLUE, GREEN, RED, NIR, SWIR1
   const baseline = baselineCollection.median().clip(aoi);
   const current = currentCollection.median().clip(aoi);
 
-  // Compute indices
+  // Compute indices (sensor-agnostic — works on harmonized band names)
   const ndviBefore = computeNDVI(baseline);
   const ndviAfter = computeNDVI(current);
   const ndviDiff = ndviAfter.subtract(ndviBefore).rename('NDVI_diff');
@@ -451,7 +600,17 @@ export async function analyzeTerrainChange(
   let sarError: string | undefined;
   let sarLayers: TerrainLayer[] = [];
 
+  // S1 didn't exist before 2014-10 — skip the SAR channel entirely for
+  // older cold cases. Landsat-era events run optical-only.
+  const s1EligibleByDate = event >= S1_START_DATE;
+
+  if (!s1EligibleByDate) {
+    logger.info(`[GEE] Event ${fmt(event)} predates Sentinel-1 launch (${fmt(S1_START_DATE)}) — optical-only analysis`);
+    sarError = 'Event predates Sentinel-1 launch (2014-10-03)';
+  }
+
   try {
+    if (!s1EligibleByDate) throw new Error('SAR_SKIPPED_BY_DATE');
     const s1 = ee.ImageCollection('COPERNICUS/S1_GRD')
       .filterBounds(aoi)
       .filter(ee.Filter.eq('instrumentMode', 'IW'))
@@ -508,8 +667,13 @@ export async function analyzeTerrainChange(
       logger.info(`[GEE] S1 SAR unavailable for window (before=${sarBaselineImages}, after=${sarCurrentImages}) — continuing optical-only`);
     }
   } catch (sarErr: any) {
-    sarError = sarErr?.message || String(sarErr);
-    logger.warn(`[GEE] S1 SAR pipeline failed: ${sarError} — continuing optical-only`);
+    const msg = sarErr?.message || String(sarErr);
+    if (msg === 'SAR_SKIPPED_BY_DATE') {
+      // Already logged above — not really an error, just a skip.
+    } else {
+      sarError = msg;
+      logger.warn(`[GEE] S1 SAR pipeline failed: ${sarError} — continuing optical-only`);
+    }
   }
 
   // Generate optical tile URLs in parallel
@@ -550,12 +714,13 @@ export async function analyzeTerrainChange(
     // minIndexHits: 1 = any single index triggers (OR), 2 = need 2 of 3 (stricter)
     const anyAnomaly = indexCount.gte(cfg.minIndexHits);
 
-    // Step 1: Count how many anomalous pixels exist (diagnostic)
+    // Step 1: Count how many anomalous pixels exist (diagnostic).
+    // Scale is sensor-native: 10m for S2, 30m for Landsat.
     const pixelCountResult: number = await new Promise((resolve, reject) => {
       anyAnomaly.selfMask().reduceRegion({
         reducer: ee.Reducer.count(),
         geometry: aoi,
-        scale: 10,
+        scale: sensor.pixelScale,
         maxPixels: 1e7,
       }).evaluate((result: any, err: string) => {
         if (err) return reject(new Error(err));
@@ -585,11 +750,12 @@ export async function analyzeTerrainChange(
         anomalyImage = anomalyImage.addBands(vvDiff).addBands(vhDiff);
       }
 
-      // Step 3: Sample anomalous pixels directly (no connectedComponents)
+      // Step 3: Sample anomalous pixels directly (no connectedComponents).
+      // Scale matches sensor native resolution.
       const numSamples = sensitivity === 'max' ? 200 : sensitivity === 'high' ? 150 : 100;
       const sampled = anomalyImage.sample({
         region: aoi,
-        scale: 10,
+        scale: sensor.pixelScale,
         numPixels: Math.min(numSamples, anomalyPixelCount),
         geometries: true,
       });
@@ -602,9 +768,10 @@ export async function analyzeTerrainChange(
       });
       logger.info(`[GEE] Sampled ${rawSamples.length} anomalous pixels`);
 
-      // Step 4: Cluster nearby sampled pixels in JS (simple grid-based grouping)
-      // Group points that are within ~30m of each other (3 pixels)
-      const CLUSTER_DIST = 0.0003; // ~30m in degrees
+      // Step 4: Cluster nearby sampled pixels in JS (simple grid-based grouping).
+      // "~3 pixels" tolerance — depends on the sensor's native scale.
+      // S2 (10m): 30m ≈ 0.00027°.  Landsat (30m): 90m ≈ 0.00081°.
+      const CLUSTER_DIST = (3 * sensor.pixelScale) / 111_000; // meters → degrees
       const points = rawSamples.map((f: any) => ({
         lon: f.geometry?.coordinates?.[0] ?? 0,
         lat: f.geometry?.coordinates?.[1] ?? 0,
@@ -641,9 +808,16 @@ export async function analyzeTerrainChange(
         }
       }
 
-      // Step 5: Build anomalies from clusters (filter small clusters first)
+      // Step 5: Build anomalies from clusters (filter small clusters first).
+      // The config's minClusterPixels is calibrated for 10m pixels — adapt it
+      // so the effective area threshold stays consistent across sensors. For
+      // 30m pixels we need ~9× fewer pixels to hit the same area.
+      const sensorMinClusterPixels = Math.max(
+        1,
+        Math.floor(cfg.minClusterPixels * (100 / sensor.areaPerPixel)),
+      );
       anomalies = Array.from(clusters.values())
-        .filter((members) => members.length >= cfg.minClusterPixels)
+        .filter((members) => members.length >= sensorMinClusterPixels)
         .map((members, i) => {
           const avgLon = members.reduce((s, m) => s + m.lon, 0) / members.length;
           const avgLat = members.reduce((s, m) => s + m.lat, 0) / members.length;
@@ -665,10 +839,11 @@ export async function analyzeTerrainChange(
           // check absolute value.
           const sarConfirmed = sarAvailable && avgVv !== null && Math.abs(avgVv) >= cfg.sarVVThreshold;
 
-          // Estimate area: each sampled pixel represents (totalAnomalyPixels / sampleCount) pixels
+          // Estimate area: each sampled pixel represents (totalAnomalyPixels / sampleCount) pixels.
+          // Pixel footprint is sensor-native: 100 m² for S2 (10m), 900 m² for Landsat (30m).
           const scaleFactor = anomalyPixelCount / rawSamples.length;
           const estimatedPixels = members.length * scaleFactor;
-          const areaM2 = Math.round(estimatedPixels * 100); // 10m res = 100m²/pixel
+          const areaM2 = Math.round(estimatedPixels * sensor.areaPerPixel);
 
           const maxChange = Math.max(Math.abs(avgNdvi), Math.abs(avgBsi), Math.abs(avgSavi));
           const combinedChange = (Math.abs(avgNdvi) + Math.abs(avgBsi) + Math.abs(avgSavi)) / 3;
@@ -748,6 +923,9 @@ export async function analyzeTerrainChange(
       sensitivity,
       anomalyPixelCount,
       anomalyError,
+      sourceSensor: sensor.id,
+      sourceSensorDisplay: sensor.displayName,
+      sourcePixelScale: sensor.pixelScale,
       sarAvailable,
       sarBaselineImages,
       sarCurrentImages,

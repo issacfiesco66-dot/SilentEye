@@ -2,12 +2,30 @@
 
 ## Qué es
 
-Un sistema de detección de anomalías en el terreno que combina **dos constelaciones satelitales independientes** a través de **Google Earth Engine**:
+Un sistema de detección de anomalías en el terreno que combina **múltiples constelaciones satelitales independientes** a través de **Google Earth Engine**. Cobertura temporal combinada: **desde marzo de 1984 hasta hoy**.
 
-- **Sentinel-2** (óptico, 10 m, revisita 5 días) — detecta cambios en vegetación y suelo expuesto mediante índices NDVI/BSI/SAVI. Es el **detector primario**.
-- **Sentinel-1** (radar SAR, 10 m, revisita 6–12 días) — detecta cambios en la rugosidad y humedad del suelo. Es el **validador independiente**: atraviesa nubes y no depende de iluminación solar.
+### Sensores ópticos (detectores primarios)
+
+El pipeline elige automáticamente el mejor sensor disponible según la fecha del evento, con preferencia por resolución. Todos usan un formato de bandas armonizado (BLUE/GREEN/RED/NIR/SWIR1) de modo que NDVI/BSI/SAVI se calculan con las mismas fórmulas.
+
+| Sensor | Resolución | Revisita | Cobertura |
+|---|---|---|---|
+| **Sentinel-2** (Copernicus) | 10 m | 5 días | 2017-03-28 → hoy |
+| **Landsat 9** (NASA/USGS) | 30 m | 16 días | 2021-10-31 → hoy |
+| **Landsat 8** (NASA/USGS) | 30 m | 16 días | 2013-04-11 → hoy |
+| **Landsat 5** (NASA/USGS) | 30 m | 16 días | 1984-03-01 → 2011-11-30 |
+
+Hay un único hueco de ~17 meses (2011-12 → 2013-04) entre el fin de Landsat 5 y el inicio de Landsat 8 donde no hay cobertura primaria. El endpoint rechaza esas fechas con un mensaje claro.
+
+### Validador independiente (radar)
+
+- **Sentinel-1** (SAR C-band, 10 m, revisita 6–12 días, desde 2014-10-03) — detecta cambios en la rugosidad y humedad del suelo. Atraviesa nubes y no depende de iluminación solar. **No dispara anomalías por sí solo** (la lluvia y la humedad darían falsos positivos), pero confirma o debilita cada detección óptica mediante cambios en VV/VH.
 
 Compara cómo se veía un área **antes de una fecha** vs **cómo se ve hoy** para detectar cambios sospechosos: tierra removida, vegetación destruida, suelo expuesto. Una anomalía óptica que además es confirmada por radar tiene confianza mucho mayor — los dos sensores miden fenómenos físicos distintos, así que un falso positivo en uno es improbable que coincida con uno en el otro.
+
+### Por qué es crítico para casos fríos
+
+Añadir Landsat 5/8/9 al pipeline fue motivado específicamente por **búsqueda de personas desaparecidas en casos fríos**. Antes del refactor multi-sensor, el backend rechazaba cualquier evento anterior a marzo de 2017 — lo que dejaba fuera la totalidad de la Guerra Sucia mexicana, las primeras fases de la guerra contra el narco, y prácticamente cualquier caso de desaparición anterior a esa década. Con Landsat 5 en el pipeline ahora se pueden analizar eventos de cualquier fecha desde 1984.
 
 **Caso de uso principal:** priorizar zonas de búsqueda de fosas clandestinas u otras alteraciones del terreno. Es herramienta de priorización — no prueba definitiva — y requiere verificación en campo.
 
@@ -49,10 +67,15 @@ Rate limit: 10 solicitudes / 15 minutos por IP
 
 ### Paso a paso:
 
-**1. Conexión y filtrado inicial**
+**1. Selección automática de sensor**
+- Función `pickSensor(eventDate)` en [gee-service.ts](../backend/src/services/gee-service.ts) recorre la lista de adaptadores en orden de preferencia (S2 → L9 → L8 → L5) y retorna el primero cuya ventana de cobertura contenga la fecha del evento.
+- Cada adaptador expone la misma interfaz: `buildCollection(aoi, start, end, cloudPct)` devuelve una `ImageCollection` con bandas armonizadas (BLUE/GREEN/RED/NIR/SWIR1) ya cloud-masked y escaladas a reflectancia [0,1]. Todo el resto del pipeline es sensor-agnóstico.
+- El scale de sampling y el área-por-píxel se adaptan automáticamente al sensor: 10 m / 100 m²/px para S2, 30 m / 900 m²/px para Landsat.
+
+**2. Conexión y filtrado inicial**
 - Conecta con Google Earth Engine vía service account (`GEE_SERVICE_ACCOUNT_EMAIL` + `GEE_PRIVATE_KEY`)
-- Filtra la colección `COPERNICUS/S2_SR_HARMONIZED` por área de interés
-- **Pre-filtra** imágenes con >30% cobertura de nubes a nivel metadata (`CLOUDY_PIXEL_PERCENTAGE < 30`)
+- El adaptador elegido filtra su colección (S2_SR_HARMONIZED, LC08/09_C02_T1_L2, o LT05_C02_T1_L2) por área de interés
+- **Pre-filtra** imágenes con >cfg.cloudPct% de nubes a nivel metadata (`CLOUDY_PIXEL_PERCENTAGE` para S2, `CLOUD_COVER` para Landsat)
 
 **2. Definición de periodos**
 - **ANTES (baseline):** desde 90 días antes del evento hasta **5 días antes del evento**

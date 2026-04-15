@@ -2560,19 +2560,32 @@ api.post('/terrain/analyze', terrainRateLimit, authMiddleware, asyncHandler(asyn
   }
   const radius = typeof radiusKm === 'number' && radiusKm > 0 && radiusKm <= 20 ? radiusKm : 2;
 
-  // Early date sanity: Sentinel-2 SR_HARMONIZED began ~March 2017. Before
-  // that, the collection is empty for any location and the query throws
-  // NO_IMAGES_FOUND. Surface this upfront with a helpful message instead
-  // of running the whole pipeline just to 404 at the end.
-  const SENTINEL2_START = new Date('2017-03-28');
+  // Multi-sensor coverage: we now support Sentinel-2, Landsat 9, Landsat 8
+  // and Landsat 5 — combined coverage runs from 1984-03 to present with
+  // a single 17-month gap (2011-11 → 2013-04) where Landsat 5 died before
+  // Landsat 8 launched. Reject only pre-1984 dates and dates inside that
+  // gap; the service picks the best sensor for everything else.
+  const EARLIEST_SUPPORTED = new Date('1984-03-01');
+  const L5_END = new Date('2011-11-30');
+  const L8_START = new Date('2013-04-11');
   const eventParsed = new Date(eventDate);
-  if (eventParsed < SENTINEL2_START) {
+  if (eventParsed < EARLIEST_SUPPORTED) {
     res.status(400).json({
       error: 'Fecha anterior a la cobertura satelital disponible',
-      detail: 'Sentinel-2 (el satélite que usamos) comenzó a operar el 28 de marzo de 2017. ' +
-              'Para eventos anteriores, no hay imágenes para comparar. ' +
-              'Elige una fecha posterior o reduce el rango de análisis.',
-      earliestSupported: '2017-03-28',
+      detail: 'El satélite más antiguo que usamos es Landsat 5, que comenzó a operar en marzo de 1984. ' +
+              'Para eventos anteriores no hay imágenes satelitales disponibles públicamente.',
+      earliestSupported: '1984-03-01',
+    });
+    return;
+  }
+  if (eventParsed > L5_END && eventParsed < L8_START) {
+    res.status(400).json({
+      error: 'Hueco en la cobertura satelital',
+      detail: 'Landsat 5 dejó de operar en noviembre de 2011 y Landsat 8 inició en abril de 2013. ' +
+              'No tenemos cobertura primaria en ese lapso de ~17 meses. ' +
+              'Prueba con una fecha anterior a 2011-11-30 o posterior a 2013-04-11.',
+      gapStart: '2011-12-01',
+      gapEnd: '2013-04-10',
     });
     return;
   }
@@ -2583,14 +2596,20 @@ api.post('/terrain/analyze', terrainRateLimit, authMiddleware, asyncHandler(asyn
     const result = await analyzeTerrainChange(latitude, longitude, radius, eventDate, afterDate || undefined, sens);
     res.json(result);
   } catch (err: any) {
+    if (err?.message === 'NO_SENSOR_COVERAGE') {
+      res.status(400).json({
+        error: 'No hay sensor disponible para esta fecha',
+        detail: 'La fecha cae fuera de la cobertura de todos los satélites que usamos (Sentinel-2, Landsat 5/8/9).',
+      });
+      return;
+    }
     if (err?.message === 'NO_IMAGES_FOUND') {
-      // Could be region-specific sparseness (e.g. Mexico had full
-      // Sentinel-2 L2A coverage only from mid-2018). Give an actionable
-      // message so the user can widen the window or pick another date.
+      // Could be region-specific sparseness or persistent cloud cover.
       res.status(404).json({
         error: 'No hay imágenes satelitales para esta fecha y ubicación',
-        detail: 'Sentinel-2 tiene cobertura completa desde mediados de 2018 en la mayor parte de México. ' +
-                'Prueba con una fecha posterior, un radio mayor, o revisa que no sea una zona con nubosidad persistente.',
+        detail: 'El sensor seleccionado no encontró imágenes suficientes en la ventana temporal. ' +
+                'Prueba con una fecha diferente, un radio mayor, o revisa que no sea una zona con nubosidad persistente. ' +
+                'En eventos históricos, aumentar `afterDate` puede ayudar.',
       });
       return;
     }
