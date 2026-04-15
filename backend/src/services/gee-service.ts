@@ -294,7 +294,15 @@ const S2Adapter: SensorAdapter = {
         const scaled = img.select(['B2', 'B3', 'B4', 'B8', 'B11'])
           .divide(10000)
           .rename(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1']);
-        return scaled.updateMask(mask).copyProperties(img, ['system:time_start']);
+        // CRITICAL: ee.Image(...) cast. `copyProperties()` on an Image
+        // returns an `ee.Element` in the JS API, not an `ee.Image`. If
+        // we return the raw Element here, the resulting ImageCollection
+        // has elements whose server-side type is Element, and downstream
+        // operations that inspect image metadata (notably reduceColumns
+        // called internally by size(), reduceRegion(), and sample()) fail
+        // with "Collection.reduceColumns: Empty date ranges not supported".
+        // Wrapping in ee.Image() restores the Image type.
+        return ee.Image(scaled.updateMask(mask).copyProperties(img, ['system:time_start']));
       });
   },
 };
@@ -330,7 +338,8 @@ function makeLandsatOliAdapter(id: 'landsat8' | 'landsat9', collectionId: string
           const scaled = img.select(['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6'])
             .multiply(0.0000275).add(-0.2)
             .rename(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1']);
-          return scaled.updateMask(mask).copyProperties(img, ['system:time_start']);
+          // ee.Image() cast — see S2Adapter for rationale.
+          return ee.Image(scaled.updateMask(mask).copyProperties(img, ['system:time_start']));
         });
     },
   };
@@ -366,7 +375,8 @@ const L5Adapter: SensorAdapter = {
         const scaled = img.select(['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5'])
           .multiply(0.0000275).add(-0.2)
           .rename(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1']);
-        return scaled.updateMask(mask).copyProperties(img, ['system:time_start']);
+        // ee.Image() cast — see S2Adapter for rationale.
+        return ee.Image(scaled.updateMask(mask).copyProperties(img, ['system:time_start']));
       });
   },
 };
