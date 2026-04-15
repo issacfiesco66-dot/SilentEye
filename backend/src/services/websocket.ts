@@ -84,6 +84,40 @@ interface WSMessage {
 
 const clients = new Map<WsSocket, { userId?: string; role?: string; vehicleId?: string; ip?: string }>();
 
+// ── WebSocket upgrade rate limiter ───────────────────────────────────
+// The existing MAX_WS_PER_IP check only covers ALREADY-ESTABLISHED
+// connections. An attacker can still burn CPU by opening+closing
+// sockets in a tight loop — each upgrade costs a handshake, a ticket
+// lookup, and a DB query before we reject. This rate-limit tracks
+// upgrade ATTEMPTS per IP in a 10-second sliding window and rejects
+// further attempts when an IP crosses the threshold.
+const UPGRADE_RATE_LIMIT_WINDOW_MS = 10_000;
+const UPGRADE_RATE_LIMIT_MAX = 20;   // 20 upgrades per 10s per IP = 2/s
+const upgradeAttempts = new Map<string, number[]>();
+function checkUpgradeRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const cutoff = now - UPGRADE_RATE_LIMIT_WINDOW_MS;
+  const attempts = upgradeAttempts.get(ip) || [];
+  // Drop stale attempts outside the window
+  const recent = attempts.filter((t) => t > cutoff);
+  if (recent.length >= UPGRADE_RATE_LIMIT_MAX) {
+    upgradeAttempts.set(ip, recent); // keep what we kept
+    return false;
+  }
+  recent.push(now);
+  upgradeAttempts.set(ip, recent);
+  return true;
+}
+// GC stale IP entries every minute so the Map doesn't grow forever.
+setInterval(() => {
+  const cutoff = Date.now() - UPGRADE_RATE_LIMIT_WINDOW_MS;
+  for (const [ip, attempts] of upgradeAttempts) {
+    const kept = attempts.filter((t) => t > cutoff);
+    if (kept.length === 0) upgradeAttempts.delete(ip);
+    else upgradeAttempts.set(ip, kept);
+  }
+}, 60_000).unref();
+
 const VALID_ROLES = ['admin', 'helper', 'driver', 'citizen'];
 const MAX_WS_PER_IP = 10;
 const MAX_WS_PER_USER = 5;
@@ -97,11 +131,28 @@ export function createWebSocketServer(portOrServer: number | HttpServer): WebSoc
     : new WebSocketServer({ server: portOrServer, path: '/ws', maxPayload: 64 * 1024 });
 
   wss.on('connection', async (ws, req) => {
-    // Extract client IP for rate limiting
+    // Extract client IP for rate limiting. Prefer Cloudflare header
+    // (fly.io sits behind CF in production) over X-Forwarded-For so
+    // the limiter is keyed on the real client even if an upstream
+    // proxy sets additional XFF hops.
+    const cfIp = req.headers['cf-connecting-ip'];
     const forwarded = req.headers['x-forwarded-for'];
-    const clientIp = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress || 'unknown';
+    const clientIp =
+      (typeof cfIp === 'string' && cfIp) ||
+      (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : null) ||
+      req.socket?.remoteAddress ||
+      'unknown';
 
-    // Per-IP connection limit (prevent DoS)
+    // Upgrade-rate-limit: reject before we spend any CPU on ticket
+    // lookups or DB queries. A bot that hits this wall gets a fast
+    // 4429 close and no further processing.
+    if (!checkUpgradeRateLimit(clientIp)) {
+      logger.warn(`WebSocket: IP ${clientIp} excede upgrade rate (${UPGRADE_RATE_LIMIT_MAX}/${UPGRADE_RATE_LIMIT_WINDOW_MS / 1000}s)`);
+      ws.close(4429, 'Upgrade rate exceeded');
+      return;
+    }
+
+    // Per-IP connection limit (prevent DoS via long-lived connections)
     const ipCount = [...clients.values()].filter(m => m.ip === clientIp).length;
     if (ipCount >= MAX_WS_PER_IP) {
       logger.warn(`WebSocket: IP ${clientIp} excede límite (${MAX_WS_PER_IP} conexiones)`);
@@ -273,25 +324,77 @@ export function broadcastLocation(update: LocationUpdate, incidentFollowerIds?: 
   );
 }
 
+// Panic coord mode — controls whether non-admin helpers see the
+// victim's exact location or an approximation.
+//
+//   exact   (default, legacy) — every nearby user sees the raw lat/lng.
+//           Matches pre-audit behavior. Preserves UX for helpers who
+//           need to navigate to the victim.
+//
+//   approx  — nearby helpers/drivers/citizens see lat/lng truncated to
+//           3 decimal places (~111 m). Enough to get to the right
+//           block without pinpointing a home address. Admins continue
+//           to see exact coords.
+//
+// Flip with: fly secrets set PANIC_COORD_MODE=approx -a silenteye-3rrwnq
+// Revert with: fly secrets set PANIC_COORD_MODE=exact -a silenteye-3rrwnq
+//
+// SECURITY NOTE: the real fix for "malicious helper tracks victim"
+// would be a verified-helper trust tier — but that requires a product
+// decision about what "verified" means and a DB migration. This
+// feature flag is the minimal-risk interim that lets operators opt
+// into a safer default immediately, without touching UX of trusted
+// responders who already know how to handle panic alerts.
+type PanicCoordMode = 'exact' | 'approx';
+function getPanicCoordMode(): PanicCoordMode {
+  const raw = (process.env.PANIC_COORD_MODE || 'exact').toLowerCase();
+  return raw === 'approx' ? 'approx' : 'exact';
+}
+
+/** Round lat/lng to ~111 m precision. 3 decimal places of a degree. */
+function approximateCoords<T extends { latitude: number; longitude: number }>(e: T): T {
+  return {
+    ...e,
+    latitude: Math.round(e.latitude * 1000) / 1000,
+    longitude: Math.round(e.longitude * 1000) / 1000,
+  };
+}
+
 export function broadcastPanic(event: PanicEvent, nearbyUserIds?: string[]) {
   // Security: panic events (with exact coordinates) are restricted.
-  // - admin: always sees all panics (operational necessity)
-  // - helper / driver / citizen: ONLY if their user id is in nearbyUserIds
-  //   (i.e. they are geographically close or an incident follower).
-  // This prevents any authenticated account from monitoring every panic
-  // event city-wide in real time.
+  // - admin: always sees all panics with exact coords (operational need)
+  // - helper / driver / citizen: ONLY if their user id is in
+  //   nearbyUserIds, AND the coord precision depends on PANIC_COORD_MODE.
   // The activateCamera flag is intentionally stripped here — camera
-  // activation is delivered separately via sendCameraActivation() to the
-  // specific driver/owner of the vehicle that triggered the panic.
-  const safeEvent: PanicEvent = { ...event, activateCamera: false };
+  // activation is delivered separately via sendCameraActivation() to
+  // the specific driver/owner of the vehicle that triggered the panic.
+  const mode = getPanicCoordMode();
+  const exactEvent: PanicEvent = { ...event, activateCamera: false };
   const nearby = new Set(nearbyUserIds ?? []);
-  const filter = (meta: { userId?: string; role?: string; vehicleId?: string }) =>
-    meta.role === 'admin' ||
-    ((meta.role === 'helper' || meta.role === 'driver' || meta.role === 'citizen')
-      && nearby.has(meta.userId ?? ''));
-  const recipientCount = [...clients.values()].filter(filter).length;
-  logger.info(`broadcastPanic incident=${event.incidentId} plate=${event.plate} → ${recipientCount} clientes`);
-  broadcast({ type: 'panic', payload: safeEvent }, filter);
+  const isNearbyNonAdmin = (meta: { userId?: string; role?: string }) =>
+    (meta.role === 'helper' || meta.role === 'driver' || meta.role === 'citizen')
+    && nearby.has(meta.userId ?? '');
+
+  if (mode === 'exact') {
+    // Legacy path: single broadcast, everyone nearby sees exact coords.
+    const filter = (meta: { userId?: string; role?: string; vehicleId?: string }) =>
+      meta.role === 'admin' || isNearbyNonAdmin(meta);
+    const recipientCount = [...clients.values()].filter(filter).length;
+    logger.info(`broadcastPanic[exact] incident=${event.incidentId} plate=${event.plate} → ${recipientCount} clientes`);
+    broadcast({ type: 'panic', payload: exactEvent }, filter);
+    return;
+  }
+
+  // Approx path: two broadcasts with different payloads.
+  // 1) admins get exact; 2) nearby non-admins get rounded coords.
+  const approxEvent: PanicEvent = approximateCoords(exactEvent);
+  const adminFilter = (meta: { role?: string }) => meta.role === 'admin';
+  const nearbyFilter = (meta: { userId?: string; role?: string }) => isNearbyNonAdmin(meta);
+  const adminCount = [...clients.values()].filter(adminFilter).length;
+  const nearbyCount = [...clients.values()].filter(nearbyFilter).length;
+  logger.info(`broadcastPanic[approx] incident=${event.incidentId} plate=${event.plate} → admin=${adminCount} nearbyApprox=${nearbyCount}`);
+  broadcast({ type: 'panic', payload: exactEvent }, adminFilter);
+  broadcast({ type: 'panic', payload: approxEvent }, nearbyFilter);
 }
 
 /**

@@ -122,6 +122,38 @@ function logAvlRecord(imei: string, record: AVLRecord, index: number): void {
 const MAX_TCP_CONNECTIONS = 200;
 const MAX_TCP_PER_IP = 5;
 
+// ── Per-IMEI byte throttle ────────────────────────────────────────
+// The per-connection buffer limit (MAX_CONNECTION_BUFFER = 1 MB) caps
+// a single socket but doesn't stop a device from reconnecting in a
+// tight loop and burning memory across many sockets. We add a sliding
+// 60-second window of bytes-per-IMEI and close the socket if a device
+// exceeds the quota. A well-behaved Teltonika/Concox/Queclink device
+// sends ~100 bytes-2KB per AVL packet every 30-60s — under 1 KB/s on
+// average. We allow 256 KB/min (~4 KB/s sustained) which is 4× the
+// upper end of legitimate usage. Anything past that is either broken
+// firmware (cut it off, preserve resources) or malicious (cut it off,
+// preserve everyone else).
+const IMEI_BYTE_WINDOW_MS = 60_000;
+const IMEI_MAX_BYTES_PER_WINDOW = 256 * 1024;
+const imeiByteCounts = new Map<string, { bytes: number; resetAt: number }>();
+function checkImeiByteQuota(imei: string, incoming: number): boolean {
+  const now = Date.now();
+  const rec = imeiByteCounts.get(imei);
+  if (!rec || now >= rec.resetAt) {
+    imeiByteCounts.set(imei, { bytes: incoming, resetAt: now + IMEI_BYTE_WINDOW_MS });
+    return incoming <= IMEI_MAX_BYTES_PER_WINDOW;
+  }
+  rec.bytes += incoming;
+  return rec.bytes <= IMEI_MAX_BYTES_PER_WINDOW;
+}
+// GC stale IMEI entries once a minute.
+setInterval(() => {
+  const now = Date.now();
+  for (const [imei, rec] of imeiByteCounts) {
+    if (now >= rec.resetAt) imeiByteCounts.delete(imei);
+  }
+}, 60_000).unref();
+
 /* ── Queclink message handler ── */
 function handleQueclinkData(
   conn: TeltonikaConnection,
@@ -312,6 +344,15 @@ export function createTeltonikaTcpServer(port: number, onData?: (imei: string, r
 
       if (conn.buffer.length > MAX_CONNECTION_BUFFER) {
         logger.warn(`[TCP][${addr}] Buffer excedido: ${conn.buffer.length} bytes, cerrando`);
+        socket.destroy();
+        return;
+      }
+
+      // Per-IMEI byte quota — only meaningful once the handshake has
+      // resolved an IMEI. If a device blows past the quota we sever
+      // the socket regardless of state.
+      if (conn.imei && !checkImeiByteQuota(conn.imei, data.length)) {
+        logger.warn(`[TCP][${addr}][${conn.imei}] IMEI byte quota exceeded (>${IMEI_MAX_BYTES_PER_WINDOW} bytes/${IMEI_BYTE_WINDOW_MS / 1000}s) — cerrando`);
         socket.destroy();
         return;
       }

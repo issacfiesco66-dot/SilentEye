@@ -3497,14 +3497,39 @@ api.get('/incidents/:id/faces', authMiddleware, asyncHandler(async (req, res) =>
 // (face_detection_id → NULL via ON DELETE SET NULL on the FK), so the
 // criminal pattern is preserved even after the raw biometric payload
 // is gone.
-api.delete('/faces/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+api.delete('/faces/:id', authMiddleware, writeRateLimit, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid face ID' }); return; }
 
   const { reason } = req.body || {};
 
+  // Require a meaningful reason (≥20 chars) for every hard-delete.
+  // "admin_action" is not enough — a forensic reviewer six months from
+  // now needs to understand WHY this evidence was destroyed. The 20-
+  // char minimum forces at least a short sentence like "GDPR request
+  // from subject Juan Pérez, email on file 2026-03-04".
+  const cleanReason = typeof reason === 'string' ? reason.trim() : '';
+  if (cleanReason.length < 20) {
+    res.status(400).json({
+      error: 'Reason required (minimum 20 characters) — explain why this biometric evidence is being destroyed',
+    });
+    return;
+  }
+  if (cleanReason.length > 500) {
+    res.status(400).json({ error: 'Reason too long (max 500 characters)' });
+    return;
+  }
+
+  // Capture everything relevant BEFORE the delete so the audit record
+  // survives the row's destruction. Includes the original uploader so
+  // a rogue admin erasing a rival's upload leaves a clear trace.
   const r = await pool.query(
-    `SELECT fd.id, fd.incident_id FROM face_detections fd WHERE fd.id = $1`,
+    `SELECT fd.id, fd.incident_id, fd.user_id as uploader_id, fd.media_id,
+            fd.confidence, fd.created_at,
+            u.name as uploader_name, u.email as uploader_email, u.role as uploader_role
+     FROM face_detections fd
+     LEFT JOIN users u ON u.id = fd.user_id
+     WHERE fd.id = $1`,
     [id]
   );
   const face = r.rows[0];
@@ -3517,9 +3542,20 @@ api.delete('/faces/:id', authMiddleware, requireRole('admin'), asyncHandler(asyn
     targetId: id,
     details: {
       incident_id: face.incident_id,
-      reason: typeof reason === 'string' ? reason.slice(0, 200) : 'admin_action',
+      media_id: face.media_id,
+      confidence: face.confidence,
+      original_uploader_id: face.uploader_id,
+      original_uploader_name: face.uploader_name,
+      original_uploader_role: face.uploader_role,
+      original_created_at: face.created_at,
+      reason: cleanReason,
     },
   });
+  // Also log to the console for immediate visibility in fly logs —
+  // destruction of evidence should never be quiet.
+  const { userId: deleterId } = (req as any).user || {};
+  logger.warn(`[faces.hard_delete] admin=${deleterId} deleted face=${id} from incident=${face.incident_id} (originally uploaded by user=${face.uploader_id}) reason="${cleanReason.slice(0, 100)}"`);
+
   res.json({ ok: true, destructive: true });
 }));
 
