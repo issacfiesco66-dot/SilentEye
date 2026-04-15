@@ -145,13 +145,39 @@ export default function SuspectGallery({ token, onClose, embedded = false, role 
     setMarkingFaceId(null);
   }, [token, fetchFaces, fetchSuspects]);
 
-  // Right to erasure — delete a captured face.
+  // Soft-hide: remove a face from the CALLER'S own view. Non-destructive.
+  // The row stays in the database, the admin keeps seeing it, cross-incident
+  // suspect matching keeps working. Used by drivers/citizens/helpers who
+  // don't want a particular face cluttering their gallery.
+  const hideFace = useCallback(async (faceId: string) => {
+    if (typeof window !== 'undefined' &&
+        !window.confirm('¿Ocultar este rostro de tu vista?\n\nEl administrador seguirá viéndolo. Esta acción no borra la evidencia.')) return;
+    try {
+      const res = await fetch(`${API}/api/faces/${faceId}/hide`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        await fetchFaces();
+      }
+    } catch {}
+  }, [token, fetchFaces]);
+
+  // Hard delete: destroys the face row from the database. Admin-only.
+  // Triggers audit log entry `face.hard_delete`. Irreversible.
   const deleteFace = useCallback(async (faceId: string) => {
-    if (typeof window !== 'undefined' && !window.confirm('¿Borrar este rostro? Esta acción no se puede deshacer.')) return;
+    if (typeof window !== 'undefined' &&
+        !window.confirm(
+          '⚠ BORRADO DE EVIDENCIA\n\n' +
+          'Esto elimina el rostro permanentemente de la base de datos.\n' +
+          'La acción quedará registrada en el audit log y NO se puede deshacer.\n\n' +
+          '¿Continuar?'
+        )) return;
     try {
       const res = await fetch(`${API}/api/faces/${faceId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason: 'admin_gallery_action' }),
       });
       if (res.ok) {
         await fetchFaces();
@@ -506,14 +532,31 @@ export default function SuspectGallery({ token, onClose, embedded = false, role 
                           Evidencia registrada
                         </p>
                       )}
-                      {/* Right to erasure: any authorized caller can delete
-                          a captured face (bystander / false positive). */}
-                      <button
-                        onClick={() => deleteFace(f.id)}
-                        className="w-full mt-1 py-1 text-[9px] text-zinc-400 hover:text-red-600 transition-colors"
-                      >
-                        Borrar rostro
-                      </button>
+                      {/* Evidence protection:
+                          • Admins can HARD DELETE — removes the row from
+                            the database. Audit-logged. Irreversible.
+                          • Everyone else can only SOFT HIDE — removes the
+                            row from their own view; admin and forensic
+                            pipeline still see the evidence intact.
+                          This prevents a follower from destroying the only
+                          evidence of a crime they witnessed. */}
+                      {role === 'admin' ? (
+                        <button
+                          onClick={() => deleteFace(f.id)}
+                          className="w-full mt-1 py-1 text-[9px] text-red-500 hover:text-red-700 border border-red-200 rounded transition-colors"
+                          title="Eliminación destructiva — queda registrada en el audit log"
+                        >
+                          Borrar evidencia
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => hideFace(f.id)}
+                          className="w-full mt-1 py-1 text-[9px] text-zinc-400 hover:text-zinc-700 transition-colors"
+                          title="Oculta de tu vista. El admin sigue viendo la evidencia."
+                        >
+                          Ocultar de mi vista
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

@@ -3243,53 +3243,113 @@ api.get('/incidents/:id/faces', authMiddleware, asyncHandler(async (req, res) =>
   res.json(r.rows);
 }));
 
-// ── User self-service: delete a captured face ───────────────────────────────
-// Right to erasure (GDPR Art. 17 / LFPDPPP). A user can delete a face
-// detection tied to one of their incidents — typically a bystander who was
-// captured by accident during an SOS. The row is dropped outright; any
-// suspect_sightings pointing to it are left intact (face_detection_id →
-// NULL via ON DELETE SET NULL). Admins can delete any face.
-api.delete('/faces/:id', authMiddleware, asyncHandler(async (req, res) => {
+// ── Admin-only: hard delete a face detection (destructive) ──────────────────
+//
+// WARNING: this irreversibly removes the face_detection row from the
+// database. It should only be used for legitimate legal/regulatory
+// requests (e.g. a bystander's formal GDPR / LFPDPPP erasure petition
+// that the admin has reviewed). It is NOT a self-service tool for
+// drivers or helpers — a previous version allowed that and permitted
+// evidence of crimes to be destroyed by anyone with incident access,
+// which was catastrophic in a forensic context.
+//
+// Regular users should call POST /api/faces/:id/hide instead; that
+// endpoint adds a per-user soft-hide record but preserves the evidence
+// for the admin and for cross-incident suspect matching.
+//
+// Any suspect_sightings referencing the deleted face become orphaned
+// (face_detection_id → NULL via ON DELETE SET NULL on the FK), so the
+// criminal pattern is preserved even after the raw biometric payload
+// is gone.
+api.delete('/faces/:id', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { userId, role } = (req as any).user;
   if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid face ID' }); return; }
 
-  // Fetch face + incident owner
+  const { reason } = req.body || {};
+
   const r = await pool.query(
-    `SELECT fd.id, fd.incident_id, i.driver_id
-     FROM face_detections fd
-     JOIN incidents i ON i.id = fd.incident_id
-     WHERE fd.id = $1`,
+    `SELECT fd.id, fd.incident_id FROM face_detections fd WHERE fd.id = $1`,
     [id]
   );
   const face = r.rows[0];
   if (!face) { res.status(404).json({ error: 'Face not found' }); return; }
 
-  // Authorization: admin, incident driver, or incident follower.
-  if (role !== 'admin') {
-    if (face.driver_id !== userId) {
-      const follow = await pool.query(
-        `SELECT 1 FROM incident_followers WHERE incident_id = $1 AND user_id = $2`,
-        [face.incident_id, userId]
-      );
-      if (!follow.rows[0]) {
-        res.status(403).json({ error: 'Access denied' });
-        return;
-      }
-    }
-  }
-
   await pool.query(`DELETE FROM face_detections WHERE id = $1`, [id]);
   writeAuditLog(req, {
-    action: 'face.delete',
+    action: 'face.hard_delete',
     targetType: 'face_detection',
     targetId: id,
-    details: { incident_id: face.incident_id, reason: 'user_request' },
+    details: {
+      incident_id: face.incident_id,
+      reason: typeof reason === 'string' ? reason.slice(0, 200) : 'admin_action',
+    },
   });
-  res.json({ ok: true });
+  res.json({ ok: true, destructive: true });
+}));
+
+// ── User soft-hide: remove a face from the caller's own view ────────────────
+//
+// Non-destructive. Writes (face_id, user_id) into face_hidden_by so that
+// subsequent GET /api/faces/my responses for this user exclude the row.
+// Other users (especially admins) continue to see the face unchanged.
+// Idempotent — calling twice is a no-op.
+//
+// Authorization: the caller must have access to the incident (driver,
+// incident follower, or admin). Admins typically shouldn't hide their
+// own evidence — they should use DELETE — but we allow it because the
+// operation is harmless (only affects the admin's personal view, never
+// destroys data).
+api.post('/faces/:id/hide', authMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { userId } = (req as any).user;
+  if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid face ID' }); return; }
+
+  // Lookup the incident this face belongs to so we can reuse the
+  // standard access check.
+  const r = await pool.query(
+    `SELECT incident_id FROM face_detections WHERE id = $1`,
+    [id]
+  );
+  const face = r.rows[0];
+  if (!face) { res.status(404).json({ error: 'Face not found' }); return; }
+
+  if (!(await requireIncidentAccess(req, res, face.incident_id))) return;
+
+  const { reason } = req.body || {};
+  await pool.query(
+    `INSERT INTO face_hidden_by (face_id, user_id, reason)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (face_id, user_id) DO NOTHING`,
+    [id, userId, typeof reason === 'string' ? reason.slice(0, 64) : null]
+  );
+  writeAuditLog(req, {
+    action: 'face.hide',
+    targetType: 'face_detection',
+    targetId: id,
+    details: { incident_id: face.incident_id },
+  });
+  res.json({ ok: true, hidden: true });
+}));
+
+// ── User soft-unhide (reverse a previous /hide) ─────────────────────────────
+api.post('/faces/:id/unhide', authMiddleware, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { userId } = (req as any).user;
+  if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid face ID' }); return; }
+
+  await pool.query(
+    `DELETE FROM face_hidden_by WHERE face_id = $1 AND user_id = $2`,
+    [id, userId]
+  );
+  res.json({ ok: true, hidden: false });
 }));
 
 // ── List all faces detected across the user's incidents (admin sees all) ────
+// Excludes rows that the caller has soft-hidden via POST /faces/:id/hide.
+// Non-admin callers only see faces from incidents they own or follow; the
+// soft-hide filter still applies to them. Admins see every face by default
+// but can also hide from their own personal view — we filter regardless of
+// role so the UI remains consistent.
 api.get('/faces/my', authMiddleware, asyncHandler(async (req, res) => {
   const { userId, role } = (req as any).user;
   const isAdmin = role === 'admin';
@@ -3304,9 +3364,13 @@ api.get('/faces/my', authMiddleware, asyncHandler(async (req, res) => {
      LEFT JOIN vehicles v ON v.id = i.vehicle_id
      LEFT JOIN suspect_sightings ss ON ss.face_detection_id = fd.id
      LEFT JOIN suspects s ON ss.suspect_id = s.id
-     WHERE $2::boolean
-        OR i.driver_id = $1
-        OR EXISTS (SELECT 1 FROM incident_followers WHERE incident_id = i.id AND user_id = $1)
+     WHERE ($2::boolean
+            OR i.driver_id = $1
+            OR EXISTS (SELECT 1 FROM incident_followers WHERE incident_id = i.id AND user_id = $1))
+       AND NOT EXISTS (
+            SELECT 1 FROM face_hidden_by fhb
+             WHERE fhb.face_id = fd.id AND fhb.user_id = $1
+           )
      ORDER BY fd.created_at DESC
      LIMIT 500`,
     [userId, isAdmin]
