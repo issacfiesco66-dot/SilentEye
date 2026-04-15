@@ -3396,6 +3396,90 @@ api.post('/faces/:id/unhide', authMiddleware, asyncHandler(async (req, res) => {
   res.json({ ok: true, hidden: false });
 }));
 
+// ── Admin diagnostic snapshot — authenticated via normal JWT/cookie ────────
+// Same payload as /health/diag but accessible by any admin without needing
+// to set a separate DIAG_TOKEN secret. Intended for one-off production
+// triage from the browser's devtools (DevTools > Console > fetch).
+api.get('/admin/diag', authMiddleware, requireRole('admin'), asyncHandler(async (req, res) => {
+  try {
+    const { getGeeDiagnostics } = await import('../services/gee-service.js');
+    const { isStrictCookieAuth, isStripTokenFromBody } = await import('./auth.js');
+
+    const tableCheck = await pool.query(`
+      SELECT
+        to_regclass('public.face_detections') AS face_detections,
+        to_regclass('public.incident_media') AS incident_media,
+        to_regclass('public.face_hidden_by') AS face_hidden_by,
+        to_regclass('public.suspects') AS suspects,
+        to_regclass('public.suspect_sightings') AS suspect_sightings,
+        to_regclass('public.token_blacklist') AS token_blacklist,
+        to_regclass('public.audit_log') AS audit_log,
+        to_regclass('public.incidents') AS incidents,
+        to_regclass('public.vehicles') AS vehicles,
+        to_regclass('public.users') AS users
+    `);
+    const tables = tableCheck.rows[0] || {};
+
+    const faceCount = await pool.query('SELECT COUNT(*) FROM face_detections');
+    const mediaCount = await pool.query('SELECT COUNT(*) FROM incident_media');
+    const incidentCount = await pool.query('SELECT COUNT(*) FROM incidents');
+    const hiddenCount = tables.face_hidden_by
+      ? await pool.query('SELECT COUNT(*) FROM face_hidden_by')
+      : { rows: [{ count: 'n/a' }] };
+
+    // Test the exact query /api/faces/my uses to see if it throws
+    let facesQueryOk = true;
+    let facesQueryError: string | null = null;
+    try {
+      await pool.query(
+        `SELECT fd.id FROM face_detections fd
+         JOIN incidents i ON i.id = fd.incident_id
+         WHERE NOT EXISTS (
+           SELECT 1 FROM face_hidden_by fhb WHERE fhb.face_id = fd.id AND fhb.user_id = $1
+         )
+         LIMIT 1`,
+        [(req as any).user.userId]
+      );
+    } catch (err: unknown) {
+      facesQueryOk = false;
+      facesQueryError = (err as { message?: string })?.message || String(err);
+    }
+
+    res.json({
+      ok: true,
+      timestamp: new Date().toISOString(),
+      auth: {
+        strictCookie: isStrictCookieAuth(),
+        stripBody: isStripTokenFromBody(),
+        currentSource: (req as any).authSource || 'unknown',
+      },
+      gee: getGeeDiagnostics(),
+      tables: {
+        face_detections: !!tables.face_detections,
+        incident_media: !!tables.incident_media,
+        face_hidden_by: !!tables.face_hidden_by,
+        suspects: !!tables.suspects,
+        suspect_sightings: !!tables.suspect_sightings,
+        token_blacklist: !!tables.token_blacklist,
+        audit_log: !!tables.audit_log,
+        incidents: !!tables.incidents,
+        vehicles: !!tables.vehicles,
+        users: !!tables.users,
+      },
+      counts: {
+        face_detections: parseInt(faceCount.rows[0]?.count || '0', 10),
+        incident_media: parseInt(mediaCount.rows[0]?.count || '0', 10),
+        incidents: parseInt(incidentCount.rows[0]?.count || '0', 10),
+        face_hidden_by: hiddenCount.rows[0]?.count ?? 'n/a',
+      },
+      facesQueryProbe: { ok: facesQueryOk, error: facesQueryError },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    res.status(500).json({ ok: false, error: msg });
+  }
+}));
+
 // ── List all faces detected across the user's incidents (admin sees all) ────
 // Excludes rows that the caller has soft-hidden via POST /faces/:id/hide.
 // Non-admin callers only see faces from incidents they own or follow; the
