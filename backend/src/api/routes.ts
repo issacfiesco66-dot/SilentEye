@@ -3152,27 +3152,47 @@ api.get('/incidents/:id/media', authMiddleware, asyncHandler(async (req, res) =>
 api.post('/incidents/:id/faces', authMiddleware, mediaUploadLimit, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { userId } = (req as any).user;
-  if (!isValidUuid(id)) { res.status(400).json({ error: 'Invalid incident ID' }); return; }
+  if (!isValidUuid(id)) {
+    logger.warn(`[faces.post] reject: invalid incident uuid "${id}"`);
+    res.status(400).json({ error: 'Invalid incident ID' });
+    return;
+  }
 
   const { media_id, face_crop, encoding, confidence, box } = req.body;
   if (!media_id || !isValidUuid(media_id) || !face_crop || !encoding || !Array.isArray(encoding)) {
-    res.status(400).json({ error: 'media_id (uuid), face_crop, encoding[] required' }); return;
+    logger.warn(`[faces.post] reject: missing fields incident=${id} media_id=${!!media_id} face_crop=${!!face_crop} encoding=${Array.isArray(encoding) ? encoding.length : 'not-array'}`);
+    res.status(400).json({ error: 'media_id (uuid), face_crop, encoding[] required' });
+    return;
   }
   if (encoding.length < 64 || encoding.length > 512) {
-    res.status(400).json({ error: 'encoding must be 64-512 dimensions' }); return;
+    logger.warn(`[faces.post] reject: encoding length ${encoding.length}`);
+    res.status(400).json({ error: 'encoding must be 64-512 dimensions' });
+    return;
   }
   // Validate face crop is a real JPEG
   if (typeof face_crop !== 'string' || face_crop.length > 700_000 || !isValidJpegBase64(face_crop)) {
-    res.status(400).json({ error: 'face_crop must be a valid JPEG (max 500KB)' }); return;
+    logger.warn(`[faces.post] reject: face_crop invalid type=${typeof face_crop} len=${typeof face_crop === 'string' ? face_crop.length : '-'} isJpeg=${typeof face_crop === 'string' ? isValidJpegBase64(face_crop) : '-'}`);
+    res.status(400).json({ error: 'face_crop must be a valid JPEG (max 500KB)' });
+    return;
   }
-  // Validate encoding values are finite numbers in [-2, 2] (normalized descriptors)
-  for (const v of encoding) {
-    if (typeof v !== 'number' || !Number.isFinite(v) || v < -2 || v > 2) {
-      res.status(400).json({ error: 'encoding must contain finite numbers in [-2, 2]' }); return;
+  // Validate encoding: finite numbers only. We previously clamped to [-2, 2]
+  // as a hygiene check but that rejected legitimate face-api.js descriptors
+  // in edge cases — the model's output is not guaranteed to be strictly
+  // bounded, only finite. The dimension check above already blocks payloads
+  // that are structurally wrong.
+  for (let i = 0; i < encoding.length; i++) {
+    const v = encoding[i];
+    if (typeof v !== 'number' || !Number.isFinite(v)) {
+      logger.warn(`[faces.post] reject: encoding[${i}] not a finite number (${typeof v}: ${v})`);
+      res.status(400).json({ error: 'encoding must contain finite numbers' });
+      return;
     }
   }
 
-  if (!(await requireIncidentAccess(req, res, id))) return;
+  if (!(await requireIncidentAccess(req, res, id))) {
+    logger.warn(`[faces.post] reject: access denied user=${userId} incident=${id}`);
+    return;
+  }
 
   // Verify media_id belongs to this incident — prevent cross-incident contamination
   const mediaCheck = await pool.query(
@@ -3180,6 +3200,7 @@ api.post('/incidents/:id/faces', authMiddleware, mediaUploadLimit, asyncHandler(
     [media_id, id]
   );
   if (!mediaCheck.rows[0]) {
+    logger.warn(`[faces.post] reject: media_id=${media_id} not in incident=${id}`);
     res.status(400).json({ error: 'media_id does not belong to this incident' });
     return;
   }
@@ -3350,32 +3371,67 @@ api.post('/faces/:id/unhide', authMiddleware, asyncHandler(async (req, res) => {
 // soft-hide filter still applies to them. Admins see every face by default
 // but can also hide from their own personal view — we filter regardless of
 // role so the UI remains consistent.
+//
+// If the face_hidden_by table doesn't exist yet (migration 022 not applied),
+// we fall back to the same query without the hidden-filter so the gallery
+// keeps working.
 api.get('/faces/my', authMiddleware, asyncHandler(async (req, res) => {
   const { userId, role } = (req as any).user;
   const isAdmin = role === 'admin';
-  const r = await pool.query(
-    `SELECT fd.id, fd.incident_id, fd.face_crop, fd.confidence, fd.created_at,
-            i.started_at as inc_date, i.status as inc_status, i.source as inc_source,
-            i.latitude as inc_lat, i.longitude as inc_lng,
-            v.plate,
-            s.id as suspect_id, s.alias as suspect_alias, ss.similarity_score
-     FROM face_detections fd
-     JOIN incidents i ON i.id = fd.incident_id
-     LEFT JOIN vehicles v ON v.id = i.vehicle_id
-     LEFT JOIN suspect_sightings ss ON ss.face_detection_id = fd.id
-     LEFT JOIN suspects s ON ss.suspect_id = s.id
-     WHERE ($2::boolean
-            OR i.driver_id = $1
-            OR EXISTS (SELECT 1 FROM incident_followers WHERE incident_id = i.id AND user_id = $1))
-       AND NOT EXISTS (
-            SELECT 1 FROM face_hidden_by fhb
-             WHERE fhb.face_id = fd.id AND fhb.user_id = $1
-           )
-     ORDER BY fd.created_at DESC
-     LIMIT 500`,
-    [userId, isAdmin]
-  );
-  res.json(r.rows);
+
+  const withHiddenFilter = `
+    SELECT fd.id, fd.incident_id, fd.face_crop, fd.confidence, fd.created_at,
+           i.started_at as inc_date, i.status as inc_status, i.source as inc_source,
+           i.latitude as inc_lat, i.longitude as inc_lng,
+           v.plate,
+           s.id as suspect_id, s.alias as suspect_alias, ss.similarity_score
+    FROM face_detections fd
+    JOIN incidents i ON i.id = fd.incident_id
+    LEFT JOIN vehicles v ON v.id = i.vehicle_id
+    LEFT JOIN suspect_sightings ss ON ss.face_detection_id = fd.id
+    LEFT JOIN suspects s ON ss.suspect_id = s.id
+    WHERE ($2::boolean
+           OR i.driver_id = $1
+           OR EXISTS (SELECT 1 FROM incident_followers WHERE incident_id = i.id AND user_id = $1))
+      AND NOT EXISTS (
+           SELECT 1 FROM face_hidden_by fhb
+            WHERE fhb.face_id = fd.id AND fhb.user_id = $1
+         )
+    ORDER BY fd.created_at DESC
+    LIMIT 500`;
+
+  const withoutHiddenFilter = `
+    SELECT fd.id, fd.incident_id, fd.face_crop, fd.confidence, fd.created_at,
+           i.started_at as inc_date, i.status as inc_status, i.source as inc_source,
+           i.latitude as inc_lat, i.longitude as inc_lng,
+           v.plate,
+           s.id as suspect_id, s.alias as suspect_alias, ss.similarity_score
+    FROM face_detections fd
+    JOIN incidents i ON i.id = fd.incident_id
+    LEFT JOIN vehicles v ON v.id = i.vehicle_id
+    LEFT JOIN suspect_sightings ss ON ss.face_detection_id = fd.id
+    LEFT JOIN suspects s ON ss.suspect_id = s.id
+    WHERE ($2::boolean
+           OR i.driver_id = $1
+           OR EXISTS (SELECT 1 FROM incident_followers WHERE incident_id = i.id AND user_id = $1))
+    ORDER BY fd.created_at DESC
+    LIMIT 500`;
+
+  try {
+    const r = await pool.query(withHiddenFilter, [userId, isAdmin]);
+    res.json(r.rows);
+  } catch (err: unknown) {
+    // Fallback: if the face_hidden_by table is somehow missing, still
+    // return the gallery so evidence remains visible to the caller.
+    const msg = (err as { message?: string })?.message || String(err);
+    if (msg.includes('face_hidden_by') || msg.includes('does not exist') || msg.includes('no existe')) {
+      logger.warn('[faces/my] face_hidden_by unavailable, falling back to unfiltered query');
+      const r = await pool.query(withoutHiddenFilter, [userId, isAdmin]);
+      res.json(r.rows);
+      return;
+    }
+    throw err;
+  }
 }));
 
 // ── Mark a face detection as suspect ─────────────────────────────────────────

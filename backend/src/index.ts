@@ -186,6 +186,27 @@ server.listen(HTTP_PORT, '0.0.0.0', async () => {
   } catch (err) {
     logger.warn('Auto-migrate error (non-fatal):', err);
   }
+  // Defensive inline migration — if the incremental migration runner
+  // failed to apply 022_face_hidden_by.sql (whatever the reason),
+  // /api/faces/my would throw "relation does not exist" on every call
+  // and the gallery would appear empty. We force-create the table here
+  // so the endpoint cannot be held hostage by the runner.
+  try {
+    const { pool: dbPool } = await import('./db/pool.js');
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS face_hidden_by (
+        face_id UUID NOT NULL REFERENCES face_detections(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        hidden_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        reason VARCHAR(64),
+        PRIMARY KEY (face_id, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_face_hidden_by_user ON face_hidden_by(user_id);
+    `);
+    logger.info('[ensure] face_hidden_by table ready');
+  } catch (err) {
+    logger.warn('[ensure] face_hidden_by ensure failed (non-fatal):', err);
+  }
   startOtpCleanup();
   startBlacklistCleanup();
   startTicketGc();
