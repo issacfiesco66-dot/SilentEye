@@ -14,7 +14,7 @@ import rateLimit from 'express-rate-limit';
 import { createTeltonikaTcpServer } from './gps/tcp-server.js';
 import { createWebSocketServer, getWebSocketClientCount } from './services/websocket.js';
 import { api } from './api/routes.js';
-import { startOtpCleanup, startBlacklistCleanup } from './api/auth.js';
+import { startOtpCleanup, startBlacklistCleanup, isStrictCookieAuth, isStripTokenFromBody } from './api/auth.js';
 import { startTicketGc } from './services/ws-ticket-store.js';
 import { logger } from './utils/logger.js';
 import { initializeGEE } from './services/gee-service.js';
@@ -165,6 +165,19 @@ createWebSocketServer(server);
 server.listen(HTTP_PORT, '0.0.0.0', async () => {
   logger.info(`API HTTP + WebSocket en 0.0.0.0:${HTTP_PORT} (path /ws)`);
   logger.info(`TCP Teltonika: 0.0.0.0:${TCP_PORT} | HTTP: ${HTTP_PORT}`);
+  // Auth flag diagnostics — these print every boot so we can confirm the
+  // current security posture from logs without inspecting Fly secrets.
+  const strict = isStrictCookieAuth();
+  const stripBody = isStripTokenFromBody();
+  if (strict && stripBody) {
+    logger.info('[auth-mode] STRICT_COOKIE_AUTH=on, STRIP_TOKEN_FROM_BODY=on — cookie-only lockdown');
+  } else if (strict) {
+    logger.info('[auth-mode] STRICT_COOKIE_AUTH=on, STRIP_TOKEN_FROM_BODY=off — cookie-only HTTP, token still in login body');
+  } else if (stripBody) {
+    logger.warn('[auth-mode] STRICT_COOKIE_AUTH=off, STRIP_TOKEN_FROM_BODY=on — unusual combo, header still accepted');
+  } else {
+    logger.info('[auth-mode] dual mode: cookie + Authorization Bearer both accepted (default)');
+  }
   // Auto-run migrations on startup (idempotent — uses IF NOT EXISTS)
   try {
     const { runMigrate } = await import('./db/run-migrate.js');

@@ -79,29 +79,54 @@ function lsRemove(key: string) {
 
 // ── Public API ──
 
-/** Save session after login */
-export function saveSession(token: string, user: SessionUser) {
+/** Save session after login.
+ *
+ * In dual-mode the backend returns the JWT in the body and we mirror it
+ * in localStorage + a JS-readable cookie (legacy). When the backend has
+ * STRIP_TOKEN_FROM_BODY enabled, `token` is undefined here and only the
+ * `user` object is persisted — the actual credential lives in the
+ * HttpOnly `jwt` cookie that JS cannot see, and is sent automatically by
+ * the global fetch credentials patch.
+ */
+export function saveSession(token: string | undefined, user: SessionUser) {
   const userJson = JSON.stringify(user);
-  // Primary: localStorage
-  lsSet(TOKEN_KEY, token);
+  // User profile is always stored locally (no secrets in it).
   lsSet(USER_KEY, userJson);
   lsSet(LOGIN_AT_KEY, String(Date.now()));
-  // Backup: cookies
-  setCookie(COOKIE_TOKEN, token);
   setCookie(COOKIE_USER, userJson);
+  // Token mirror is only kept when the backend still ships it. In strict
+  // cookie-only mode we deliberately leave localStorage empty so an XSS
+  // payload finds nothing to steal.
+  if (typeof token === 'string' && token.length > 0) {
+    lsSet(TOKEN_KEY, token);
+    setCookie(COOKIE_TOKEN, token);
+  } else {
+    // Defensive: clear any stale token from a previous (dual-mode) login.
+    lsRemove(TOKEN_KEY);
+    deleteCookie(COOKIE_TOKEN);
+  }
 }
 
-/** Read session — tries localStorage first, falls back to cookie */
+/** Read session — tries localStorage first, falls back to cookies.
+ *
+ * Returns a session object even when the JS-visible token is empty (the
+ * cookie-only / strict mode case). Callers that previously did
+ * `Authorization: Bearer ${session.token}` will produce an empty header,
+ * which the backend silently ignores and the cookie takes over via the
+ * global fetch credentials patch.
+ */
 export function getSession(): { token: string; user: SessionUser } | null {
   // Try localStorage first
   let token = lsGet(TOKEN_KEY);
   let userRaw = lsGet(USER_KEY);
 
-  // Fallback to cookie if localStorage is empty
+  // Fallback to cookies if localStorage is empty
   if (!token) token = getCookie(COOKIE_TOKEN);
   if (!userRaw) userRaw = getCookie(COOKIE_USER);
 
-  if (!token || !userRaw) return null;
+  // Without a user profile we have nothing — even cookie-only mode mirrors
+  // the user object locally so the UI can render before the first /me call.
+  if (!userRaw) return null;
 
   let user: SessionUser;
   try {
@@ -113,12 +138,17 @@ export function getSession(): { token: string; user: SessionUser } | null {
   if (!user?.id || !user?.role) return null;
 
   // Re-sync: if localStorage was empty but cookie had data, restore localStorage
-  if (!lsGet(TOKEN_KEY) && token) {
-    lsSet(TOKEN_KEY, token);
+  if (!lsGet(USER_KEY) && userRaw) {
     lsSet(USER_KEY, userRaw);
   }
+  if (token && !lsGet(TOKEN_KEY)) {
+    lsSet(TOKEN_KEY, token);
+  }
 
-  return { token, user };
+  // In cookie-only mode `token` is empty — the HttpOnly cookie is the
+  // real credential and is attached automatically to /api/* requests by
+  // the global fetch patch.
+  return { token: token || '', user };
 }
 
 /** Clear session (explicit logout only) */
@@ -148,8 +178,15 @@ export function clearSession() {
   deleteCookie(COOKIE_USER);
 }
 
-/** Check if JWT is expired (client-side decode, no signature check) */
+/** Check if JWT is expired (client-side decode, no signature check).
+ *
+ * Returns `false` when the token is empty — that's the cookie-only mode
+ * where the JWT lives in an HttpOnly cookie that JavaScript cannot read.
+ * In that case the server is the source of truth: any 401 from a
+ * subsequent /api call will trigger the normal logout path.
+ */
 export function isTokenExpired(token: string): boolean {
+  if (!token) return false; // cookie-only mode — defer to server
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return true;

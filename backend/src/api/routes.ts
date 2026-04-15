@@ -22,8 +22,20 @@ import {
   setAuthCookie,
   clearAuthCookie,
   extractToken,
+  isStripTokenFromBody,
 } from './auth.js';
 import { issueTicket } from '../services/ws-ticket-store.js';
+
+/**
+ * Build the `token` field of an auth response. Returns the JWT string in
+ * dual-mode (default) or undefined when STRIP_TOKEN_FROM_BODY is enabled
+ * — in which case the cookie is the only carrier. JSON.stringify omits
+ * undefined fields so the wire format is `{ user: ... }` with no token
+ * key at all.
+ */
+function tokenForBody(token: string): string | undefined {
+  return isStripTokenFromBody() ? undefined : token;
+}
 import { getAlerts, deleteAlerts } from '../services/alert-service.js';
 import { broadcastLocation, broadcastPanic, broadcastIncidentUpdate, broadcastToAdmins } from '../services/websocket.js';
 import { sendPushToUsers, saveSubscription, removeSubscription, getVapidPublicKey } from '../services/push-service.js';
@@ -549,9 +561,10 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
       }
       const token = signToken({ userId: user.id, role: user.role });
       setAuthCookie(res, token);
-      // Token is still returned in the body so the legacy frontend (and
-      // any third-party client) keeps working during the migration.
-      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role, permissions: getPermissions(user.role) } });
+      // The token is conditionally included in the body. When
+      // STRIP_TOKEN_FROM_BODY is enabled the field is omitted entirely
+      // and only the cookie carries the credential.
+      res.json({ token: tokenForBody(token), user: { id: user.id, phone: user.phone, name: user.name, role: user.role, permissions: getPermissions(user.role) } });
       return;
     }
 
@@ -587,7 +600,7 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
       user = user ?? await findOrCreateUser(cleanEmail, name?.trim(), 'citizen', cleanEmail);
       const token = signToken({ userId: user.id, role: user.role });
       setAuthCookie(res, token);
-      res.json({ token, user: { id: user.id, phone: user.phone, name: user.name, role: user.role, email: user.email, plan: user.plan || 'free', permissions: getPermissions(user.role) } });
+      res.json({ token: tokenForBody(token), user: { id: user.id, phone: user.phone, name: user.name, role: user.role, email: user.email, plan: user.plan || 'free', permissions: getPermissions(user.role) } });
       return;
     }
 
@@ -610,7 +623,7 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
       }
       const token = signToken({ userId: existingUser.id, role: existingUser.role });
       setAuthCookie(res, token);
-      res.json({ token, user: { id: existingUser.id, phone: existingUser.phone, name: existingUser.name, role: existingUser.role, permissions: getPermissions(existingUser.role) } });
+      res.json({ token: tokenForBody(token), user: { id: existingUser.id, phone: existingUser.phone, name: existingUser.name, role: existingUser.role, permissions: getPermissions(existingUser.role) } });
       return;
     }
 
@@ -651,7 +664,7 @@ api.post('/auth/login', authRateLimit, asyncHandler(async (req, res) => {
     const token = signToken({ userId: user.id, role: user.role });
     setAuthCookie(res, token);
     res.json({
-      token,
+      token: tokenForBody(token),
       user: {
         id: user.id,
         phone: user.phone,

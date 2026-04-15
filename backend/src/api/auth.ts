@@ -274,16 +274,64 @@ export function clearAuthCookie(res: Response): void {
   logger.info('[auth-cookie] cleared');
 }
 
+// ── Killswitch: STRICT_COOKIE_AUTH ──────────────────────────────────────────
+// When set to "true", the backend REFUSES to read the JWT from the
+// Authorization: Bearer header. Only the HttpOnly `jwt` cookie is honoured.
+// Use this once you've confirmed the cookie flow is healthy in production.
+//
+// Rollback procedure (10 seconds):
+//   fly secrets unset STRICT_COOKIE_AUTH -a silenteye-3rrwnq
+//   # Or: fly secrets set STRICT_COOKIE_AUTH=false -a silenteye-3rrwnq
+//
+// The legacy header code path is kept intact in this file — the flag only
+// gates the read inside extractToken(). This is intentional: a config
+// change must be enough to fully revert, no redeploy required.
+export function isStrictCookieAuth(): boolean {
+  const v = (process.env.STRICT_COOKIE_AUTH || '').toLowerCase();
+  return v === 'true' || v === '1' || v === 'yes' || v === 'on';
+}
+
+// ── Killswitch: STRIP_TOKEN_FROM_BODY ───────────────────────────────────────
+// Independent of STRICT_COOKIE_AUTH. When "true", login / OTP-verify
+// responses no longer include the `token` field in the JSON body. The
+// token only ever lives in the HttpOnly cookie, so a script-injection
+// attack has nothing to read even at the moment of issuance.
+//
+// Recommended rollout order:
+//   1. Deploy with both flags OFF (compat baseline).
+//   2. Enable STRICT_COOKIE_AUTH=true. Watch logs for 24h.
+//   3. If clean, enable STRIP_TOKEN_FROM_BODY=true. Watch another 24h.
+//   4. Either flag can be flipped back independently with `fly secrets`.
+//
+// The frontend has been hardened to tolerate a missing body token —
+// saveSession() and getSession() both gracefully handle the cookie-only
+// case. Existing Bearer fetches become no-ops because their header is
+// silently ignored under STRICT_COOKIE_AUTH while the cookie path takes
+// over via the global fetch credentials patch.
+export function isStripTokenFromBody(): boolean {
+  const v = (process.env.STRIP_TOKEN_FROM_BODY || '').toLowerCase();
+  return v === 'true' || v === '1' || v === 'yes' || v === 'on';
+}
+
 /**
  * Extract a token from either the HttpOnly cookie (preferred) or the
  * Authorization: Bearer header (legacy fallback during the dual-mode
  * grace period). Returns the raw JWT string or null.
+ *
+ * When STRICT_COOKIE_AUTH=true is set in the environment, the
+ * Authorization: Bearer header is COMPLETELY IGNORED — only the cookie
+ * is accepted. This is the production "lockdown" mode.
  */
 export function extractToken(req: Request): { token: string | null; source: 'cookie' | 'header' | null } {
   // Prefer the cookie — it's tamper-resistant and not visible to JS.
   const cookieToken = (req as any).cookies?.[AUTH_COOKIE_NAME];
   if (typeof cookieToken === 'string' && cookieToken.length > 0) {
     return { token: cookieToken, source: 'cookie' };
+  }
+  // Killswitch: in strict mode, never touch the header. The legacy code
+  // path stays in source so we can flip the flag back without a redeploy.
+  if (isStrictCookieAuth()) {
+    return { token: null, source: null };
   }
   const auth = req.headers.authorization;
   if (auth?.startsWith('Bearer ')) {
