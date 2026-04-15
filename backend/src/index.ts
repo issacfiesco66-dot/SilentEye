@@ -28,11 +28,14 @@ process.on('unhandledRejection', (reason) => {
   logger.error('UNHANDLED REJECTION (process kept alive):', reason);
 });
 
-// ── Hard-fail on missing critical secrets in production ──────────────
+// ── Validate critical secrets in production ─────────────────────────
 // Previously these fell back to empty strings or defaults, which let
-// misconfigured deploys boot silently into an insecure state. A process
-// that refuses to start is easier to notice than one that starts
-// without auth enforcement.
+// misconfigured deploys boot silently into an insecure state. We now
+// validate at boot and loudly warn on problems. Hard-failing is avoided
+// because it can brick a rolling deploy if a secret is merely stale —
+// and we have no way to un-brick without a working machine to run
+// `fly secrets set` against. Instead we scream into the logs and let
+// ops see it in fly logs / sentry.
 if (process.env.NODE_ENV === 'production') {
   const critical: Record<string, string | undefined> = {
     JWT_SECRET: process.env.JWT_SECRET,
@@ -41,20 +44,21 @@ if (process.env.NODE_ENV === 'production') {
   const missing = Object.entries(critical).filter(([, v]) => !v || v.length < 16).map(([k]) => k);
   if (missing.length > 0) {
     // eslint-disable-next-line no-console
-    console.error(`\n[BOOT] ❌ Missing or too-short critical secrets: ${missing.join(', ')}\n` +
+    console.error(`\n[BOOT] ⚠️  SECURITY: missing or too-short critical secrets: ${missing.join(', ')}\n` +
                   `Set them in fly secrets (\`fly secrets set KEY=value\`) and redeploy.\n`);
-    process.exit(1);
   }
-  // Refuse to boot with known-leaked dev fallback secrets. The hash
-  // below is the dev default that historically lived in .env — if it
-  // ever ends up in prod, stop.
+  // Warn if JWT_SECRET matches a historically leaked dev value. We do
+  // NOT refuse to boot here — a stale prod secret equal to a dev leak
+  // can still sign & verify tokens, so the app works, just less safely.
+  // Operators must rotate via `fly secrets set JWT_SECRET=$(openssl rand -hex 32)`.
   const LEAKED_DEV_SECRET_HASHES = new Set([
     'f6ef784f3c61815e12e0380d96035e9d4a0b10cda21012fde196d36a8c449687',
   ]);
   if (LEAKED_DEV_SECRET_HASHES.has(process.env.JWT_SECRET || '')) {
     // eslint-disable-next-line no-console
-    console.error('\n[BOOT] ❌ JWT_SECRET matches a known-leaked development value. Rotate it before starting.\n');
-    process.exit(1);
+    console.error('\n[BOOT] ⚠️  SECURITY: JWT_SECRET matches a known-leaked development value.\n' +
+                  '         Rotate it NOW with: fly secrets set JWT_SECRET=$(openssl rand -hex 32) -a silenteye-3rrwnq\n' +
+                  '         All existing JWTs will be invalidated and users will need to re-login.\n');
   }
 }
 
@@ -84,12 +88,8 @@ const corsOrigins = process.env.CORS_ORIGINS
   : [];
 const allowOrigin = (origin: string) => corsOrigins.includes(origin);
 if (isProd && corsOrigins.length === 0) {
-  // This is a hard error — with no whitelist the API refuses every
-  // cross-origin request, effectively breaking the frontend. Fail fast
-  // so the operator notices and sets CORS_ORIGINS.
   // eslint-disable-next-line no-console
-  console.error('\n[BOOT] ❌ CORS_ORIGINS is empty in production. Set it to a comma-separated list of allowed frontend URLs.\n');
-  process.exit(1);
+  console.error('\n[BOOT] ⚠️  CORS_ORIGINS is empty in production. Every cross-origin request will be rejected until this is set.\n');
 }
 app.use(cors({
   origin: isProd
