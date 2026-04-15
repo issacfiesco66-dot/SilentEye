@@ -2,7 +2,12 @@
 
 ## Qué es
 
-Un sistema de detección de anomalías en el terreno que usa imágenes del satélite **Sentinel-2** (resolución 10 metros, captura cada 5 días) a través de **Google Earth Engine**. Compara cómo se veía un área **antes de una fecha** vs **cómo se ve hoy** para detectar cambios sospechosos: tierra removida, vegetación destruida, suelo expuesto.
+Un sistema de detección de anomalías en el terreno que combina **dos constelaciones satelitales independientes** a través de **Google Earth Engine**:
+
+- **Sentinel-2** (óptico, 10 m, revisita 5 días) — detecta cambios en vegetación y suelo expuesto mediante índices NDVI/BSI/SAVI. Es el **detector primario**.
+- **Sentinel-1** (radar SAR, 10 m, revisita 6–12 días) — detecta cambios en la rugosidad y humedad del suelo. Es el **validador independiente**: atraviesa nubes y no depende de iluminación solar.
+
+Compara cómo se veía un área **antes de una fecha** vs **cómo se ve hoy** para detectar cambios sospechosos: tierra removida, vegetación destruida, suelo expuesto. Una anomalía óptica que además es confirmada por radar tiene confianza mucho mayor — los dos sensores miden fenómenos físicos distintos, así que un falso positivo en uno es improbable que coincida con uno en el otro.
 
 **Caso de uso principal:** priorizar zonas de búsqueda de fosas clandestinas u otras alteraciones del terreno. Es herramienta de priorización — no prueba definitiva — y requiere verificación en campo.
 
@@ -62,36 +67,73 @@ Rate limit: 10 solicitudes / 15 minutos por IP
 **4. Mosaico mediano**
 - Genera **mosaico mediano** de cada periodo (reduce ruido atmosférico y artefactos temporales)
 
-**5. Cálculo de 4 índices**
+**5. Cálculo de índices ópticos (Sentinel-2)**
 
 | Índice | Fórmula | Qué mide |
 |--------|---------|----------|
 | **NDVI** | (B8 − B4) / (B8 + B4) | Vegetación. +1 = vegetación densa, −1 = sin vegetación |
 | **BSI** | ((B11+B4) − (B8+B2)) / ((B11+B4) + (B8+B2)) | Suelo desnudo. Valores altos = suelo expuesto |
+| **SAVI** | ((B8 − B4) / (B8 + B4 + L)) × (1 + L), L=0.5 | Vegetación ajustada por suelo. Mejor para zonas semi-áridas |
 | **NDVI Diff** | NDVI_después − NDVI_antes | Cambio en vegetación. Negativo = vegetación desapareció |
 | **BSI Diff** | BSI_después − BSI_antes | Cambio en suelo. Positivo = nuevo suelo expuesto |
+| **SAVI Diff** | SAVI_después − SAVI_antes | Cambio en vegetación con corrección de suelo |
 
-**6. Detección automática de anomalías**
+**5b. Pipeline de radar (Sentinel-1 GRD)** — *nuevo*
+
+Corre en paralelo al pipeline óptico. Usa `COPERNICUS/S1_GRD` en modo IW con polarizaciones VV y VH (valores ya en dB):
+
+| Producto | Qué mide |
+|----------|----------|
+| **VV** | Retrodispersión en polarización vertical. Sensible a rugosidad superficial y humedad — **clave para detectar tierra removida** |
+| **VH** | Retrodispersión cruzada. Sensible a scattering de volumen (vegetación) — útil para discriminar crecimiento vegetal |
+| **VV Diff** | VV_después − VV_antes (dB). Positivo = más rugoso / más seco, negativo = más liso / más húmedo |
+| **VH Diff** | VH_después − VH_antes (dB) |
+
+El radar NO dispara anomalías por sí solo. La lluvia, el riego y los cambios estacionales de humedad generan cambios grandes de backscatter que no tienen nada que ver con excavaciones — un detector SAR independiente sería una máquina de falsos positivos. En cambio, SAR se usa como **validador**: si el óptico ya disparó en un píxel y el radar también muestra un cambio fuerte ahí, la confianza sube dramáticamente.
+
+**Degradación grácil**: si S1 no tiene imágenes en la ventana (ciertas regiones tienen cobertura rala), el pipeline continúa solo con el óptico y marca `metadata.sarAvailable: false`.
+
+**6. Detección automática de anomalías (fusión óptico + radar)**
 
 ```
-Thresholds:
-  - Pérdida de vegetación: NDVI cayó > 0.15 (ndviDiff < −0.15)
-  - Suelo expuesto: BSI subió > 0.1 (bsiDiff > 0.1)
-  - Se detectan ambos, cualquiera, o la combinación
+Umbrales ópticos (sensitivity=normal):
+  - Pérdida de vegetación: NDVI cayó > 0.18 (ndviDiff < −0.18)
+  - Suelo expuesto:        BSI subió > 0.14 (bsiDiff > 0.14)
+  - SAVI:                  SAVI cayó > 0.16
+  - Un píxel se marca anómalo si al menos 2 de los 3 índices disparan
 
-Filtrado de clusters:
-  1. Agrupa píxeles anómalos en componentes conectados
-  2. Descarta clusters < 10 píxeles (< 1,000 m²) — elimina ruido
-  3. Calcula estadísticas por cluster (centroide, área, magnitud)
-  4. Post-filtro: descarta anomalías < 100 m² o severidad < 20
+Muestreo + clustering (JS-side):
+  1. Cuenta píxeles anómalos con reduceRegion
+  2. Muestrea ~100-200 píxeles (según sensibilidad) con sample({geometries:true})
+     — el stack muestreado incluye NDVI_diff, BSI_diff, SAVI_diff y, si SAR
+     está disponible, VV_diff + VH_diff (un solo round trip a GEE)
+  3. Clustering JS de vecino más cercano (~30m de tolerancia)
+  4. Descarta clusters pequeños (< minClusterPixels)
+  5. Post-filtro: descarta anomalías < minAreaM2 o severidad < minSeverity
 
 Severidad (0-100):
-  - 70% = magnitud del cambio: min(1, (|NDVI_change| + |BSI_change|) / 0.6)
-  - 30% = tamaño del área: min(1, área_m² / 5,000)
+  - 65% magnitud del cambio óptico
+  - 25% tamaño del área
+  - +10 bonus si los 3 índices ópticos disparan en el cluster
+  - +15 bonus si SAR confirma: |vvChange| ≥ sarVVThreshold (2.0 dB en normal)
   - Clasificación: ALTA (≥70), MEDIA (≥40), BAJA (<40)
 
-Resultado: top 20 anomalías ordenadas por severidad, con coordenadas exactas
+Confidence flag:
+  - 'sar_confirmed'  → SAR corroboró el cambio → badge verde en UI
+  - 'optical_only'   → solo óptico (sin radar, o radar por debajo del umbral)
+
+Resultado: top N anomalías (N=cfg.maxAnomalies) ordenadas por severidad,
+           con coordenadas exactas, vvChange/vhChange en dB cuando aplica.
 ```
+
+### Umbrales SAR por nivel de sensibilidad
+
+| Nivel   | `sarVVThreshold` | Interpretación                                  |
+|---------|------------------|-------------------------------------------------|
+| low     | 3.0 dB           | Solo cambios grandes — mínimos falsos positivos |
+| normal  | 2.0 dB           | Default — buen balance                          |
+| high    | 1.5 dB           | Captura perturbaciones menores                  |
+| max     | 1.0 dB           | Sensible — más ruido por humedad                |
 
 **7. Generación de tiles**
 - Genera **8 tile URLs** para capas visuales (en paralelo)
@@ -125,7 +167,9 @@ Resultado: top 20 anomalías ordenadas por severidad, con coordenadas exactas
 ### Advertencia de nubes
 - Si `cloudWarning` es true → banner ámbar avisando que hay pocas imágenes disponibles y los resultados pueden ser menos confiables
 
-### 8 capas seleccionables (sidebar derecho en desktop, pills en mobile)
+### 14 capas seleccionables (sidebar derecho en desktop, pills en mobile)
+
+Ópticas (Sentinel-2):
 
 | Capa | Qué muestra | Paleta |
 |------|-------------|--------|
@@ -137,6 +181,17 @@ Resultado: top 20 anomalías ordenadas por severidad, con coordenadas exactas
 | BSI antes | Mapa de suelo pre-evento | Verde = cubierto → Café = expuesto |
 | BSI después | Mapa de suelo actual | Verde = cubierto → Café = expuesto |
 | **BSI Diff** | **Cambios en suelo** | Azul = se cubrió → Blanco = sin cambio → **Rojo = nuevo suelo expuesto** |
+
+Radar (Sentinel-1) — solo si `sarAvailable`:
+
+| Capa | Qué muestra | Paleta |
+|------|-------------|--------|
+| Radar VV antes | Backscatter VV pre-evento (dB) | Escala de grises (−25 → 0 dB) |
+| Radar VV después | Backscatter VV actual (dB) | Escala de grises |
+| **Radar VV Diff** | **Cambio de rugosidad en VV** | Azul = más liso/húmedo → **Rojo = más rugoso/seco** |
+| Radar VH antes | Backscatter VH cross-pol (dB) | Escala de grises (−30 → −5 dB) |
+| Radar VH después | Backscatter VH actual (dB) | Escala de grises |
+| **Radar VH Diff** | **Cambio de scattering de volumen** | Azul = menos vegetación cayó → **Rojo = aumentó** |
 
 ### Controles de visualización
 

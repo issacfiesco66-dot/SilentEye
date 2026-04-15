@@ -30,6 +30,10 @@ interface Anomaly {
   type: 'vegetation_loss' | 'soil_exposure' | 'both';
   ndviChange: number;
   bsiChange: number;
+  saviChange?: number;
+  vvChange?: number;   // SAR VV delta (dB)
+  vhChange?: number;   // SAR VH delta (dB)
+  confidence?: 'optical_only' | 'sar_confirmed';
 }
 
 interface AnalysisResult {
@@ -47,6 +51,10 @@ interface AnalysisResult {
     sensitivity?: string;
     anomalyPixelCount?: number;
     anomalyError?: string;
+    sarAvailable?: boolean;
+    sarBaselineImages?: number;
+    sarCurrentImages?: number;
+    sarError?: string;
   };
 }
 
@@ -70,6 +78,12 @@ const LAYER_OPTIONS = [
   { value: 'bsi_before', labelKey: 'bsi', suffix: ' (antes)' },
   { value: 'bsi_after', labelKey: 'bsi', suffix: ' (después)' },
   { value: 'bsi_diff', labelKey: 'bsiDiff' as const },
+  { value: 'sar_vv_before', labelKey: 'sarVV', suffix: ' (antes)' },
+  { value: 'sar_vv_after', labelKey: 'sarVV', suffix: ' (después)' },
+  { value: 'sar_vv_diff', labelKey: 'sarVVDiff' as const },
+  { value: 'sar_vh_before', labelKey: 'sarVH', suffix: ' (antes)' },
+  { value: 'sar_vh_after', labelKey: 'sarVH', suffix: ' (después)' },
+  { value: 'sar_vh_diff', labelKey: 'sarVHDiff' as const },
 ] as const;
 
 // Comparison presets
@@ -77,6 +91,8 @@ const COMPARISON_PRESETS = [
   { before: 'true_color_before', after: 'true_color_after', label: 'trueColor' },
   { before: 'ndvi_before', after: 'ndvi_after', label: 'ndvi' },
   { before: 'bsi_before', after: 'bsi_after', label: 'bsi' },
+  { before: 'sar_vv_before', after: 'sar_vv_after', label: 'sarVV' },
+  { before: 'sar_vh_before', after: 'sar_vh_after', label: 'sarVH' },
 ];
 
 export default function TerrainAnalysis({
@@ -589,10 +605,21 @@ export default function TerrainAnalysis({
                             </span>
                             <span className="text-[9px] text-zinc-400 ml-auto flex-shrink-0">{a.severity}/100</span>
                           </div>
-                          <p className="text-[9px] text-zinc-400 mt-0.5">
-                            {a.areaM2 >= 10000 ? `${(a.areaM2 / 10000).toFixed(1)} ha` : `${a.areaM2} m²`}
-                            {' · '}{a.latitude.toFixed(4)}, {a.longitude.toFixed(4)}
-                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <p className="text-[9px] text-zinc-400">
+                              {a.areaM2 >= 10000 ? `${(a.areaM2 / 10000).toFixed(1)} ha` : `${a.areaM2} m²`}
+                              {' · '}{a.latitude.toFixed(4)}, {a.longitude.toFixed(4)}
+                            </p>
+                            {a.confidence === 'sar_confirmed' && (
+                              <span
+                                className="text-[8px] font-bold uppercase px-1 py-0.5 rounded bg-emerald-600 text-white flex items-center gap-0.5"
+                                title={t.terrain.sarConfirmedHint}
+                              >
+                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="m5 12 5 5L20 7"/></svg>
+                                {t.terrain.sarConfirmed}
+                              </span>
+                            )}
+                          </div>
                         </button>
                         {/* Expanded forensic detail */}
                         {isExpanded && forensicInfo && (
@@ -618,6 +645,22 @@ export default function TerrainAnalysis({
                             <p className="text-[9px] text-zinc-400 mt-1 font-mono">
                               📍 {a.latitude.toFixed(6)}, {a.longitude.toFixed(6)}
                             </p>
+                            {/* SAR radar readings — only shown when S1 had coverage */}
+                            {(typeof a.vvChange === 'number' || typeof a.vhChange === 'number') && (
+                              <div className={`mt-1.5 rounded px-2 py-1 ${a.confidence === 'sar_confirmed' ? 'bg-emerald-50 border border-emerald-200' : 'bg-zinc-100'}`}>
+                                <p className={`text-[9px] font-bold ${a.confidence === 'sar_confirmed' ? 'text-emerald-700' : 'text-zinc-500'}`}>
+                                  📡 {t.terrain.sarReadings}
+                                </p>
+                                <p className="text-[9px] text-zinc-600 mt-0.5 font-mono">
+                                  {typeof a.vvChange === 'number' && <>VV: {a.vvChange > 0 ? '+' : ''}{a.vvChange.toFixed(1)} dB</>}
+                                  {typeof a.vvChange === 'number' && typeof a.vhChange === 'number' && ' · '}
+                                  {typeof a.vhChange === 'number' && <>VH: {a.vhChange > 0 ? '+' : ''}{a.vhChange.toFixed(1)} dB</>}
+                                </p>
+                                <p className={`text-[9px] mt-0.5 ${a.confidence === 'sar_confirmed' ? 'text-emerald-700 font-medium' : 'text-zinc-500'}`}>
+                                  {a.confidence === 'sar_confirmed' ? t.terrain.sarConfirmedExplain : t.terrain.sarNotConfirmedExplain}
+                                </p>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -708,25 +751,31 @@ export default function TerrainAnalysis({
             <div className="p-3 border-b border-zinc-100">
               <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">{t.terrain.comparison}</p>
               <div className="space-y-1">
-                {COMPARISON_PRESETS.map((preset) => (
-                  <button
-                    key={preset.label}
-                    onClick={() => {
-                      setComparisonMode(true);
-                      setBeforeLayer(preset.before);
-                      setAfterLayer(preset.after);
-                    }}
-                    className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
-                      comparisonMode && beforeLayer === preset.before
-                        ? 'bg-blue-100 text-blue-800 font-medium'
-                        : 'text-zinc-600 hover:bg-zinc-100'
-                    }`}
-                  >
-                    {preset.label === 'trueColor' ? `${t.terrain.before} / ${t.terrain.after}` :
-                     preset.label === 'ndvi' ? `${t.terrain.ndvi}` :
-                     `${t.terrain.bsi}`}
-                  </button>
-                ))}
+                {COMPARISON_PRESETS.map((preset) => {
+                  const available = result.layers.some((l) => l.name === preset.before) && result.layers.some((l) => l.name === preset.after);
+                  if (!available) return null;
+                  return (
+                    <button
+                      key={preset.label}
+                      onClick={() => {
+                        setComparisonMode(true);
+                        setBeforeLayer(preset.before);
+                        setAfterLayer(preset.after);
+                      }}
+                      className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
+                        comparisonMode && beforeLayer === preset.before
+                          ? 'bg-blue-100 text-blue-800 font-medium'
+                          : 'text-zinc-600 hover:bg-zinc-100'
+                      }`}
+                    >
+                      {preset.label === 'trueColor' ? `${t.terrain.before} / ${t.terrain.after}` :
+                       preset.label === 'ndvi' ? t.terrain.ndvi :
+                       preset.label === 'bsi' ? t.terrain.bsi :
+                       preset.label === 'sarVV' ? t.terrain.sarVV :
+                       t.terrain.sarVH}
+                    </button>
+                  );
+                })}
               </div>
               {comparisonMode && (
                 <div className="mt-2">
@@ -759,6 +808,14 @@ export default function TerrainAnalysis({
                       Píxeles anómalos: <span className="font-medium text-zinc-600">{result.metadata.anomalyPixelCount.toLocaleString()}</span>
                     </p>
                   )}
+                  {/* SAR status */}
+                  {result.metadata.sarAvailable ? (
+                    <p className="text-emerald-600 mt-1">
+                      📡 {t.terrain.sarAvailable}: {result.metadata.sarBaselineImages}/{result.metadata.sarCurrentImages}
+                    </p>
+                  ) : (
+                    <p className="text-zinc-400 mt-1">📡 {t.terrain.sarUnavailable}</p>
+                  )}
                 </div>
                 {result.metadata.cloudWarning && (
                   <p className="mt-1.5 text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded">{t.terrain.cloudWarning}</p>
@@ -790,7 +847,7 @@ export default function TerrainAnalysis({
                   </div>
                 </div>
               )}
-              {activeLayer?.includes('diff') && (
+              {activeLayer?.includes('diff') && !activeLayer.startsWith('sar_') && (
                 <div className="space-y-1">
                   <div className="flex items-center gap-1.5 text-[10px]">
                     <span className="w-3 h-3 rounded-sm" style={{ background: '#b2182b' }} />
@@ -803,6 +860,40 @@ export default function TerrainAnalysis({
                   <div className="flex items-center gap-1.5 text-[10px]">
                     <span className="w-3 h-3 rounded-sm" style={{ background: '#2166ac' }} />
                     <span className="text-zinc-600">{activeLayer.includes('bsi') ? t.terrain.decrease : t.terrain.increase}</span>
+                  </div>
+                </div>
+              )}
+              {/* SAR backscatter: grayscale — dark = low return (smooth/water), bright = high return (rough/urban) */}
+              {activeLayer?.startsWith('sar_') && !activeLayer.includes('diff') && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <span className="w-3 h-3 rounded-sm border border-zinc-300" style={{ background: '#000000' }} />
+                    <span className="text-zinc-600">{t.terrain.sarLowReturn}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <span className="w-3 h-3 rounded-sm border border-zinc-300" style={{ background: '#808080' }} />
+                    <span className="text-zinc-600">{t.terrain.sarMidReturn}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <span className="w-3 h-3 rounded-sm border border-zinc-300" style={{ background: '#ffffff' }} />
+                    <span className="text-zinc-600">{t.terrain.sarHighReturn}</span>
+                  </div>
+                </div>
+              )}
+              {/* SAR diff: red = backscatter rose (disturbed), blue = fell (smoother/wetter) */}
+              {activeLayer?.startsWith('sar_') && activeLayer.includes('diff') && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <span className="w-3 h-3 rounded-sm" style={{ background: '#b2182b' }} />
+                    <span className="text-zinc-600">{t.terrain.sarDiffRise}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <span className="w-3 h-3 rounded-sm" style={{ background: '#f7f7f7' }} />
+                    <span className="text-zinc-600">{t.terrain.noChange}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <span className="w-3 h-3 rounded-sm" style={{ background: '#2166ac' }} />
+                    <span className="text-zinc-600">{t.terrain.sarDiffFall}</span>
                   </div>
                 </div>
               )}

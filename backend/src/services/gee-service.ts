@@ -11,7 +11,17 @@ let geeReady = false;
 export interface TerrainLayer {
   name: string;
   tileUrl: string;
-  type: 'ndvi' | 'bsi' | 'ndvi_diff' | 'bsi_diff' | 'true_color_before' | 'true_color_after';
+  type:
+    | 'ndvi'
+    | 'bsi'
+    | 'ndvi_diff'
+    | 'bsi_diff'
+    | 'true_color_before'
+    | 'true_color_after'
+    | 'sar_vv'
+    | 'sar_vv_diff'
+    | 'sar_vh'
+    | 'sar_vh_diff';
 }
 
 export interface TerrainAnomaly {
@@ -24,6 +34,10 @@ export interface TerrainAnomaly {
   ndviChange: number;
   bsiChange: number;
   saviChange?: number;
+  // Sentinel-1 SAR confirmation (when available)
+  vvChange?: number;   // VV backscatter delta in dB
+  vhChange?: number;   // VH backscatter delta in dB
+  confidence: 'optical_only' | 'sar_confirmed';
 }
 
 export type SensitivityLevel = 'low' | 'normal' | 'high' | 'max';
@@ -39,6 +53,10 @@ interface SensitivityConfig {
   windowDays: number;        // composite window size
   cloudPct: number;          // max cloud percentage
   maxAnomalies: number;      // max results returned
+  // Sentinel-1 SAR confirmation threshold: min |VV dB delta| for an
+  // optically-detected anomaly to count as SAR-confirmed. Lower = more
+  // sensitive (and more false confirmations from rain/moisture).
+  sarVVThreshold: number;    // dB
 }
 
 const SENSITIVITY_CONFIGS: Record<SensitivityLevel, SensitivityConfig> = {
@@ -53,6 +71,7 @@ const SENSITIVITY_CONFIGS: Record<SensitivityLevel, SensitivityConfig> = {
     windowDays: 90,
     cloudPct: 25,
     maxAnomalies: 10,
+    sarVVThreshold: 3.0,
   },
   normal: {
     ndviThreshold: 0.18,
@@ -65,6 +84,7 @@ const SENSITIVITY_CONFIGS: Record<SensitivityLevel, SensitivityConfig> = {
     windowDays: 90,
     cloudPct: 30,
     maxAnomalies: 15,
+    sarVVThreshold: 2.0,
   },
   high: {
     ndviThreshold: 0.12,
@@ -77,6 +97,7 @@ const SENSITIVITY_CONFIGS: Record<SensitivityLevel, SensitivityConfig> = {
     windowDays: 60,
     cloudPct: 35,
     maxAnomalies: 20,
+    sarVVThreshold: 1.5,
   },
   max: {
     ndviThreshold: 0.08,
@@ -89,6 +110,7 @@ const SENSITIVITY_CONFIGS: Record<SensitivityLevel, SensitivityConfig> = {
     windowDays: 45,
     cloudPct: 40,
     maxAnomalies: 25,
+    sarVVThreshold: 1.0,
   },
 };
 
@@ -107,6 +129,11 @@ export interface TerrainAnalysisResult {
     sensitivity: SensitivityLevel;
     anomalyPixelCount?: number;
     anomalyError?: string;
+    // Sentinel-1 SAR (validator channel)
+    sarAvailable: boolean;
+    sarBaselineImages: number;
+    sarCurrentImages: number;
+    sarError?: string;
   };
 }
 
@@ -282,6 +309,13 @@ const NDVI_VIS = { min: -0.2, max: 0.8, palette: ['d73027', 'fc8d59', 'fee08b', 
 const BSI_VIS = { min: -0.5, max: 0.5, palette: ['1a9850', '91cf60', 'fee08b', 'fc8d59', 'd73027', '7f0000'] };
 const DIFF_VIS = { min: -0.5, max: 0.5, palette: ['2166ac', '67a9cf', 'd1e5f0', 'f7f7f7', 'fddbc7', 'ef8a62', 'b2182b'] };
 const TRUE_COLOR_VIS = { bands: ['B4', 'B3', 'B2'], min: 0, max: 0.3 };
+// Sentinel-1 GRD backscatter is in dB. Typical land values: -25 to 0 dB.
+// Grayscale ramp makes it read like a traditional SAR image.
+const SAR_VV_VIS = { min: -25, max: 0, palette: ['000000', '303030', '707070', 'a0a0a0', 'd0d0d0', 'ffffff'] };
+const SAR_VH_VIS = { min: -30, max: -5, palette: ['000000', '303030', '707070', 'a0a0a0', 'd0d0d0', 'ffffff'] };
+// Symmetric diff palette: red = backscatter rose (disturbed / rougher / drier),
+// blue = backscatter fell (smoother / wetter / vegetation grew back).
+const SAR_DIFF_VIS = { min: -5, max: 5, palette: ['2166ac', '67a9cf', 'd1e5f0', 'f7f7f7', 'fddbc7', 'ef8a62', 'b2182b'] };
 
 /**
  * Main analysis: compare satellite imagery before/after an event date
@@ -398,7 +432,87 @@ export async function analyzeTerrainChange(
 
   const cloudWarning = baselineCount < 3 || currentCount < 3;
 
-  // Generate tile URLs in parallel
+  // ── Sentinel-1 SAR (validator channel) ───────────────────────────────
+  // S1 is used ONLY to confirm optical anomalies — it never triggers one
+  // by itself. Rain, irrigation and soil-moisture swings cause large
+  // backscatter changes that have nothing to do with excavation, so a
+  // standalone SAR detector would be a false-positive machine. But when
+  // optical NDVI/BSI/SAVI already agree something changed, SAR confirmation
+  // is an independent signal that massively raises confidence.
+  //
+  // Using GRD (Ground Range Detected) — values already in dB. We keep
+  // VV (sensitive to surface roughness / bare soil) and VH (vegetation
+  // volume scattering).
+  let vvDiff: any = null;
+  let vhDiff: any = null;
+  let sarAvailable = false;
+  let sarBaselineImages = 0;
+  let sarCurrentImages = 0;
+  let sarError: string | undefined;
+  let sarLayers: TerrainLayer[] = [];
+
+  try {
+    const s1 = ee.ImageCollection('COPERNICUS/S1_GRD')
+      .filterBounds(aoi)
+      .filter(ee.Filter.eq('instrumentMode', 'IW'))
+      .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
+      .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'));
+
+    const s1Baseline = s1.filterDate(fmt(baselineStart), fmt(baselineEnd));
+    const s1Current = s1.filterDate(fmt(currentStart), fmt(currentEnd));
+
+    [sarBaselineImages, sarCurrentImages] = await Promise.all([
+      countImages(s1Baseline),
+      countImages(s1Current),
+    ]);
+
+    if (sarBaselineImages > 0 && sarCurrentImages > 0) {
+      const s1BaselineImg = s1Baseline.select(['VV', 'VH']).median().clip(aoi);
+      const s1CurrentImg = s1Current.select(['VV', 'VH']).median().clip(aoi);
+
+      const vvBefore = s1BaselineImg.select('VV');
+      const vvAfter = s1CurrentImg.select('VV');
+      vvDiff = vvAfter.subtract(vvBefore).rename('VV_diff');
+
+      const vhBefore = s1BaselineImg.select('VH');
+      const vhAfter = s1CurrentImg.select('VH');
+      vhDiff = vhAfter.subtract(vhBefore).rename('VH_diff');
+
+      const [
+        sarVvBeforeUrl,
+        sarVvAfterUrl,
+        sarVvDiffUrl,
+        sarVhBeforeUrl,
+        sarVhAfterUrl,
+        sarVhDiffUrl,
+      ] = await Promise.all([
+        getTileUrl(vvBefore, SAR_VV_VIS),
+        getTileUrl(vvAfter, SAR_VV_VIS),
+        getTileUrl(vvDiff, SAR_DIFF_VIS),
+        getTileUrl(vhBefore, SAR_VH_VIS),
+        getTileUrl(vhAfter, SAR_VH_VIS),
+        getTileUrl(vhDiff, SAR_DIFF_VIS),
+      ]);
+
+      sarLayers = [
+        { name: 'sar_vv_before', tileUrl: sarVvBeforeUrl, type: 'sar_vv' },
+        { name: 'sar_vv_after', tileUrl: sarVvAfterUrl, type: 'sar_vv' },
+        { name: 'sar_vv_diff', tileUrl: sarVvDiffUrl, type: 'sar_vv_diff' },
+        { name: 'sar_vh_before', tileUrl: sarVhBeforeUrl, type: 'sar_vh' },
+        { name: 'sar_vh_after', tileUrl: sarVhAfterUrl, type: 'sar_vh' },
+        { name: 'sar_vh_diff', tileUrl: sarVhDiffUrl, type: 'sar_vh_diff' },
+      ];
+      sarAvailable = true;
+      logger.info(`[GEE] S1 SAR ready: ${sarBaselineImages} before, ${sarCurrentImages} after`);
+    } else {
+      logger.info(`[GEE] S1 SAR unavailable for window (before=${sarBaselineImages}, after=${sarCurrentImages}) — continuing optical-only`);
+    }
+  } catch (sarErr: any) {
+    sarError = sarErr?.message || String(sarErr);
+    logger.warn(`[GEE] S1 SAR pipeline failed: ${sarError} — continuing optical-only`);
+  }
+
+  // Generate optical tile URLs in parallel
   const [
     ndviBeforeUrl,
     ndviAfterUrl,
@@ -456,14 +570,20 @@ export async function analyzeTerrainChange(
     if (anomalyPixelCount === 0) {
       logger.info('[GEE] No anomalous pixels — skipping clustering');
     } else {
-      // Step 2: Stack index values + coords onto the anomaly mask
-      const anomalyImage = anyAnomaly.selfMask()
+      // Step 2: Stack index values + coords onto the anomaly mask.
+      // If SAR is available we also stack VV_diff / VH_diff so the same
+      // sample() pass returns SAR values at each anomalous pixel — no
+      // extra GEE round trip needed.
+      let anomalyImage: any = anyAnomaly.selfMask()
         .addBands(ndviDiff)
         .addBands(bsiDiff)
         .addBands(saviDiff)
         .addBands(vegLoss.rename('veg_loss'))
         .addBands(soilExposure.rename('soil_exp'))
         .addBands(ee.Image.pixelLonLat());
+      if (sarAvailable && vvDiff && vhDiff) {
+        anomalyImage = anomalyImage.addBands(vvDiff).addBands(vhDiff);
+      }
 
       // Step 3: Sample anomalous pixels directly (no connectedComponents)
       const numSamples = sensitivity === 'max' ? 200 : sensitivity === 'high' ? 150 : 100;
@@ -493,6 +613,9 @@ export async function analyzeTerrainChange(
         savi: f.properties?.SAVI_diff ?? 0,
         vegLoss: f.properties?.veg_loss ?? 0,
         soilExp: f.properties?.soil_exp ?? 0,
+        // SAR values in dB (null if SAR wasn't available or pixel had no S1 coverage)
+        vv: typeof f.properties?.VV_diff === 'number' ? f.properties.VV_diff : null,
+        vh: typeof f.properties?.VH_diff === 'number' ? f.properties.VH_diff : null,
         clusterId: -1,
       }));
 
@@ -529,6 +652,19 @@ export async function analyzeTerrainChange(
           const avgSavi = members.reduce((s, m) => s + m.savi, 0) / members.length;
           const hasVegLoss = members.some(m => m.vegLoss > 0);
           const hasSoilExp = members.some(m => m.soilExp > 0);
+
+          // SAR averages — only over members that actually have values.
+          // (Members may have null if the pixel fell outside the S1 swath.)
+          const vvSamples = members.map(m => m.vv).filter((v): v is number => typeof v === 'number');
+          const vhSamples = members.map(m => m.vh).filter((v): v is number => typeof v === 'number');
+          const avgVv = vvSamples.length > 0 ? vvSamples.reduce((s, v) => s + v, 0) / vvSamples.length : null;
+          const avgVh = vhSamples.length > 0 ? vhSamples.reduce((s, v) => s + v, 0) / vhSamples.length : null;
+          // SAR confirms when VV delta is strong enough in either direction.
+          // Disturbed ground usually shows VV rise (rougher) but can fall if
+          // the disturbance is smoother or wetter than baseline — so we
+          // check absolute value.
+          const sarConfirmed = sarAvailable && avgVv !== null && Math.abs(avgVv) >= cfg.sarVVThreshold;
+
           // Estimate area: each sampled pixel represents (totalAnomalyPixels / sampleCount) pixels
           const scaleFactor = anomalyPixelCount / rawSamples.length;
           const estimatedPixels = members.length * scaleFactor;
@@ -541,13 +677,16 @@ export async function analyzeTerrainChange(
           const areaNorm = Math.min(1, areaM2 / 10000);
           // Bonus for triggering all 3 indices (strongest signal)
           const tripleHit = (hasVegLoss && hasSoilExp && members.some(m => Math.abs(m.savi) > cfg.saviThreshold)) ? 10 : 0;
-          const severity = Math.min(100, Math.round(changeMagnitude * 65 + areaNorm * 25 + tripleHit));
+          // SAR confirmation bonus — an independent sensor corroborating
+          // optical change is a much stronger signal than optical alone.
+          const sarBonus = sarConfirmed ? 15 : 0;
+          const severity = Math.min(100, Math.round(changeMagnitude * 65 + areaNorm * 25 + tripleHit + sarBonus));
 
           const type: TerrainAnomaly['type'] = (hasVegLoss && hasSoilExp) ? 'both'
             : hasVegLoss ? 'vegetation_loss'
             : 'soil_exposure';
 
-          return {
+          const anomaly: TerrainAnomaly = {
             id: i + 1,
             latitude: avgLat,
             longitude: avgLon,
@@ -557,14 +696,19 @@ export async function analyzeTerrainChange(
             ndviChange: Math.round(avgNdvi * 1000) / 1000,
             bsiChange: Math.round(avgBsi * 1000) / 1000,
             saviChange: Math.round(avgSavi * 1000) / 1000,
+            confidence: sarConfirmed ? 'sar_confirmed' : 'optical_only',
           };
+          if (avgVv !== null) anomaly.vvChange = Math.round(avgVv * 10) / 10;
+          if (avgVh !== null) anomaly.vhChange = Math.round(avgVh * 10) / 10;
+          return anomaly;
         })
         .filter((a) => a.severity >= cfg.minSeverity && a.areaM2 >= cfg.minAreaM2)
         .sort((a, b) => b.severity - a.severity)
         .slice(0, cfg.maxAnomalies);
     }
 
-    logger.info(`[GEE] Detected ${anomalies.length} anomalies from ${anomalyPixelCount} pixels (sensitivity: ${sensitivity})`);
+    const sarConfirmedCount = anomalies.filter(a => a.confidence === 'sar_confirmed').length;
+    logger.info(`[GEE] Detected ${anomalies.length} anomalies from ${anomalyPixelCount} pixels (sensitivity: ${sensitivity}, sar_confirmed: ${sarConfirmedCount}/${anomalies.length})`);
   } catch (anomalyErr: any) {
     anomalyError = anomalyErr?.message || String(anomalyErr);
     logger.warn('[GEE] Anomaly detection failed:', anomalyError);
@@ -590,6 +734,7 @@ export async function analyzeTerrainChange(
       { name: 'bsi_before', tileUrl: bsiBeforeUrl, type: 'bsi' },
       { name: 'bsi_after', tileUrl: bsiAfterUrl, type: 'bsi' },
       { name: 'bsi_diff', tileUrl: bsiDiffUrl, type: 'bsi_diff' },
+      ...sarLayers,
     ],
     bounds,
     metadata: {
@@ -603,6 +748,10 @@ export async function analyzeTerrainChange(
       sensitivity,
       anomalyPixelCount,
       anomalyError,
+      sarAvailable,
+      sarBaselineImages,
+      sarCurrentImages,
+      sarError,
     },
   };
 }
