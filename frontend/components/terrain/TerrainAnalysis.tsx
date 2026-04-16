@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useLocale } from '@/hooks/useLocale';
+import TerrainInstructions, { shouldShowInstructions } from './TerrainInstructions';
 
 const TerrainMap = dynamic(() => import('./TerrainMap'), {
   ssr: false,
@@ -148,6 +149,15 @@ export default function TerrainAnalysis({
 
   // Panel toggles
   const [showControls, setShowControls] = useState(true);
+
+  // Instructions modal — shows on first visit (unless user dismissed via
+  // "don't show again"). Reopen via the ℹ️ button in the header.
+  const [showInstructions, setShowInstructions] = useState(false);
+  useEffect(() => {
+    if (shouldShowInstructions()) {
+      setShowInstructions(true);
+    }
+  }, []);
 
   // Auto-fill GPS on mount
   useEffect(() => {
@@ -347,28 +357,58 @@ export default function TerrainAnalysis({
 
   return (
     <div className="flex flex-col bg-zinc-50" style={{ height: 'calc(100vh - 140px)' }}>
+      {/* Instructions modal */}
+      {showInstructions && (
+        <TerrainInstructions onClose={() => setShowInstructions(false)} />
+      )}
+
       {/* Controls toggle for mobile */}
-      <button
-        onClick={() => setShowControls(!showControls)}
-        className="md:hidden flex items-center justify-between px-4 py-2 bg-white border-b border-zinc-200 text-xs text-zinc-600 font-medium"
-      >
-        <span>{t.terrain.title}</span>
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className={`transition-transform ${showControls ? 'rotate-180' : ''}`}
+      <div className="md:hidden flex items-center justify-between px-4 py-2 bg-white border-b border-zinc-200">
+        <button
+          onClick={() => setShowControls(!showControls)}
+          className="flex items-center gap-1 text-xs text-zinc-600 font-medium"
         >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
+          <span>{t.terrain.title}</span>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className={`transition-transform ${showControls ? 'rotate-180' : ''}`}
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+        <button
+          onClick={() => setShowInstructions(true)}
+          className="w-6 h-6 rounded-full bg-amber-100 hover:bg-amber-200 flex items-center justify-center text-amber-700 transition-colors"
+          title={t.terrain.instructions?.openButton || 'Instrucciones'}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+          </svg>
+        </button>
+      </div>
 
       {/* Controls panel */}
       {showControls && (
         <div className="bg-white border-b border-zinc-200 px-4 py-3 space-y-3">
+          {/* Desktop instructions button (hidden on mobile — mobile has its own in the toggle bar) */}
+          <div className="hidden md:flex items-center justify-between mb-1">
+            <p className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">{t.terrain.title}</p>
+            <button
+              onClick={() => setShowInstructions(true)}
+              className="flex items-center gap-1.5 text-[10px] text-amber-600 hover:text-amber-800 font-medium transition-colors"
+              title={t.terrain.instructions?.openButton || 'Instrucciones'}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+              </svg>
+              {t.terrain.instructions?.openButton || 'Instrucciones'}
+            </button>
+          </div>
           {/* Search bar */}
           <div className="relative">
             <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">{t.terrain.searchPlace}</label>
