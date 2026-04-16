@@ -2407,7 +2407,7 @@ api.put('/users/:id/role', authMiddleware, writeRateLimit, requireRole('admin'),
   const { id } = req.params;
   const { role } = req.body;
   const { userId: actingUserId } = (req as any).user;
-  if (!['driver', 'helper', 'admin', 'citizen', 'fleet_owner'].includes(role)) {
+  if (!['driver', 'helper', 'admin', 'citizen', 'fleet_owner', 'verificador'].includes(role)) {
     res.status(400).json({ error: t(req, 'invalidRole') });
     return;
   }
