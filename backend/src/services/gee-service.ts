@@ -557,15 +557,37 @@ export async function analyzeTerrainChange(
     throw new Error('NO_SENSOR_COVERAGE');
   }
   logger.info(`[GEE] Sensor selected: ${sensor.displayName} (scale=${sensor.pixelScale}m) for event ${fmt(event)}`);
+  logger.info(`[GEE] Date windows: baseline=${fmt(baselineStart)}→${fmt(baselineEnd)} current=${fmt(currentStart)}→${fmt(currentEnd)}`);
 
-  const baselineCollection = sensor.buildCollection(aoi, fmt(baselineStart), fmt(baselineEnd), cfg.cloudPct);
-  const currentCollection = sensor.buildCollection(aoi, fmt(currentStart), fmt(currentEnd), cfg.cloudPct);
+  // Instrumentation: track which step of the pipeline is currently
+  // executing so the outer catch can report exactly where failure
+  // happened. The cryptic "Collection.reduceColumns: Empty date ranges"
+  // error from GEE gives zero context about WHICH call triggered it —
+  // could be countImages, getTileUrl, sample(), reduceRegion(), or a
+  // lazy eval inside a .map callback. Step labels fix that.
+  let _step = 'init';
 
-  // Count images for metadata
-  const [baselineCount, currentCount] = await Promise.all([
-    countImages(baselineCollection),
-    countImages(currentCollection),
-  ]);
+  let baselineCollection: any, currentCollection: any;
+  try {
+    _step = 'build-collections';
+    baselineCollection = sensor.buildCollection(aoi, fmt(baselineStart), fmt(baselineEnd), cfg.cloudPct);
+    currentCollection = sensor.buildCollection(aoi, fmt(currentStart), fmt(currentEnd), cfg.cloudPct);
+  } catch (err: any) {
+    logger.error(`[GEE] Failed at step=${_step}: ${err?.message || err}`);
+    throw err;
+  }
+
+  let baselineCount: number, currentCount: number;
+  try {
+    _step = 'count-baseline';
+    baselineCount = await countImages(baselineCollection);
+    _step = 'count-current';
+    currentCount = await countImages(currentCollection);
+    logger.info(`[GEE] Image counts: baseline=${baselineCount} current=${currentCount}`);
+  } catch (err: any) {
+    logger.error(`[GEE] Failed at step=${_step} (date window: ${fmt(baselineStart)}→${fmt(baselineEnd)} / ${fmt(currentStart)}→${fmt(currentEnd)}): ${err?.message || err}`);
+    throw err;
+  }
 
   if (baselineCount === 0 || currentCount === 0) {
     throw new Error('NO_IMAGES_FOUND');
@@ -621,6 +643,7 @@ export async function analyzeTerrainChange(
 
   try {
     if (!s1EligibleByDate) throw new Error('SAR_SKIPPED_BY_DATE');
+    _step = 'sar-build';
     const s1 = ee.ImageCollection('COPERNICUS/S1_GRD')
       .filterBounds(aoi)
       .filter(ee.Filter.eq('instrumentMode', 'IW'))
@@ -630,12 +653,14 @@ export async function analyzeTerrainChange(
     const s1Baseline = s1.filterDate(fmt(baselineStart), fmt(baselineEnd));
     const s1Current = s1.filterDate(fmt(currentStart), fmt(currentEnd));
 
+    _step = 'sar-count';
     [sarBaselineImages, sarCurrentImages] = await Promise.all([
       countImages(s1Baseline),
       countImages(s1Current),
     ]);
 
     if (sarBaselineImages > 0 && sarCurrentImages > 0) {
+      _step = 'sar-composite';
       const s1BaselineImg = s1Baseline.select(['VV', 'VH']).median().clip(aoi);
       const s1CurrentImg = s1Current.select(['VV', 'VH']).median().clip(aoi);
 
@@ -647,6 +672,7 @@ export async function analyzeTerrainChange(
       const vhAfter = s1CurrentImg.select('VH');
       vhDiff = vhAfter.subtract(vhBefore).rename('VH_diff');
 
+      _step = 'sar-tiles';
       const [
         sarVvBeforeUrl,
         sarVvAfterUrl,
@@ -682,36 +708,47 @@ export async function analyzeTerrainChange(
       // Already logged above — not really an error, just a skip.
     } else {
       sarError = msg;
-      logger.warn(`[GEE] S1 SAR pipeline failed: ${sarError} — continuing optical-only`);
+      logger.warn(`[GEE] S1 SAR pipeline failed at step=${_step}: ${sarError} — continuing optical-only`);
     }
   }
 
   // Generate optical tile URLs in parallel
-  const [
-    ndviBeforeUrl,
-    ndviAfterUrl,
-    ndviDiffUrl,
-    bsiBeforeUrl,
-    bsiAfterUrl,
-    bsiDiffUrl,
-    trueColorBeforeUrl,
-    trueColorAfterUrl,
-  ] = await Promise.all([
-    getTileUrl(ndviBefore, NDVI_VIS),
-    getTileUrl(ndviAfter, NDVI_VIS),
-    getTileUrl(ndviDiff, DIFF_VIS),
-    getTileUrl(bsiBefore, BSI_VIS),
-    getTileUrl(bsiAfter, BSI_VIS),
-    getTileUrl(bsiDiff, DIFF_VIS),
-    getTileUrl(baseline, TRUE_COLOR_VIS),
-    getTileUrl(current, TRUE_COLOR_VIS),
-  ]);
+  let ndviBeforeUrl: string, ndviAfterUrl: string, ndviDiffUrl: string;
+  let bsiBeforeUrl: string, bsiAfterUrl: string, bsiDiffUrl: string;
+  let trueColorBeforeUrl: string, trueColorAfterUrl: string;
+  try {
+    _step = 'tile-urls';
+    [
+      ndviBeforeUrl,
+      ndviAfterUrl,
+      ndviDiffUrl,
+      bsiBeforeUrl,
+      bsiAfterUrl,
+      bsiDiffUrl,
+      trueColorBeforeUrl,
+      trueColorAfterUrl,
+    ] = await Promise.all([
+      getTileUrl(ndviBefore, NDVI_VIS),
+      getTileUrl(ndviAfter, NDVI_VIS),
+      getTileUrl(ndviDiff, DIFF_VIS),
+      getTileUrl(bsiBefore, BSI_VIS),
+      getTileUrl(bsiAfter, BSI_VIS),
+      getTileUrl(bsiDiff, DIFF_VIS),
+      getTileUrl(baseline, TRUE_COLOR_VIS),
+      getTileUrl(current, TRUE_COLOR_VIS),
+    ]);
+    logger.info('[GEE] Optical tile URLs ready');
+  } catch (err: any) {
+    logger.error(`[GEE] Failed at step=${_step}: ${err?.message || err}`);
+    throw err;
+  }
 
   // ── Anomaly detection (robust approach: sample + JS clustering) ──────
   let anomalies: TerrainAnomaly[] = [];
   let anomalyPixelCount = 0;
   let anomalyError: string | undefined;
   try {
+    _step = 'anomaly-thresholds';
     // Multi-index thresholding with sensitivity-aware parameters
     // Require at least 2 of 3 indices to flag — single-index hits are often noise
     const vegLoss = ndviDiff.lt(-cfg.ndviThreshold);       // NDVI drop (binary)
@@ -724,6 +761,7 @@ export async function analyzeTerrainChange(
     // minIndexHits: 1 = any single index triggers (OR), 2 = need 2 of 3 (stricter)
     const anyAnomaly = indexCount.gte(cfg.minIndexHits);
 
+    _step = 'anomaly-reduceRegion';
     // Step 1: Count how many anomalous pixels exist (diagnostic).
     // Scale is sensor-native: 10m for S2, 30m for Landsat.
     const pixelCountResult: number = await new Promise((resolve, reject) => {
@@ -760,6 +798,7 @@ export async function analyzeTerrainChange(
         anomalyImage = anomalyImage.addBands(vvDiff).addBands(vhDiff);
       }
 
+      _step = 'anomaly-sample';
       // Step 3: Sample anomalous pixels directly (no connectedComponents).
       // Scale matches sensor native resolution.
       const numSamples = sensitivity === 'max' ? 200 : sensitivity === 'high' ? 150 : 100;
@@ -896,7 +935,7 @@ export async function analyzeTerrainChange(
     logger.info(`[GEE] Detected ${anomalies.length} anomalies from ${anomalyPixelCount} pixels (sensitivity: ${sensitivity}, sar_confirmed: ${sarConfirmedCount}/${anomalies.length})`);
   } catch (anomalyErr: any) {
     anomalyError = anomalyErr?.message || String(anomalyErr);
-    logger.warn('[GEE] Anomaly detection failed:', anomalyError);
+    logger.warn(`[GEE] Anomaly detection failed at step=${_step}: ${anomalyError}`);
   }
 
   // Calculate bounds for the AOI
