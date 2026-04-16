@@ -196,7 +196,15 @@ export function createWebSocketServer(portOrServer: number | HttpServer): WebSoc
       }
       const meta = await resolveUserMeta(ticketAuth.userId);
       if (!meta || !VALID_ROLES.includes(meta.role)) {
-        logger.warn(`WebSocket: usuario no encontrado o rol inválido: ${ticketAuth.userId}`);
+        // Common after JWT_SECRET rotation: the cookie still passes
+        // signature verification (was signed with the new secret) but
+        // the userId inside it was created in a previous session whose
+        // user row was deleted or never committed. Tell the client to
+        // re-login instead of silently closing.
+        logger.warn(`WebSocket: usuario no encontrado o rol inválido: ${ticketAuth.userId} (stale session — client should re-login)`);
+        try {
+          ws.send(JSON.stringify({ type: 'auth_error', code: 'USER_NOT_FOUND', message: 'Sesión inválida — cierra sesión y vuelve a entrar' }));
+        } catch { /* ignore send errors on closing socket */ }
         ws.close(4003, 'Usuario no autorizado');
         return;
       }

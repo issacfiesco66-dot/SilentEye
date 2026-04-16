@@ -2862,6 +2862,18 @@ api.post('/push/subscribe', authMiddleware, asyncHandler(async (req, res) => {
     return;
   }
   try {
+    // Pre-check: verify the user actually exists in DB before trying
+    // to insert. After a JWT_SECRET rotation, stale cookies can carry
+    // a userId that passed signature verification but whose row was
+    // deleted or never persisted. Without this check, the FK constraint
+    // on push_subscriptions.user_id throws a 500 with a cryptic
+    // "violates foreign key constraint" — terrible UX.
+    const userExists = await pool.query('SELECT 1 FROM users WHERE id = $1', [userId]);
+    if (!userExists.rows[0]) {
+      logger.warn(`[push] subscribe rejected: userId=${userId} not found in users table (stale session?)`);
+      res.status(401).json({ error: 'Sesión inválida — por favor cierra sesión y vuelve a entrar' });
+      return;
+    }
     await saveSubscription(userId, subscription);
     res.json({ success: true });
   } catch (err) {
