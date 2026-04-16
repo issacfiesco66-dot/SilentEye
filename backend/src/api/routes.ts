@@ -2768,6 +2768,20 @@ api.post('/terrain/analyze', authMiddleware, terrainRateLimit, asyncHandler(asyn
       });
       return;
     }
+    if (err?.message === 'CURRENT_WINDOW_TOO_SHORT') {
+      res.status(400).json({
+        error: 'La fecha de comparación está demasiado cerca de hoy',
+        detail: 'El campo "Comparar contra" debe estar al menos 2 semanas atrás. El sistema necesita una ventana de al menos 10 días después de esa fecha para construir un compuesto satelital estable. Usa una fecha anterior o desactiva el toggle "Comparar contra" para que el sistema compare automáticamente.',
+      });
+      return;
+    }
+    if (err?.message === 'BASELINE_WINDOW_TOO_SHORT') {
+      res.status(400).json({
+        error: 'La fecha del evento es demasiado reciente',
+        detail: 'El sistema necesita al menos 10 días ANTES de la fecha del evento para construir el "baseline". Elige una fecha de evento con al menos 2 semanas de antigüedad.',
+      });
+      return;
+    }
     if (err?.message === 'NO_IMAGES_FOUND') {
       // Could be region-specific sparseness or persistent cloud cover.
       res.status(404).json({

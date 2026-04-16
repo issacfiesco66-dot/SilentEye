@@ -546,6 +546,25 @@ export async function analyzeTerrainChange(
     currentStart.setDate(currentStart.getDate() + 1);
   }
 
+  // SANITY: after all the date math above (especially the afterDate +5
+  // day buffer and the "cap at now" rule), we can end up with an
+  // inverted or absurdly short current window. This happens when the
+  // caller passes an afterDate that's within ~5 days of today — the
+  // +5 day buffer pushes currentStart past currentEnd (which got
+  // capped to now). Also guard against baseline being inverted for
+  // exotic event dates. Throw a clear error up front instead of
+  // letting GEE explode with "reduceColumns: Empty date ranges".
+  const MIN_WINDOW_DAYS = 10;
+  const baselineSpanMs = baselineEnd.getTime() - baselineStart.getTime();
+  const currentSpanMs = currentEnd.getTime() - currentStart.getTime();
+  const dayMs = 24 * 3600 * 1000;
+  if (baselineSpanMs < MIN_WINDOW_DAYS * dayMs) {
+    throw new Error('BASELINE_WINDOW_TOO_SHORT');
+  }
+  if (currentSpanMs < MIN_WINDOW_DAYS * dayMs) {
+    throw new Error('CURRENT_WINDOW_TOO_SHORT');
+  }
+
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
   // ── Sensor selection ────────────────────────────────────────────────
