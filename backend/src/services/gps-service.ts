@@ -11,6 +11,7 @@ import type { AVLRecord } from '../gps/avl-decoder.js';
 import { logger } from '../utils/logger.js';
 import { broadcastLocation, broadcastPanic, sendCameraActivation } from './websocket.js';
 import { sendPushToUsers } from './push-service.js';
+import { evaluateTrailerRules } from './trailer-service.js';
 
 const PANIC_TRACKING_INTERVAL_SEC = 4;
 const NEARBY_DRIVERS_RADIUS_M = parseInt(process.env.PANIC_ALERT_RADIUS_M || '2000', 10) || 2000; // 1–3 km
@@ -113,6 +114,26 @@ export async function processGpsData(imei: string, record: AVLRecord): Promise<v
           [latitude, longitude, vehicle.driver_id]
         );
       }
+    }
+
+    // ── Trailer rules engine (Logística Blindada) ──
+    // Runs asynchronously after the GPS log is saved so a slow rule
+    // evaluation never delays the GPS pipeline. Requires PostGIS for
+    // ST_Contains / ST_Distance — silently skipped on simple schema.
+    if (postgis && vehicle?.id && latitude !== 0 && longitude !== 0) {
+      evaluateTrailerRules({
+        vehicleId: vehicle.id,
+        latitude,
+        longitude,
+        speed,
+        timestamp: new Date(timestamp),
+      }).then((alerts) => {
+        for (const alert of alerts) {
+          logger.info(`[trailer] alert ${alert.alert_type} (${alert.severity}) for vehicle ${vehicle.id}`);
+        }
+      }).catch((err) => {
+        logger.warn(`[trailer] rules eval failed for ${vehicle.id}: ${err?.message || err}`);
+      });
     }
 
     // ── Speed alert ──

@@ -257,3 +257,144 @@ export async function recordAlert(input: {
   );
   return rows[0];
 }
+
+// ── Real-time rules engine ────────────────────────────────────────────
+//
+// Invoked from the GPS pipeline after each ping. Decides whether the new
+// location triggers off_route, risk_zone_entry, or suspicious_stop alerts
+// and records them. Each alert has a per-(trailer, type, scope) dedup
+// window so we don't spam the same condition every 30 seconds.
+
+export interface GpsContext {
+  vehicleId: string;
+  latitude: number;
+  longitude: number;
+  speed: number;       // km/h
+  timestamp: Date;
+}
+
+const HIGH_RISK_THRESHOLD = 40;
+const STOP_THRESHOLD_MIN = 15;
+const ALERT_DEDUP_MIN = 15;
+const STOP_DEDUP_MIN = 60;
+
+export async function isTrailer(vehicleId: string): Promise<boolean> {
+  const r = await pool.query('SELECT 1 FROM trailers WHERE vehicle_id = $1', [vehicleId]);
+  return (r.rowCount ?? 0) > 0;
+}
+
+/**
+ * True if there's an unresolved alert of the same (type, optional scope)
+ * for this trailer within the last `withinMinutes`. Used for dedup.
+ */
+async function recentAlertExists(
+  trailerId: string,
+  alertType: AlertType,
+  withinMinutes: number,
+  scopeId?: string,
+): Promise<boolean> {
+  const params: unknown[] = [trailerId, alertType, `${withinMinutes} minutes`];
+  let where = 'trailer_id = $1 AND alert_type = $2 AND created_at > NOW() - $3::interval AND NOT resolved';
+  if (scopeId) {
+    if (alertType === 'risk_zone_entry') where += ' AND risk_zone_id = $4';
+    else if (alertType === 'off_route' || alertType === 'route_deviation') where += ' AND route_id = $4';
+    params.push(scopeId);
+  }
+  const r = await pool.query(`SELECT 1 FROM trailer_alerts WHERE ${where} LIMIT 1`, params);
+  return (r.rowCount ?? 0) > 0;
+}
+
+/**
+ * How many minutes the trailer has been at speed=0. Reads gps_logs for the
+ * most recent ping with non-zero speed; returns 0 if it has been moving.
+ */
+async function detectStillness(vehicleId: string): Promise<number> {
+  const r = await pool.query<{ minutes: number }>(
+    `SELECT EXTRACT(EPOCH FROM (NOW() - timestamp_at)) / 60 AS minutes
+     FROM gps_logs
+     WHERE vehicle_id = $1 AND speed > 0
+     ORDER BY timestamp_at DESC LIMIT 1`,
+    [vehicleId],
+  );
+  if (r.rowCount === 0) return 0;
+  return Math.floor(Number(r.rows[0].minutes) || 0);
+}
+
+/**
+ * Run the trailer rules engine for a fresh GPS ping. Returns the alerts
+ * created (possibly empty). Non-trailer vehicles short-circuit cheaply.
+ *
+ * Idempotent within a dedup window — calling this twice for the same
+ * condition won't create duplicate alerts.
+ */
+export async function evaluateTrailerRules(ctx: GpsContext): Promise<TrailerAlert[]> {
+  const { vehicleId, latitude, longitude, speed } = ctx;
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || (latitude === 0 && longitude === 0)) {
+    return [];
+  }
+  if (!await isTrailer(vehicleId)) return [];
+
+  const created: TrailerAlert[] = [];
+  const [adherence, risk] = await Promise.all([
+    checkRouteAdherence(vehicleId, latitude, longitude),
+    getRiskAt(latitude, longitude),
+  ]);
+
+  // Off-route: only when there's an active route AND we're outside the buffer
+  if (adherence.route && !adherence.on_route) {
+    if (!await recentAlertExists(vehicleId, 'off_route', ALERT_DEDUP_MIN, adherence.route.id)) {
+      created.push(await recordAlert({
+        trailerId: vehicleId,
+        alertType: 'off_route',
+        severity: 'warning',
+        latitude, longitude,
+        message: `Fuera de ruta a ${adherence.distance_m}m del trazo (buffer ${adherence.buffer_m}m)`,
+        metadata: { distance_m: adherence.distance_m, buffer_m: adherence.buffer_m },
+        routeId: adherence.route.id,
+      }));
+    }
+  }
+
+  // Risk zone entry: highest-scoring zone that contains the point, dedup per zone
+  if (risk.score >= HIGH_RISK_THRESHOLD && risk.zones[0]) {
+    const zone = risk.zones[0];
+    if (!await recentAlertExists(vehicleId, 'risk_zone_entry', ALERT_DEDUP_MIN, zone.id)) {
+      created.push(await recordAlert({
+        trailerId: vehicleId,
+        alertType: 'risk_zone_entry',
+        severity: zone.risk_score >= 70 ? 'critical' : 'warning',
+        latitude, longitude,
+        message: `Entró a "${zone.name}" (score ${zone.risk_score}, ${zone.category})`,
+        metadata: { zone_name: zone.name, score: zone.risk_score, category: zone.category, source: zone.source },
+        riskZoneId: zone.id,
+      }));
+    }
+  }
+
+  // Suspicious stop: only checked when the current ping is stationary.
+  // Using current ping speed instead of stillness alone avoids querying
+  // gps_logs on every moving ping (which is the common case).
+  if (speed === 0) {
+    const stillnessMin = await detectStillness(vehicleId);
+    if (stillnessMin >= STOP_THRESHOLD_MIN && risk.score >= HIGH_RISK_THRESHOLD) {
+      if (!await recentAlertExists(vehicleId, 'suspicious_stop', STOP_DEDUP_MIN)) {
+        created.push(await recordAlert({
+          trailerId: vehicleId,
+          alertType: 'suspicious_stop',
+          severity: 'critical',
+          latitude, longitude,
+          message: `Detenido ${stillnessMin}m en zona de riesgo (score ${risk.score})`,
+          metadata: {
+            stillness_minutes: stillnessMin,
+            risk_score: risk.score,
+            zone_name: risk.zones[0]?.name,
+          },
+          riskZoneId: risk.zones[0]?.id,
+        }));
+      }
+    }
+  }
+
+  return created;
+}
