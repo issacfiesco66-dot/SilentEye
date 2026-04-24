@@ -8,6 +8,16 @@
  * entrada a zona roja).
  */
 import { useEffect, useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
+
+const TrailerDetailMap = dynamic(() => import('./TrailerDetailMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[450px] w-full rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-400 text-sm">
+      Cargando mapa…
+    </div>
+  ),
+});
 
 interface Trailer {
   id: string;
@@ -53,6 +63,27 @@ interface Alert {
   created_at: string;
 }
 
+interface RouteRow {
+  id: string;
+  name: string | null;
+  origin_lat: number;
+  origin_lng: number;
+  destination_lat: number;
+  destination_lng: number;
+  buffer_meters: number;
+  status: string;
+  path: { type: string; coordinates: [number, number][] } | null;
+}
+
+interface RiskZoneFull {
+  id: string;
+  name: string;
+  category: string;
+  risk_score: number;
+  source: string;
+  zone: { type: string; coordinates: [number, number][][] };
+}
+
 const CARGO_LABEL: Record<string, string> = {
   refrigerated: 'Refrigerado',
   dry: 'Seco',
@@ -86,6 +117,8 @@ export default function TrailersSection() {
   const [selected, setSelected] = useState<Trailer | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [activeRoute, setActiveRoute] = useState<RouteRow | null>(null);
+  const [riskZones, setRiskZones] = useState<RiskZoneFull[]>([]);
   const [statusLoading, setStatusLoading] = useState(false);
 
   const loadTrailers = useCallback(async () => {
@@ -106,13 +139,42 @@ export default function TrailersSection() {
     setStatusLoading(true);
     setStatus(null);
     setAlerts([]);
+    setActiveRoute(null);
     try {
-      const [statusRes, alertsRes] = await Promise.all([
+      const [statusRes, alertsRes, routesRes] = await Promise.all([
         fetch(`/api/trailers/${trailerId}/status`),
         fetch(`/api/trailers/${trailerId}/alerts?limit=20`),
+        fetch(`/api/trailers/${trailerId}/routes`),
       ]);
-      if (statusRes.ok) setStatus(await statusRes.json());
+
+      let parsedStatus: Status | null = null;
+      if (statusRes.ok) {
+        parsedStatus = await statusRes.json();
+        setStatus(parsedStatus);
+      }
       if (alertsRes.ok) setAlerts(await alertsRes.json());
+      if (routesRes.ok) {
+        const routes: RouteRow[] = await routesRes.json();
+        setActiveRoute(routes.find((r) => r.status === 'in_progress' || r.status === 'planned') ?? null);
+      }
+
+      // Risk zones in a ~50 km bbox around current location (or origin
+      // of active route if no GPS yet). Skip if neither available.
+      const center = parsedStatus?.location ?? null;
+      if (center) {
+        const dLat = 0.45;             // ~50 km
+        const dLng = 0.5;
+        const params = new URLSearchParams({
+          north: String(center.latitude + dLat),
+          south: String(center.latitude - dLat),
+          east: String(center.longitude + dLng),
+          west: String(center.longitude - dLng),
+        });
+        const zonesRes = await fetch(`/api/trailers/risk-zones?${params}`);
+        if (zonesRes.ok) setRiskZones(await zonesRes.json());
+      } else {
+        setRiskZones([]);
+      }
     } catch {
       /* ignore — partial data is fine */
     } finally {
@@ -187,8 +249,8 @@ export default function TrailersSection() {
               </div>
             ) : (
               <>
-                <div className="bg-white border border-zinc-200 rounded-lg p-5">
-                  <div className="flex items-baseline justify-between mb-4">
+                <div className="bg-white border border-zinc-200 rounded-lg p-5 space-y-4">
+                  <div className="flex items-baseline justify-between">
                     <div>
                       <h3 className="text-lg font-semibold text-zinc-900">{selected.plate}</h3>
                       <p className="text-xs text-zinc-500">{selected.imei}</p>
@@ -201,13 +263,20 @@ export default function TrailersSection() {
                     )}
                   </div>
 
+                  <TrailerDetailMap
+                    currentLocation={status?.location ?? null}
+                    plannedRoute={activeRoute}
+                    riskZones={riskZones}
+                    alerts={alerts}
+                  />
+
                   {statusLoading && !status ? (
-                    <div className="text-sm text-zinc-500 py-4">Consultando estado…</div>
+                    <div className="text-sm text-zinc-500 py-2">Consultando estado…</div>
                   ) : status ? (
-                    <div className="grid sm:grid-cols-3 gap-4 text-sm">
+                    <div className="grid sm:grid-cols-3 gap-4 text-sm pt-2 border-t border-zinc-100">
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Ubicación</p>
-                        <p className="font-mono text-zinc-900">
+                        <p className="font-mono text-zinc-900 text-xs">
                           {status.location.latitude.toFixed(5)}, {status.location.longitude.toFixed(5)}
                         </p>
                         <p className="text-xs text-zinc-500 mt-1">
@@ -240,7 +309,7 @@ export default function TrailersSection() {
                       </div>
                     </div>
                   ) : (
-                    <div className="text-sm text-zinc-500 py-4">Sin datos GPS recientes para este trailer.</div>
+                    <div className="text-sm text-zinc-500 py-2 border-t border-zinc-100">Sin datos GPS recientes para este trailer.</div>
                   )}
                 </div>
 

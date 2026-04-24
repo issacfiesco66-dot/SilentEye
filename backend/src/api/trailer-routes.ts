@@ -145,13 +145,23 @@ trailerRouter.post('/:vehicleId/routes', writeLimit, requireRole('admin', 'fleet
 }));
 
 trailerRouter.get('/:vehicleId/routes', readLimit, asyncHandler(async (req, res) => {
-  const { rows } = await pool.query(
+  const { rows } = await pool.query<{
+    id: string; trailer_id: string; name: string | null;
+    origin_lat: number; origin_lng: number; destination_lat: number; destination_lng: number;
+    buffer_meters: number; planned_departure: string | null; planned_arrival: string | null;
+    status: string; created_at: string; updated_at: string; path_geojson: string | null;
+  }>(
     `SELECT id, trailer_id, name, origin_lat, origin_lng, destination_lat, destination_lng,
-            buffer_meters, planned_departure, planned_arrival, status, created_at, updated_at
+            buffer_meters, planned_departure, planned_arrival, status, created_at, updated_at,
+            CASE WHEN path IS NULL THEN NULL ELSE ST_AsGeoJSON(path) END AS path_geojson
      FROM trailer_routes WHERE trailer_id = $1 ORDER BY created_at DESC LIMIT 50`,
     [req.params.vehicleId],
   );
-  res.json(rows);
+  res.json(rows.map((r) => ({
+    ...r,
+    path: r.path_geojson ? JSON.parse(r.path_geojson) : null,
+    path_geojson: undefined,
+  })));
 }));
 
 trailerRouter.put('/:vehicleId/routes/:routeId/status', writeLimit, requireRole('admin', 'fleet_owner'), asyncHandler(async (req, res) => {
