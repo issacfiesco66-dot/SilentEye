@@ -10,6 +10,8 @@
  * gee-service.ts and is invoked from route handlers, not here.
  */
 import { pool } from '../db/pool.js';
+import { logger } from '../utils/logger.js';
+import { analyzeTerrainChange, isGeeReady } from './gee-service.js';
 
 export const CARGO_TYPES = [
   'refrigerated', 'dry', 'tanker', 'flatbed', 'container', 'auto_carrier', 'other',
@@ -379,7 +381,7 @@ export async function evaluateTrailerRules(ctx: GpsContext): Promise<TrailerAler
     const stillnessMin = await detectStillness(vehicleId);
     if (stillnessMin >= STOP_THRESHOLD_MIN && risk.score >= HIGH_RISK_THRESHOLD) {
       if (!await recentAlertExists(vehicleId, 'suspicious_stop', STOP_DEDUP_MIN)) {
-        created.push(await recordAlert({
+        const stopAlert = await recordAlert({
           trailerId: vehicleId,
           alertType: 'suspicious_stop',
           severity: 'critical',
@@ -391,10 +393,120 @@ export async function evaluateTrailerRules(ctx: GpsContext): Promise<TrailerAler
             zone_name: risk.zones[0]?.name,
           },
           riskZoneId: risk.zones[0]?.id,
-        }));
+        });
+        created.push(stopAlert);
+
+        // Tip-and-cue: fire-and-forget satellite analysis. Result may
+        // appear minutes later as a satellite_anomaly_detected alert.
+        tipAndCueSuspiciousStop({
+          trailerId: vehicleId,
+          latitude,
+          longitude,
+          parentAlertId: stopAlert.id,
+        }).catch((err) => {
+          logger.warn(`[tip-and-cue] failed for ${vehicleId}: ${err?.message || err}`);
+        });
       }
     }
   }
 
   return created;
+}
+
+// ── Tip-and-cue (satellite validation of suspicious stops) ───────────
+//
+// When a suspicious_stop fires we ask Google Earth Engine to compare
+// 90 days of baseline imagery against the latest pass at this location.
+// If terrain anomalies are detected (vegetation loss, soil exposure)
+// above a severity threshold, we emit a satellite_anomaly_detected
+// alert linked to the parent stop via metadata.parent_alert_id.
+//
+// Why this matters: a stop in a risk zone is suspicious; a stop in a
+// risk zone WITH visible terrain disturbance from space is much more so.
+// SAR confirmation (when Sentinel-1 also flags the change) elevates
+// confidence further — the gee-service handles that correlation.
+
+const TIP_AND_CUE_COOLDOWN_MS = 6 * 60 * 60 * 1000;     // 6 h per trailer
+const TIP_AND_CUE_RADIUS_KM = 1;                         // 1 km AOI around stop
+const TIP_AND_CUE_MIN_SEVERITY = 30;                     // skip noise
+
+// In-memory cooldown. Single-instance only — for multi-instance Fly we
+// would need a shared store (Redis or a DB row). Acceptable trade-off
+// for the current single-machine deployment.
+const tipAndCueCooldowns = new Map<string, number>();
+
+function shouldRunTipAndCue(trailerId: string): boolean {
+  const last = tipAndCueCooldowns.get(trailerId);
+  if (last && Date.now() - last < TIP_AND_CUE_COOLDOWN_MS) return false;
+  tipAndCueCooldowns.set(trailerId, Date.now());
+  return true;
+}
+
+export async function tipAndCueSuspiciousStop(input: {
+  trailerId: string;
+  latitude: number;
+  longitude: number;
+  parentAlertId: string;
+}): Promise<TrailerAlert | null> {
+  if (!isGeeReady()) {
+    logger.debug?.('[tip-and-cue] GEE not ready, skipping satellite check');
+    return null;
+  }
+  if (!shouldRunTipAndCue(input.trailerId)) {
+    logger.info(`[tip-and-cue] cooldown active for trailer ${input.trailerId} — skipping`);
+    return null;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  logger.info(`[tip-and-cue] running satellite check at ${input.latitude.toFixed(5)},${input.longitude.toFixed(5)} for trailer ${input.trailerId}`);
+
+  try {
+    const result = await analyzeTerrainChange(
+      input.latitude,
+      input.longitude,
+      TIP_AND_CUE_RADIUS_KM,
+      today,
+      undefined,
+      'high',                    // higher sensitivity at known suspicious sites
+    );
+
+    const significant = result.anomalies.filter((a) => a.severity >= TIP_AND_CUE_MIN_SEVERITY);
+    if (significant.length === 0) {
+      logger.info(`[tip-and-cue] no significant anomalies for stop ${input.parentAlertId} (sensor: ${result.metadata.sourceSensorDisplay}, ${result.metadata.baselineImages}/${result.metadata.currentImages} images)`);
+      return null;
+    }
+
+    const top = significant[0];                      // already sorted by severity desc
+    const sarConfirmedCount = significant.filter((a) => a.confidence === 'sar_confirmed').length;
+
+    const alert = await recordAlert({
+      trailerId: input.trailerId,
+      alertType: 'satellite_anomaly_detected',
+      severity: top.severity >= 70 ? 'critical' : 'warning',
+      latitude: top.latitude,
+      longitude: top.longitude,
+      message: `Anomalía satelital cerca de parada sospechosa — ${significant.length} cambio(s), severidad máxima ${top.severity}/100${sarConfirmedCount > 0 ? `, ${sarConfirmedCount} confirmada(s) por radar` : ''}`,
+      metadata: {
+        parent_alert_id: input.parentAlertId,
+        anomaly_count: significant.length,
+        sar_confirmed_count: sarConfirmedCount,
+        top_severity: top.severity,
+        top_anomaly_lat: top.latitude,
+        top_anomaly_lng: top.longitude,
+        top_anomaly_type: top.type,
+        top_anomaly_area_m2: top.areaM2,
+        sensor: result.metadata.sourceSensorDisplay,
+        sensor_pixel_scale_m: result.metadata.sourcePixelScale,
+        baseline_images: result.metadata.baselineImages,
+        current_images: result.metadata.currentImages,
+        sar_available: result.metadata.sarAvailable,
+      },
+    });
+    logger.info(`[tip-and-cue] satellite_anomaly_detected ${alert.id} created for stop ${input.parentAlertId} (top severity ${top.severity}, sar_confirmed ${sarConfirmedCount}/${significant.length})`);
+    return alert;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn(`[tip-and-cue] GEE eval failed for ${input.trailerId}: ${msg}`);
+    return null;
+  }
 }
