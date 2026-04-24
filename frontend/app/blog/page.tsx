@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { blogPosts } from '@/lib/blog-posts';
+import JsonLd, { getBlogIndexJsonLd, getBreadcrumbJsonLd, getWebPageJsonLd } from '@/components/JsonLd';
 
 export const metadata: Metadata = {
   title: 'Blog — GPS, Rastreo Vehicular y Seguridad | SilentEye',
@@ -23,6 +24,22 @@ export default function BlogPage() {
 
   return (
     <div className="min-h-screen bg-white">
+      <JsonLd data={getWebPageJsonLd({
+        name: 'Blog de SilentEye — GPS, rastreo vehicular y seguridad',
+        description: 'Guías, tutoriales y comparativas sobre GPS para autos, motos, camiones, trailers y flotillas en México.',
+        url: 'https://silenteye.mx/blog',
+      })} />
+      <JsonLd data={getBlogIndexJsonLd(blogPosts.map((p) => ({
+        slug: p.slug,
+        title: p.title,
+        description: p.description,
+        date: p.date,
+        category: p.category,
+      })))} />
+      <JsonLd data={getBreadcrumbJsonLd([
+        { name: 'Inicio', url: 'https://silenteye.mx' },
+        { name: 'Blog', url: 'https://silenteye.mx/blog' },
+      ])} />
       {/* Nav */}
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-zinc-100 px-6 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">

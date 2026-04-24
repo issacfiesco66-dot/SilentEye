@@ -31,16 +31,32 @@ export const organizationJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: 'SilentEye',
+  legalName: 'SilentEye (Christian Fiesco)',
+  alternateName: 'SilentEye GPS',
+  slogan: 'Alerta de robo vehicular en 3 segundos',
   url: 'https://silenteye.mx',
   logo: {
     '@type': 'ImageObject',
     url: 'https://silenteye.mx/icon-512.png',
     width: 512,
     height: 512,
+    caption: 'SilentEye logo',
   },
   description:
     'Alerta de robo vehicular en 3 segundos a conductores cercanos. Plataforma GPS con rastreo en tiempo real, alertas automáticas y recuperación vehicular. Compatible con GPS Teltonika, Queclink, Concox, Cobán y Sinotrack.',
   foundingDate: '2026-01-01',
+  foundingLocation: {
+    '@type': 'Place',
+    address: {
+      '@type': 'PostalAddress',
+      addressCountry: 'MX',
+      addressRegion: 'Puebla',
+    },
+  },
+  // sameAs intentionally minimal until social profiles are created. See
+  // GEO-AUDIT-REPORT.md "Brand Authority (8/100)" — populating this is
+  // the single highest-leverage GEO improvement when external presence
+  // is built out (LinkedIn, YouTube, Facebook, Twitter/X, Trustpilot…).
   sameAs: [
     'https://github.com/issacfiesco66-dot/SilentEye',
   ],
@@ -337,11 +353,16 @@ export const serviceJsonLd = {
   },
 };
 
-// ── WebSite (for sitelinks search box in Google) ──
+// ── WebSite (sitelinks search box for Google + AI surfaces) ──
+// The potentialAction.SearchAction lets Google generate a sitelinks
+// searchbox in SERPs and lets AI assistants understand that this domain
+// has a queryable search. The query parameter (?q=) is documentation —
+// the actual search route can be added later without changing schema.
 export const webSiteJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
   name: 'SilentEye',
+  alternateName: 'SilentEye GPS',
   url: 'https://silenteye.mx',
   description: 'Alerta de robo vehicular en 3 segundos. Plataforma GPS con recuperación vehicular automática para autos, motos, camiones y flotillas en México.',
   inLanguage: 'es-MX',
@@ -349,6 +370,14 @@ export const webSiteJsonLd = {
     '@type': 'Organization',
     name: 'SilentEye',
     url: 'https://silenteye.mx',
+  },
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: {
+      '@type': 'EntryPoint',
+      urlTemplate: 'https://silenteye.mx/blog?q={search_term_string}',
+    },
+    'query-input': 'required name=search_term_string',
   },
 };
 
@@ -428,6 +457,7 @@ export function getWebPageJsonLd(opts: {
     name: opts.name,
     description: opts.description,
     url: opts.url,
+    inLanguage: 'es-MX',
     isPartOf: {
       '@type': 'WebSite',
       name: 'SilentEye',
@@ -438,5 +468,80 @@ export function getWebPageJsonLd(opts: {
       name: 'SilentEye',
       url: 'https://silenteye.mx',
     },
+  };
+}
+
+// ── Legal pages (privacidad, cookies, terminos) ──
+// Uses TermsOfService / PrivacyPolicy types where applicable — these
+// are recognized by Google and AI surfaces as policy documents and
+// surface them appropriately when users search for "privacy policy".
+export function getLegalPageJsonLd(opts: {
+  type: 'PrivacyPolicy' | 'TermsOfService' | 'WebPage';
+  name: string;
+  description: string;
+  url: string;
+  dateModified?: string;
+}) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': opts.type,
+    name: opts.name,
+    description: opts.description,
+    url: opts.url,
+    inLanguage: 'es-MX',
+    isPartOf: {
+      '@type': 'WebSite',
+      name: 'SilentEye',
+      url: 'https://silenteye.mx',
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'SilentEye',
+      url: 'https://silenteye.mx',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://silenteye.mx/icon-512.png',
+      },
+    },
+    ...(opts.dateModified && { dateModified: opts.dateModified }),
+    audience: {
+      '@type': 'Audience',
+      audienceType: 'Usuarios de la plataforma SilentEye',
+      geographicArea: { '@type': 'Country', name: 'México' },
+    },
+  };
+}
+
+// ── Blog index (ItemList of all posts) ──
+// Helps AI surfaces and search engines understand the blog corpus as a
+// structured collection rather than a flat HTML page.
+export function getBlogIndexJsonLd(posts: Array<{
+  slug: string;
+  title: string;
+  description: string;
+  date: string;
+  category?: string;
+}>) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: 'Blog de SilentEye — GPS, rastreo vehicular y seguridad',
+    description: 'Guías, tutoriales y comparativas sobre GPS para autos, motos, camiones, trailers y flotillas en México.',
+    numberOfItems: posts.length,
+    itemListOrder: 'https://schema.org/ItemListOrderDescending',
+    itemListElement: posts.map((post, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: `https://silenteye.mx/blog/${post.slug}`,
+      name: post.title,
+      item: {
+        '@type': 'BlogPosting',
+        headline: post.title,
+        description: post.description,
+        url: `https://silenteye.mx/blog/${post.slug}`,
+        datePublished: post.date,
+        ...(post.category && { articleSection: post.category }),
+      },
+    })),
   };
 }

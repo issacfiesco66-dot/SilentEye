@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import JsonLd, { getLegalPageJsonLd, getBreadcrumbJsonLd } from '@/components/JsonLd';
 
 export const metadata: Metadata = {
   title: 'Política de Cookies — Plataforma GPS de Rastreo Vehicular',
@@ -11,6 +12,17 @@ export const metadata: Metadata = {
 export default function CookiesPage() {
   return (
     <div className="min-h-screen bg-white text-zinc-900">
+      <JsonLd data={getLegalPageJsonLd({
+        type: 'WebPage',
+        name: 'Política de Cookies — SilentEye',
+        description: 'Detalle de las cookies esenciales utilizadas por la plataforma GPS de SilentEye y cómo gestionarlas.',
+        url: 'https://silenteye.mx/cookies',
+        dateModified: '2026-03-05',
+      })} />
+      <JsonLd data={getBreadcrumbJsonLd([
+        { name: 'Inicio', url: 'https://silenteye.mx' },
+        { name: 'Cookies', url: 'https://silenteye.mx/cookies' },
+      ])} />
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-zinc-100">
         <div className="max-w-4xl mx-auto flex items-center justify-between px-6 h-14">
           <Link href="/" className="flex items-center gap-2">
