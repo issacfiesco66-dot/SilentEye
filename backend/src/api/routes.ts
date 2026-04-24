@@ -7,6 +7,7 @@
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
+import { trailerRouter } from './trailer-routes.js';
 import { createHmac, timingSafeEqual, randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { pool } from '../db/pool.js';
@@ -3839,4 +3840,11 @@ api.post('/suspects/match', authMiddleware, requireRole('admin', 'helper'), asyn
 
   res.json({ matches, threshold: FACE_MATCH_THRESHOLD });
 }));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRAILERS — Logística Blindada (cargo logistics module)
+// ═══════════════════════════════════════════════════════════════════════════
+// Mounted under /api/trailers. Auth is applied here so individual route
+// handlers in trailer-routes.ts can rely on req.user being populated.
+api.use('/trailers', authMiddleware, trailerRouter);
 

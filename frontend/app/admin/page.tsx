@@ -17,6 +17,7 @@ import VehiclesSection from '@/components/admin/VehiclesSection';
 import DriversSection from '@/components/admin/DriversSection';
 import ComandanciaSection from '@/components/admin/ComandanciaSection';
 import GpsActivitySection from '@/components/admin/GpsActivitySection';
+import TrailersSection from '@/components/admin/TrailersSection';
 const SuspectGallery = dynamic(() => import('@/components/SuspectGallery'), { ssr: false });
 import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -126,6 +127,12 @@ export default function AdminPage() {
           {activeTab === 'comandancia' && (
             <div className="bg-zinc-50 rounded-xl p-3 sm:p-6 border border-zinc-200">
               <ComandanciaSection />
+            </div>
+          )}
+
+          {activeTab === 'trailers' && (
+            <div className="bg-zinc-50 rounded-xl p-3 sm:p-6 border border-zinc-200">
+              <TrailersSection />
             </div>
           )}
 
