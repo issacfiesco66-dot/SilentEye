@@ -26,7 +26,8 @@ RUN node ../node_modules/typescript/bin/tsc
 
 # Copiar schemas SQL y migraciones a dist (para migraciones)
 RUN cp src/db/schema.sql src/db/schema-simple.sql dist/db/ && \
-    cp -r src/db/migrations dist/db/migrations
+    cp -r src/db/migrations dist/db/migrations && \
+    cp -r src/scripts/data dist/scripts/data
 
 # Pinea solo runtime deps en la imagen final
 WORKDIR /app
