@@ -58,8 +58,8 @@ const en: Translations = {
     hero: {
       tagline: 'GPS Platform · Cars · Motorcycles · Trucks · Trailers · Fleets',
       title1: 'Your car gets stolen.',
-      title2: 'In 3 seconds, everyone within 2 km is already looking for it.',
-      subtitle: 'SilentEye turns your GPS into a mass alert system. Press a button and your live location reaches drivers, volunteers, and your entire nearby support network — no calling a dispatch center, no waiting for a response. Fully automatic.',
+      title2: 'In 3 seconds, the SilentEye network within 2 km receives your location.',
+      subtitle: 'Connect your Teltonika, Queclink, Concox, Cobán or Sinotrack GPS. When the alert fires, your live location reaches the network — no dispatch center, no waiting.',
       cta: 'Get started free',
       mockupLabel: 'dashboard / live map',
       online: 'online',

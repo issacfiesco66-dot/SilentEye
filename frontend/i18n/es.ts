@@ -56,8 +56,8 @@ const es = {
     hero: {
       tagline: 'Plataforma GPS · Autos · Motos · Camiones · Trailers · Flotillas',
       title1: 'Te roban el auto.',
-      title2: 'En 3 segundos, todos a 2 km ya lo están buscando.',
-      subtitle: 'SilentEye convierte tu GPS en un sistema de alerta masiva. Oprimes un botón y tu ubicación en vivo llega a conductores, voluntarios y toda la red de apoyo cercana — sin llamar a una central, sin esperar respuesta. Automático.',
+      title2: 'En 3 segundos, la red SilentEye en 2 km recibe tu ubicación.',
+      subtitle: 'Conecta tu GPS Teltonika, Queclink, Concox, Cobán o Sinotrack. Cuando se dispara la alerta, tu ubicación en vivo se difunde a la red — sin centrales, sin llamadas.',
       cta: 'Comenzar gratis',
       mockupLabel: 'dashboard / mapa en vivo',
       online: 'en línea',
