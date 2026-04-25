@@ -119,6 +119,38 @@ function isValidCitizenPhone(phone: string): boolean {
   return digits.length >= 10 && CITIZEN_PHONE_REGEX.test(phone.trim());
 }
 
+/**
+ * Generate plausible storage variants for a user-typed Mexican phone number
+ * so the lookup matches regardless of whether the DB has "+52..." or
+ * "5610669353" or "(56)1066-9353" etc.
+ *
+ * Returns the original input plus digits-only and with/without "+52".
+ * Caller does `WHERE phone = ANY($1::text[])` for a single round-trip.
+ */
+function phoneVariants(input: string): string[] {
+  const trimmed = input.trim();
+  const digits = trimmed.replace(/[^\d]/g, '');
+  const variants = new Set<string>();
+  variants.add(trimmed);
+  variants.add(digits);
+  variants.add(`+${digits}`);
+
+  // Mexican mobile (10 digits, no country code) → also try with +52
+  if (digits.length === 10) {
+    variants.add(`+52${digits}`);
+    variants.add(`52${digits}`);
+  }
+
+  // Already has country code "52..." (12 digits, no +) → strip + add variants
+  if (digits.length === 12 && digits.startsWith('52')) {
+    const local = digits.slice(2);
+    variants.add(local);
+    variants.add(`+52${local}`);
+  }
+
+  return Array.from(variants).filter((v) => v.length > 0);
+}
+
 /** Per-phone cooldown: returns seconds remaining if too soon, 0 if ok */
 async function checkPhoneCooldown(phone: string, cooldownSec: number): Promise<number> {
   try {
@@ -536,9 +568,10 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
       // registered or is disabled, we skip the SMS/email send entirely
       // but the caller can't tell from the response. This prevents
       // attackers from scraping the list of valid user phone numbers.
+      const variants = phoneVariants(cleanPhone);
       const userCheck = await pool.query(
-        'SELECT id, phone, role, email, is_active FROM users WHERE phone = $1',
-        [cleanPhone]
+        'SELECT id, phone, role, email, is_active FROM users WHERE phone = ANY($1::text[]) LIMIT 1',
+        [variants]
       );
       const userRow = userCheck.rows[0];
       const canSendCode = !!userRow && userRow.is_active !== false;
@@ -557,7 +590,9 @@ api.post('/auth/otp/request', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
 
-      const code = await createOtp(cleanPhone);
+      // Use the user's stored canonical phone as the OTP key so verify
+      // can look it up regardless of which format the user re-types.
+      const code = await createOtp(userRow.phone);
 
       // Try email delivery first (for users with email registered)
       const userEmail = userRow.email;
@@ -676,7 +711,17 @@ api.post('/auth/otp/verify', authRateLimit, asyncHandler(async (req, res) => {
         return;
       }
 
-      const { valid, user: existingUser, error: otpError } = await verifyOtp(phone.trim(), code);
+      // Look up the user across phone format variants so the verify
+      // step works regardless of whether the input has +52, spaces, etc.
+      // The OTP was stored under the DB-canonical phone (see request
+      // handler), so we forward that to verifyOtp.
+      const verifyVariants = phoneVariants(phone.trim());
+      const userLookup = await pool.query<{ phone: string }>(
+        'SELECT phone FROM users WHERE phone = ANY($1::text[]) LIMIT 1',
+        [verifyVariants]
+      );
+      const canonicalPhone = userLookup.rows[0]?.phone || phone.trim();
+      const { valid, user: existingUser, error: otpError } = await verifyOtp(canonicalPhone, code);
       if (!valid) {
         res.status(401).json({ error: otpError || t(req, 'invalidCode') });
         return;
