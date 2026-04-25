@@ -133,9 +133,8 @@ export async function findOrCreateUser(phone: string, name?: string, role?: stri
       return byEmail.rows[0];
     }
   }
-  // 'verificador' added for field-registry Phase 2. Default changed to
-  // 'citizen' — safer fallback for any path that doesn't supply a role.
-  const validRoles = ['driver', 'helper', 'admin', 'citizen', 'fleet_owner', 'verificador'];
+  // Default to 'citizen' for any path that doesn't supply a role — safe fallback.
+  const validRoles = ['driver', 'helper', 'admin', 'citizen', 'fleet_owner'];
   const finalRole = role && validRoles.includes(role) ? role : 'citizen';
   const insert = await pool.query(
     `INSERT INTO users (phone, name, role, email) VALUES ($1, $2, $3, $4)

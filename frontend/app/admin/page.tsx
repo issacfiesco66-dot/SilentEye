@@ -17,8 +17,7 @@ import VehiclesSection from '@/components/admin/VehiclesSection';
 import DriversSection from '@/components/admin/DriversSection';
 import ComandanciaSection from '@/components/admin/ComandanciaSection';
 import GpsActivitySection from '@/components/admin/GpsActivitySection';
-import FieldReportsSection from '@/components/field-registry/FieldReportsSection';
-import MissingPersonsSection from '@/components/field-registry/MissingPersonsSection';
+import TrailersSection from '@/components/admin/TrailersSection';
 const SuspectGallery = dynamic(() => import('@/components/SuspectGallery'), { ssr: false });
 import { useSession } from '@/hooks/useSession';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -131,17 +130,12 @@ export default function AdminPage() {
             </div>
           )}
 
-          {activeTab === 'field_reports' && (
+          {activeTab === 'trailers' && (
             <div className="bg-zinc-50 rounded-xl p-3 sm:p-6 border border-zinc-200">
-              <FieldReportsSection />
+              <TrailersSection />
             </div>
           )}
 
-          {activeTab === 'missing_persons' && (
-            <div className="bg-zinc-50 rounded-xl p-3 sm:p-6 border border-zinc-200">
-              <MissingPersonsSection />
-            </div>
-          )}
         </div>
       </div>
     </div>

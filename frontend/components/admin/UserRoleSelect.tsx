@@ -23,10 +23,6 @@ const API = '';
  *  fleet_owner  — Propietario de flota. Gestiona vehículos y conductores
  *                 de su flotilla.
  *
- *  verificador  — Miembro de colectivo de búsqueda. Hace trabajo de campo
- *                 forense (registro de hallazgos). No responde incidentes
- *                 vehiculares.
- *
  *  admin        — Acceso total. Solo otro admin puede cambiar este rol.
  */
 const ROLE_OPTIONS = [
@@ -34,7 +30,6 @@ const ROLE_OPTIONS = [
   { value: 'driver',      label: 'Conductor (vehículo + GPS)' },
   { value: 'helper',      label: 'Ayudante/Socorrista' },
   { value: 'fleet_owner', label: 'Propietario de flota' },
-  { value: 'verificador', label: 'Verificador de campo (colectivo)' },
 ] as const;
 
 type AssignableRole = typeof ROLE_OPTIONS[number]['value'];

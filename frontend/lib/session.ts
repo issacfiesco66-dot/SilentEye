@@ -22,11 +22,7 @@ export interface Permissions {
   viewGpsActivity: boolean;
   viewAlerts: boolean;
   triggerPanic: boolean;
-  /** Field verification registry — Phase 2 */
-  submitFieldReports?: boolean;
-  reviewFieldReports?: boolean;
-  matchMissingProfiles?: boolean;
-  dashboardType: 'admin' | 'fleet' | 'field' | 'sos' | 'verificador';
+  dashboardType: 'admin' | 'fleet' | 'field' | 'sos';
 }
 
 export interface SessionUser {

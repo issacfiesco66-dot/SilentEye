@@ -35,15 +35,6 @@ const SuspectGallery = dynamic(() => import('@/components/SuspectGallery'), {
   loading: () => null,
 });
 
-const TerrainAnalysis = dynamic(() => import('@/components/terrain/TerrainAnalysis'), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-full flex items-center justify-center bg-zinc-100 text-zinc-400 text-xs">
-      Cargando análisis…
-    </div>
-  ),
-});
-
 const API = '';
 
 type Status = 'idle' | 'locating' | 'sending' | 'sent' | 'error';
@@ -89,7 +80,6 @@ export default function SOSPage() {
   const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
   const [trackingIncident, setTrackingIncident] = useState<string | null>(null);
   const [liveVehicles, setLiveVehicles] = useState<LiveVehicle[]>([]);
-  const [activeTab, setActiveTab] = useState<'emergency' | 'terrain'>('emergency');
   const [cameraActive, setCameraActive] = useState(false);
   const [detectedFaces, setDetectedFaces] = useState(0);
   const [showSuspects, setShowSuspects] = useState(false);
@@ -439,51 +429,8 @@ export default function SOSPage() {
         </span>
       </div>
 
-      {/* Tab bar */}
-      <div className="bg-white border-b border-zinc-200 flex">
-        <button
-          onClick={() => setActiveTab('emergency')}
-          className={`flex-1 py-2.5 text-xs font-semibold text-center transition-colors relative ${
-            activeTab === 'emergency'
-              ? 'text-red-600'
-              : 'text-zinc-400 hover:text-zinc-600'
-          }`}
-        >
-          <span className="flex items-center justify-center gap-1.5">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/>
-            </svg>
-            {t.terrain.tabEmergency}
-          </span>
-          {activeTab === 'emergency' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600" />}
-        </button>
-        <button
-          onClick={() => setActiveTab('terrain')}
-          className={`flex-1 py-2.5 text-xs font-semibold text-center transition-colors relative ${
-            activeTab === 'terrain'
-              ? 'text-amber-600'
-              : 'text-zinc-400 hover:text-zinc-600'
-          }`}
-        >
-          <span className="flex items-center justify-center gap-1.5">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m2 22 10-10"/><path d="m16 8-2 2"/><circle cx="18" cy="4" r="2"/><path d="M3 17c3.33-3.33 6.67-1.67 10-5"/>
-            </svg>
-            {t.terrain.tab}
-          </span>
-          {activeTab === 'terrain' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-600" />}
-        </button>
-      </div>
-
-      {/* Terrain Analysis tab */}
-      {activeTab === 'terrain' && (
-        <div className="flex-1 flex flex-col min-h-0">
-          <TerrainAnalysis token={token} coords={coords} />
-        </div>
-      )}
-
-      {/* Emergency tab — Main content */}
-      {activeTab === 'emergency' && <main className="flex-1 flex flex-col items-center justify-center px-4 py-6 relative overflow-hidden">
+      {/* Main content */}
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-6 relative overflow-hidden">
         {/* Background pulse — subtle */}
         {status === 'idle' && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -624,7 +571,7 @@ export default function SOSPage() {
             Sospechosos
           </button>
         </div>
-      </main>}
+      </main>
 
       {/* GPS Panic — Camera activation banner */}
       {gpsPanicPrompt && (
@@ -662,7 +609,7 @@ export default function SOSPage() {
       )}
 
       {/* Incoming alerts banner — tap to open tracking map */}
-      {activeTab === 'emergency' && incomingAlerts.length > 0 && !trackingIncident && (
+      {incomingAlerts.length > 0 && !trackingIncident && (
         <div className="px-4 pb-3 space-y-2">
           <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider text-center">
             {t.sos.activeIncidents}
