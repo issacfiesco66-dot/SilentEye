@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import JsonLd, { getLegalPageJsonLd, getBreadcrumbJsonLd } from '@/components/JsonLd';
 
 export const metadata: Metadata = {
   title: 'Política de Privacidad — Plataforma GPS de Seguridad Vehicular',
@@ -11,6 +12,17 @@ export const metadata: Metadata = {
 export default function PrivacidadPage() {
   return (
     <div className="min-h-screen bg-white text-zinc-900">
+      <JsonLd data={getLegalPageJsonLd({
+        type: 'PrivacyPolicy',
+        name: 'Política de Privacidad — SilentEye',
+        description: 'Cómo SilentEye protege tus datos GPS, información vehicular y datos personales conforme a la LFPDPPP mexicana.',
+        url: 'https://silenteye.mx/privacidad',
+        dateModified: '2026-03-05',
+      })} />
+      <JsonLd data={getBreadcrumbJsonLd([
+        { name: 'Inicio', url: 'https://silenteye.mx' },
+        { name: 'Privacidad', url: 'https://silenteye.mx/privacidad' },
+      ])} />
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-zinc-100">
         <div className="max-w-4xl mx-auto flex items-center justify-between px-6 h-14">
           <Link href="/" className="flex items-center gap-2">
