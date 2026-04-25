@@ -88,8 +88,9 @@ CREATE TABLE IF NOT EXISTS risk_zones (
 );
 
 CREATE INDEX IF NOT EXISTS idx_risk_zones_zone ON risk_zones USING GIST(zone);
-CREATE INDEX IF NOT EXISTS idx_risk_zones_active ON risk_zones(active_until)
-  WHERE active_until IS NULL OR active_until > NOW();
+-- Plain index on active_until — partial index with NOW() rejected because
+-- index predicates must be IMMUTABLE. Active filter pushed to the query side.
+CREATE INDEX IF NOT EXISTS idx_risk_zones_active ON risk_zones(active_until);
 CREATE INDEX IF NOT EXISTS idx_risk_zones_category ON risk_zones(category);
 
 
