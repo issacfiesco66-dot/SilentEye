@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { blogPosts } from '@/lib/blog-posts';
 import { competitors } from '@/lib/competitors';
+import { stateRisk } from '@/lib/risk-zones';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://silenteye.mx';
@@ -32,6 +33,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: '2026-05-04',
       changeFrequency: 'monthly',
       priority: 0.85,
+    },
+    {
+      url: `${baseUrl}/zonas-riesgo`,
+      lastModified: '2026-05-04',
+      changeFrequency: 'monthly',
+      priority: 0.9,
     },
     {
       url: `${baseUrl}/precios`,
@@ -85,5 +92,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.85,
   }));
 
-  return [...staticPages, ...blogPages, ...compararPages];
+  const zonasRiesgoPages: MetadataRoute.Sitemap = stateRisk.map((s) => ({
+    url: `${baseUrl}/zonas-riesgo/${s.slug}`,
+    lastModified: '2026-05-04',
+    changeFrequency: 'monthly' as const,
+    // Higher-risk states get slightly higher priority — those have
+    // more search demand ("GPS para auto en Estado de México").
+    priority: s.risk_score >= 70 ? 0.8 : 0.7,
+  }));
+
+  return [...staticPages, ...blogPages, ...compararPages, ...zonasRiesgoPages];
 }

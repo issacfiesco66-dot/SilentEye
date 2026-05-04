@@ -502,6 +502,7 @@ export default function Home() {
                 <a href="#para-quien" className="block hover:text-zinc-900 transition-colors">{t.nav.forWhom}</a>
                 <a href="#dispositivos" className="block hover:text-zinc-900 transition-colors">{t.nav.compatibleGps}</a>
                 <Link href="/comparar" className="block hover:text-zinc-900 transition-colors">{t.landing.footer.compareCompetitors}</Link>
+                <Link href="/zonas-riesgo" className="block hover:text-zinc-900 transition-colors">{t.landing.footer.riskZones}</Link>
                 <Link href="/sos" className="block hover:text-zinc-900 transition-colors">{t.common.sosFull}</Link>
                 <Link href="/precios" className="block hover:text-zinc-900 transition-colors">{t.nav.pricing}</Link>
               </div>

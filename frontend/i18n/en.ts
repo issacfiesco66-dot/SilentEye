@@ -164,6 +164,7 @@ const en: Translations = {
       gpsComparison: 'GPS Comparison',
       compareCompetitors: 'SilentEye vs Hunter, LoJack, Skyguard',
       pricing: 'Pricing',
+      riskZones: 'Risk zones by state',
       guides: 'GPS Guides',
       bestGpsCar: 'Best GPS for Cars',
       gpsTrailers: 'GPS for Trailers',

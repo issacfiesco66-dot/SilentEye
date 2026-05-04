@@ -162,6 +162,7 @@ const es = {
       gpsComparison: 'Comparativa GPS',
       compareCompetitors: 'SilentEye vs Hunter, LoJack, Skyguard',
       pricing: 'Precios',
+      riskZones: 'Zonas de riesgo por estado',
       guides: 'Guías GPS',
       bestGpsCar: 'Mejor GPS para auto',
       gpsTrailers: 'GPS para trailers',
