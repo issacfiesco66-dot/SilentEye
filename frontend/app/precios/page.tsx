@@ -171,6 +171,32 @@ export default function PreciosPage() {
         </div>
       </section>
 
+      {/* Comparison banner */}
+      <section className="px-6 pb-12">
+        <div className="max-w-5xl mx-auto">
+          <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/40 px-6 md:px-10 py-8 md:py-10 flex flex-col md:flex-row items-start md:items-center gap-6">
+            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg md:text-xl font-extrabold text-zinc-900 mb-1">
+                ¿Comparando con Hunter, LoJack o Skyguard?
+              </h3>
+              <p className="text-[14px] text-zinc-600 leading-relaxed">
+                Vemos lado a lado precio, contrato, hardware, app y red de respuesta. Comparativa honesta con lo bueno y lo malo de cada uno.
+              </p>
+            </div>
+            <Link
+              href="/comparar"
+              className="flex-shrink-0 inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Ver comparativas
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* FAQ precios */}
       <section className="px-6 py-16 bg-zinc-50 border-t border-zinc-100">
         <div className="max-w-3xl mx-auto">

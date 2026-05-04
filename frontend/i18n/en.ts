@@ -162,6 +162,8 @@ const en: Translations = {
       tagline: 'Vehicle theft alert in 3 seconds. GPS platform with automatic response.',
       platform: 'Platform',
       gpsComparison: 'GPS Comparison',
+      compareCompetitors: 'SilentEye vs Hunter, LoJack, Skyguard',
+      pricing: 'Pricing',
       guides: 'GPS Guides',
       bestGpsCar: 'Best GPS for Cars',
       gpsTrailers: 'GPS for Trailers',

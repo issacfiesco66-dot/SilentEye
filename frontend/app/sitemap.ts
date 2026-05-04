@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { blogPosts } from '@/lib/blog-posts';
+import { competitors } from '@/lib/competitors';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://silenteye.mx';
@@ -18,6 +19,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: `${baseUrl}/blog`,
       lastModified: latestBlogDate,
       changeFrequency: 'weekly',
+      priority: 0.9,
+    },
+    {
+      url: `${baseUrl}/comparar`,
+      lastModified: '2026-05-04',
+      changeFrequency: 'monthly',
       priority: 0.9,
     },
     {
@@ -65,5 +72,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.7,
   }));
 
-  return [...staticPages, ...blogPages];
+  const compararPages: MetadataRoute.Sitemap = competitors.map((c) => ({
+    url: `${baseUrl}/comparar/${c.slug}`,
+    lastModified: '2026-05-04',
+    changeFrequency: 'monthly' as const,
+    priority: 0.85,
+  }));
+
+  return [...staticPages, ...blogPages, ...compararPages];
 }
