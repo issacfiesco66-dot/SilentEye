@@ -165,6 +165,7 @@ const en: Translations = {
       compareCompetitors: 'SilentEye vs Hunter, LoJack, Skyguard',
       pricing: 'Pricing',
       riskZones: 'Risk zones by state',
+      partners: 'Partners program (chambers)',
       guides: 'GPS Guides',
       bestGpsCar: 'Best GPS for Cars',
       gpsTrailers: 'GPS for Trailers',
