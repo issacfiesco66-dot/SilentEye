@@ -28,6 +28,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
+      url: `${baseUrl}/comparar/calculadora`,
+      lastModified: '2026-05-04',
+      changeFrequency: 'monthly',
+      priority: 0.85,
+    },
+    {
       url: `${baseUrl}/precios`,
       lastModified: '2026-03-20',
       changeFrequency: 'monthly',

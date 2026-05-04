@@ -66,6 +66,34 @@ export default function CompararIndexPage() {
         </div>
       </header>
 
+      {/* Calculator highlight card */}
+      <section className="px-6 pb-12">
+        <div className="max-w-5xl mx-auto">
+          <Link
+            href="/comparar/calculadora"
+            className="group block bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-8 md:p-10 text-white hover:from-blue-700 hover:to-blue-800 transition-all"
+          >
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="flex-1">
+                <span className="inline-block text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider bg-white/20 text-white mb-3">
+                  Herramienta interactiva
+                </span>
+                <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight mb-2">
+                  ¿Cuánto te ahorras cambiando a SilentEye?
+                </h2>
+                <p className="text-blue-100 text-[15px] leading-relaxed max-w-xl">
+                  Calculadora de ahorro real vs Hunter, LoJack o Skyguard. Indica cuántos vehículos tienes y lo que pagas hoy — te decimos el ahorro mensual, anual y a 3 años.
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-2 px-5 py-3 text-sm font-semibold text-blue-700 bg-white rounded-lg group-hover:scale-105 transition-transform flex-shrink-0">
+                Calcular ahorro
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </span>
+            </div>
+          </Link>
+        </div>
+      </section>
+
       {/* Cards */}
       <section className="px-6 pb-16">
         <div className="max-w-5xl mx-auto grid md:grid-cols-3 gap-6">

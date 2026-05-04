@@ -308,12 +308,12 @@ export default function CompararSlugPage({ params }: Props) {
                 Si SilentEye no es para ti, no perdiste nada. El SOS ciudadano es gratis para siempre, y los planes son mes a mes sin penalización.
               </p>
               <div className="flex flex-wrap gap-3">
-                <Link href="/precios" className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-zinc-900 bg-white rounded-lg hover:bg-zinc-100 transition-colors">
-                  Ver precios
+                <Link href="/comparar/calculadora" className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-zinc-900 bg-white rounded-lg hover:bg-zinc-100 transition-colors">
+                  Calcular mi ahorro
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                 </Link>
-                <Link href="/comparar" className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-white bg-white/10 rounded-lg hover:bg-white/15 transition-colors">
-                  Otras comparativas
+                <Link href="/precios" className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-white bg-white/10 rounded-lg hover:bg-white/15 transition-colors">
+                  Ver precios
                 </Link>
               </div>
             </div>
