@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { stateRisk, getRiskBand, getRiskBandColor, getRiskBandLabel } from '@/lib/risk-zones';
 import JsonLd, { getBreadcrumbJsonLd, getWebPageJsonLd } from '@/components/JsonLd';
+import RiskMapClient from '@/components/RiskMapClient';
 
 export const metadata: Metadata = {
   title: 'Zonas de riesgo de robo vehicular en México por estado | SilentEye',
@@ -61,6 +62,22 @@ export default function ZonasRiesgoIndexPage() {
           </p>
         </div>
       </header>
+
+      {/* Interactive map */}
+      <section className="px-6 pb-12">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5">
+            <div>
+              <p className="text-[13px] font-semibold text-blue-600 tracking-wide uppercase mb-1">Mapa interactivo</p>
+              <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-zinc-900">Visualización por estado</h2>
+            </div>
+            <p className="text-[13px] text-zinc-500 sm:text-right max-w-sm">
+              Pasa el cursor para ver el detalle, click para ir a la página del estado.
+            </p>
+          </div>
+          <RiskMapClient />
+        </div>
+      </section>
 
       {/* Top 6 */}
       <section className="px-6 pb-12">
