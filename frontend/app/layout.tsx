@@ -13,23 +13,35 @@ const SITE_URL = 'https://silenteye.mx';
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'SilentEye — Alerta de Robo Vehicular en 3 Segundos | Recuperación GPS México',
-    template: '%s | SilentEye — Recuperación Vehicular GPS',
+    default: 'SilentEye — Rastreo Satelital y GPS para Camiones, Trailers y Flotillas | México',
+    template: '%s | SilentEye — Rastreo Satelital GPS México',
   },
   description:
-    'Te roban el auto y en 3 segundos todos los conductores en 2 km reciben la alerta con tu ubicación GPS en vivo. Sin llamadas, sin centrales. Plataforma GPS para autos, motos, camiones, trailers y flotillas. Compatible con Teltonika, Queclink, Concox, Cobán y Sinotrack.',
+    'Plataforma de rastreo satelital y GPS para camiones, trailers y flotillas en México. Alerta de robo en 3 segundos a conductores cercanos: sin central, sin llamada, sin espera. Compatible con Teltonika, Queclink, Concox, Cobán y Sinotrack. Desde $79 MXN/mes por vehículo.',
   keywords: [
-    // ── Spanish (MX) ──
+    // ── Camiones / transporte de carga (CSV high-priority) ──
+    'rastreo satelital para camiones', 'rastreo satelital de vehículos',
+    'rastreo satelital para camiones de carga', 'seguimiento satelital de vehículos',
+    'seguimiento satelital de camiones', 'monitoreo satelital de camiones',
+    'monitoreo satelital de vehículos', 'sistema de rastreo satelital para camiones',
+    'gps para camiones', 'gps para camiones de carga', 'gps para camión',
+    'gps para trailers', 'gps para tractocamión', 'gps para flota de camiones',
+    'gps para transporte de carga', 'gps para transporte pesado',
+    'gps para camiones comerciales', 'gps para camionetas',
+    'localizador gps para camiones', 'rastreador gps para camiones',
+    'sistema gps para camiones', 'control satelital para camiones',
+    'gepeese para camiones',
+    // ── Plataforma + producto ──
     'plataforma GPS', 'rastreo GPS', 'rastreo vehicular', 'monitoreo GPS',
     'GPS en tiempo real', 'seguridad vehicular', 'rastreador GPS',
-    'GPS para auto', 'GPS para camiones', 'GPS para trailers',
-    'GPS para motos', 'GPS para flotillas', 'GPS para uber',
+    'GPS para auto', 'GPS para motos', 'GPS para flotillas', 'GPS para uber',
     'botón de pánico GPS', 'alerta GPS robo de auto',
     'sistema GPS antirrobo', 'geocercas GPS', 'recuperación vehicular GPS',
     'GPS Teltonika', 'GPS Queclink', 'GPS Concox', 'GPS Cobán', 'GPS Sinotrack',
-    'GPS FMB920', 'GPS GT06N', 'GPS TK103',
+    'GPS FMB920', 'GPS FMC130', 'GPS GT06N', 'GPS TK103', 'GPS GV500',
     'localizador GPS para auto', 'localizador vehicular',
     'plataforma GPS México', 'rastreador vehicular México',
+    'cotizar gps para flotilla', 'cotizar rastreo satelital camiones',
     // ── English (US) ──
     'GPS tracking platform', 'vehicle GPS tracker', 'real-time GPS tracking',
     'GPS fleet management', 'vehicle theft alert', 'stolen car GPS recovery',
@@ -64,9 +76,9 @@ export const metadata: Metadata = {
     alternateLocale: 'en_US',
     url: SITE_URL,
     siteName: 'SilentEye',
-    title: 'SilentEye — Alerta de Robo Vehicular en 3 Segundos | Recuperación GPS México',
+    title: 'SilentEye — Rastreo Satelital y GPS para Camiones, Trailers y Flotillas | México',
     description:
-      'Te roban el auto y en 3 segundos todos los conductores en 2 km reciben la alerta con tu ubicación GPS en vivo. Plataforma GPS para autos, motos, camiones, trailers y flotillas. México.',
+      'Rastreo satelital y GPS para camiones, trailers y flotillas. Alerta de robo en 3 segundos a conductores cercanos. Sin central, sin llamada. Desde $79 MXN/mes. México.',
     images: [
       {
         url: '/opengraph-image',
@@ -79,9 +91,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'SilentEye — Alerta de Robo Vehicular en 3 Segundos | GPS México',
+    title: 'SilentEye — Rastreo Satelital GPS para Camiones y Flotillas | México',
     description:
-      'Oprimes un botón y en 3 segundos todos los conductores en 2 km reciben la alerta con tu ubicación en vivo. Recuperación vehicular automática para autos, motos, camiones y flotillas.',
+      'Rastreo satelital de camiones, trailers y flotillas. Alerta a la red en 3 segundos: sin central, sin llamada. Plataforma compatible con Teltonika, Queclink, Concox, Cobán y Sinotrack.',
     images: ['/opengraph-image'],
   },
   alternates: {

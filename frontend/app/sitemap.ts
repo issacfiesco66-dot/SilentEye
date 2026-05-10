@@ -53,6 +53,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
+      url: `${baseUrl}/rastreo-satelital-camiones`,
+      lastModified: '2026-05-09',
+      changeFrequency: 'monthly',
+      priority: 0.95,
+    },
+    {
+      url: `${baseUrl}/cotizar-flota`,
+      lastModified: '2026-05-09',
+      changeFrequency: 'monthly',
+      priority: 0.85,
+    },
+    {
       url: `${baseUrl}/login`,
       lastModified: '2026-03-01',
       changeFrequency: 'monthly',

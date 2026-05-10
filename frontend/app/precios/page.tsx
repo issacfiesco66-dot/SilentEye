@@ -164,7 +164,7 @@ export default function PreciosPage() {
                 </li>
               ))}
             </ul>
-            <Link href="/login" className="block w-full text-center px-4 py-2.5 text-sm font-semibold text-zinc-900 border-2 border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors">
+            <Link href="/cotizar-flota" className="block w-full text-center px-4 py-2.5 text-sm font-semibold text-zinc-900 border-2 border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors">
               Cotizar flotilla
             </Link>
           </div>
