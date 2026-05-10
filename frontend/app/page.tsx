@@ -113,6 +113,29 @@ export default function Home() {
                 {t.common.sosFull}
               </Link>
             </div>
+
+            {/* Audience segmentation — sends visitors to the right landing fast */}
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <span className="text-[12px] font-semibold text-zinc-400 uppercase tracking-wider">¿Qué proteges?</span>
+              <Link
+                href="/rastreo-satelital-camiones"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] font-medium text-zinc-700 bg-white border border-zinc-200 rounded-full hover:border-blue-300 hover:bg-blue-50/50 transition-colors"
+              >
+                Camiones / Trailers
+              </Link>
+              <Link
+                href="/cotizar-flota"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] font-medium text-zinc-700 bg-white border border-zinc-200 rounded-full hover:border-blue-300 hover:bg-blue-50/50 transition-colors"
+              >
+                Flotilla 4+ unidades
+              </Link>
+              <Link
+                href="/blog/mejor-gps-para-auto-mexico"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] font-medium text-zinc-700 bg-white border border-zinc-200 rounded-full hover:border-blue-300 hover:bg-blue-50/50 transition-colors"
+              >
+                Mi auto / moto
+              </Link>
+            </div>
           </div>
 
           {/* Hero visual — CSS art dashboard mockup */}
@@ -439,6 +462,55 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── B2B fleet banner: routes truck/fleet visitors to dedicated landing ── */}
+      <section className="px-6 py-16 md:py-20 bg-blue-50/40 border-y border-blue-100">
+        <div className="max-w-5xl mx-auto">
+          <div className="rounded-2xl bg-white border-2 border-blue-200 px-6 md:px-12 py-10 md:py-14 grid md:grid-cols-[1.4fr_1fr] gap-8 items-center">
+            <div>
+              <p className="text-[12px] font-bold text-blue-600 tracking-wider uppercase mb-3">
+                Para empresas de transporte y logística
+              </p>
+              <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-zinc-900 mb-3">
+                ¿Tienes una flota de camiones o trailers?
+              </h2>
+              <p className="text-zinc-600 leading-relaxed mb-5">
+                Página específica con calculadora de ROI, comparativa con
+                centrales tradicionales, GPS recomendados para carga pesada y
+                cotización por WhatsApp en 2 minutos. Sin login.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/rastreo-satelital-camiones"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Ver rastreo satelital para camiones
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </Link>
+                <Link
+                  href="/cotizar-flota"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-zinc-900 border-2 border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors"
+                >
+                  Cotizar mi flota
+                </Link>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { val: '$79', label: 'MXN/mes/unidad' },
+                { val: '<3s', label: 'Alerta a la red' },
+                { val: '0', label: 'Permanencia' },
+                { val: '24/7', label: 'Carretera' },
+              ].map((m) => (
+                <div key={m.label} className="rounded-xl bg-zinc-50 border border-zinc-200 p-4">
+                  <div className="text-xl md:text-2xl font-extrabold text-zinc-900 font-mono">{m.val}</div>
+                  <div className="text-[12px] text-zinc-500 mt-0.5">{m.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Final CTA ── */}
       <section className="px-6 pb-24 md:pb-32">
         <div className="max-w-7xl mx-auto">
@@ -501,6 +573,8 @@ export default function Home() {
                 <a href="#comparativa" className="block hover:text-zinc-900 transition-colors">{t.landing.footer.gpsComparison}</a>
                 <a href="#para-quien" className="block hover:text-zinc-900 transition-colors">{t.nav.forWhom}</a>
                 <a href="#dispositivos" className="block hover:text-zinc-900 transition-colors">{t.nav.compatibleGps}</a>
+                <Link href="/rastreo-satelital-camiones" className="block hover:text-zinc-900 transition-colors">Rastreo satelital camiones</Link>
+                <Link href="/cotizar-flota" className="block hover:text-zinc-900 transition-colors">Cotizar flota</Link>
                 <Link href="/comparar" className="block hover:text-zinc-900 transition-colors">{t.landing.footer.compareCompetitors}</Link>
                 <Link href="/zonas-riesgo" className="block hover:text-zinc-900 transition-colors">{t.landing.footer.riskZones}</Link>
                 <Link href="/socios" className="block hover:text-zinc-900 transition-colors">{t.landing.footer.partners}</Link>
