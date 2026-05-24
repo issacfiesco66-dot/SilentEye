@@ -165,7 +165,25 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'silenteye' });
 });
 
-app.get('/health/db', async (_req, res) => {
+// /health/db touches the database — unbounded traffic here can saturate the
+// 20-connection pool before any real request lands. Cap at 60/min/IP which
+// is plenty for monitoring tools (typical scrape interval is 15–60s) and
+// brutal for anyone trying to use the endpoint as a free DoS amplifier.
+const dbHealthRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: { error: 'too many requests' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const cfIp = req.headers['cf-connecting-ip'];
+    if (typeof cfIp === 'string') return cfIp;
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
+    return req.ip || req.socket?.remoteAddress || 'unknown';
+  },
+});
+app.get('/health/db', dbHealthRateLimit, async (_req, res) => {
   try {
     const { pool } = await import('./db/pool.js');
     await pool.query('SELECT 1');
@@ -206,6 +224,25 @@ const diagRateLimit = rateLimit({
     return req.ip || req.socket?.remoteAddress || 'unknown';
   },
 });
+// Optional IP allow-list for diag — if DIAG_ALLOW_IPS is set, the token
+// alone is not enough; the caller must also come from one of these IPs.
+// Use this when you can pin operator access to a known egress (Cloudflare
+// Tunnel, VPN, office IP) — combined with the token it becomes 2-factor.
+// Format: comma-separated literal IPs (no CIDR). Leave unset to keep
+// token-only access for ad-hoc triage from anywhere.
+function getDiagAllowedIps(): string[] {
+  return (process.env.DIAG_ALLOW_IPS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+function getCallerIp(req: express.Request): string {
+  const cfIp = req.headers['cf-connecting-ip'];
+  if (typeof cfIp === 'string') return cfIp;
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+}
 app.get('/health/diag', diagRateLimit, async (req, res) => {
   const expected = process.env.DIAG_TOKEN;
   const got = req.headers['x-diag-token'];
@@ -213,57 +250,27 @@ app.get('/health/diag', diagRateLimit, async (req, res) => {
     res.status(403).json({ error: 'forbidden' });
     return;
   }
+  const allowedIps = getDiagAllowedIps();
+  if (allowedIps.length > 0 && !allowedIps.includes(getCallerIp(req))) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
+  // Minimal operational payload only. Previously we returned the full table
+  // inventory, row counts, and auth-mode flags — that gave anyone with the
+  // DIAG_TOKEN a complete map of the production database and the current
+  // security posture. We now return only liveness and the metrics needed to
+  // confirm the process is healthy. Need more detail? Add a dedicated
+  // admin-authenticated endpoint that requires a real JWT instead of a
+  // long-lived shared secret.
   try {
     const { pool } = await import('./db/pool.js');
-    const { getGeeDiagnostics } = await import('./services/gee-service.js');
-    const { isStrictCookieAuth, isStripTokenFromBody } = await import('./api/auth.js');
-
-    // Verify critical tables exist
-    const tableCheck = await pool.query(`
-      SELECT
-        to_regclass('public.face_detections') AS face_detections,
-        to_regclass('public.incident_media') AS incident_media,
-        to_regclass('public.face_hidden_by') AS face_hidden_by,
-        to_regclass('public.suspects') AS suspects,
-        to_regclass('public.suspect_sightings') AS suspect_sightings,
-        to_regclass('public.token_blacklist') AS token_blacklist,
-        to_regclass('public.audit_log') AS audit_log,
-        to_regclass('public.incidents') AS incidents,
-        to_regclass('public.vehicles') AS vehicles,
-        to_regclass('public.users') AS users
-    `);
-    const tables = tableCheck.rows[0] || {};
-
-    // Row counts for the tables we actually care about
-    const faceCount = await pool.query('SELECT COUNT(*) FROM face_detections');
-    const mediaCount = await pool.query('SELECT COUNT(*) FROM incident_media');
-    const incidentCount = await pool.query('SELECT COUNT(*) FROM incidents');
-
+    const dbOk = await pool.query('SELECT 1').then(() => true).catch(() => false);
     res.json({
       ok: true,
       timestamp: new Date().toISOString(),
-      auth: {
-        strictCookie: isStrictCookieAuth(),
-        stripBody: isStripTokenFromBody(),
-      },
-      gee: getGeeDiagnostics(),
-      tables: {
-        face_detections: !!tables.face_detections,
-        incident_media: !!tables.incident_media,
-        face_hidden_by: !!tables.face_hidden_by,
-        suspects: !!tables.suspects,
-        suspect_sightings: !!tables.suspect_sightings,
-        token_blacklist: !!tables.token_blacklist,
-        audit_log: !!tables.audit_log,
-        incidents: !!tables.incidents,
-        vehicles: !!tables.vehicles,
-        users: !!tables.users,
-      },
-      counts: {
-        face_detections: parseInt(faceCount.rows[0]?.count || '0', 10),
-        incident_media: parseInt(mediaCount.rows[0]?.count || '0', 10),
-        incidents: parseInt(incidentCount.rows[0]?.count || '0', 10),
-      },
+      db: dbOk ? 'connected' : 'disconnected',
+      ws: { clients: getWebSocketClientCount().total },
+      uptimeSec: Math.floor(process.uptime()),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

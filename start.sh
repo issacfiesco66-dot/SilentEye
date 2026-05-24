@@ -29,15 +29,21 @@ start_node &
 NODE_PID=$!
 
 if [ -n "$NGROK_AUTHTOKEN" ]; then
-  sleep 5
-  echo "[start.sh] Starting ngrok tunnel ..."
-  if [ -n "$NGROK_TCP_URL" ]; then
-    ngrok tcp 5000 --url "$NGROK_TCP_URL" --log=stdout &
+  if ! command -v ngrok >/dev/null 2>&1; then
+    echo "[start.sh] WARN: NGROK_AUTHTOKEN is set but ngrok binary is not present."
+    echo "[start.sh] WARN: Image was built with --build-arg INSTALL_NGROK=false."
+    echo "[start.sh] WARN: Either unset NGROK_AUTHTOKEN or rebuild without the flag."
   else
-    ngrok tcp 5000 --log=stdout &
+    sleep 5
+    echo "[start.sh] Starting ngrok tunnel ..."
+    if [ -n "$NGROK_TCP_URL" ]; then
+      ngrok tcp 5000 --url "$NGROK_TCP_URL" --log=stdout &
+    else
+      ngrok tcp 5000 --log=stdout &
+    fi
+    NGROK_PID=$!
+    echo "[start.sh] ngrok started (PID $NGROK_PID) — node continues regardless"
   fi
-  NGROK_PID=$!
-  echo "[start.sh] ngrok started (PID $NGROK_PID) — node continues regardless"
 fi
 
 wait $NODE_PID

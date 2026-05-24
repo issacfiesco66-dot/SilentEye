@@ -40,7 +40,7 @@ function tokenForBody(token: string): string | undefined {
 import { getAlerts, deleteAlerts } from '../services/alert-service.js';
 import { broadcastLocation, broadcastPanic, broadcastIncidentUpdate, broadcastToAdmins } from '../services/websocket.js';
 import { sendPushToUsers, saveSubscription, removeSubscription, getVapidPublicKey } from '../services/push-service.js';
-import { sendEmail, sendOtpEmail, isEmailEnabled, sendHelperRespondingEmail, sendIncidentResolvedEmail, sendWitnessRequestEmail } from '../services/email-service.js';
+import { sendEmail, sendOtpEmail, isEmailEnabled, sendHelperRespondingEmail, sendIncidentResolvedEmail, sendWitnessRequestEmail, escapeHtml } from '../services/email-service.js';
 import { sendOtpSms, isSmsEnabled } from '../services/sms-service.js';
 import { logger } from '../utils/logger.js';
 import { t } from '../i18n.js';
@@ -201,6 +201,25 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 function isValidUuid(id: string): boolean {
   return typeof id === 'string' && UUID_REGEX.test(id);
 }
+
+// Router-level guard: every route with `:id` in its path gets this check
+// before its handler runs. Rejects non-UUID inputs at the boundary so
+// Postgres never sees a malformed string, the database driver never wastes
+// a connection on it, and our logs aren't polluted with type-cast errors
+// (SQLSTATE 22P02). Routes that already had inline `isValidUuid(id)` checks
+// remain — they're now redundant but harmless and act as belt-and-braces.
+//
+// IMPORTANT: this only fires for the literal param name `id`. Other UUID-
+// shaped params (e.g. `:userId`, `:incidentId`) are still validated inline.
+// If you add a new path with `:id` that does NOT carry a UUID (e.g. a
+// numeric counter or a slug), rename the param to avoid this guard.
+api.param('id', (req, res, next, id) => {
+  if (!isValidUuid(id)) {
+    res.status(400).json({ error: 'Invalid ID format' });
+    return;
+  }
+  next();
+});
 
 // ── Permissions: maps internal role → capabilities (frontend never sees role names) ──
 interface Permissions {
@@ -2928,22 +2947,37 @@ api.get('/prospects/demo/:slug', prospectDemoRateLimit, asyncHandler(async (req,
       timestamp: new Date().toISOString(),
     });
 
-    // Send email alert to admin (fire-and-forget)
+    // Send email alert to admin (fire-and-forget).
+    // SECURITY: every dynamic field passes through escapeHtml() because
+    // prospect data originates from operator input or SerpAPI/Google Maps
+    // (POST /prospects/bulk-ingest) which is untrusted. Without escaping a
+    // prospect named `<img src=x onerror=...>` becomes stored-XSS in the
+    // admin's mail client. Phone goes into a tel: href — we additionally
+    // strip to digits/plus before injecting to neutralise quote-breakout.
     const adminResult = await pool.query("SELECT email FROM users WHERE role = 'admin' AND email IS NOT NULL LIMIT 1");
     if (adminResult.rows[0]?.email && isEmailEnabled()) {
       const adminEmail = adminResult.rows[0].email;
+      const safeRazonSocial = escapeHtml(p.razon_social || 'Sin nombre');
+      const safeFolio = escapeHtml(p.folio);
+      const safeVistas = escapeHtml(p.vistas_demo);
+      const safeUbicacion = escapeHtml(p.ubicacion_patio || 'Sin ubicación');
+      const telDigits = typeof p.telefono_whatsapp === 'string'
+        ? p.telefono_whatsapp.replace(/[^+\d]/g, '')
+        : '';
+      const safeTelHref = encodeURIComponent(telDigits);
+      const safeTelDisplay = escapeHtml(telDigits);
       sendEmail(
         adminEmail,
-        `⚠️ ${p.razon_social} ESTÁ VIENDO EL MONITOREO AHORA`,
+        `⚠️ ${safeRazonSocial} ESTÁ VIENDO EL MONITOREO AHORA`,
         `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:0 auto;padding:32px 24px;background:#0a0a0a;color:#fff;border-radius:12px">
           <div style="text-align:center;margin-bottom:24px">
             <span style="display:inline-block;background:#dc2626;color:#fff;font-weight:900;font-size:13px;padding:6px 16px;border-radius:20px;letter-spacing:1px">⚠️ ALERTA PROSPECT</span>
           </div>
-          <h2 style="margin:0 0 8px;font-size:20px;font-weight:800;color:#fff">El gerente de ${p.razon_social} está viendo el monitoreo AHORA</h2>
-          <p style="color:#a1a1aa;font-size:14px;margin:0 0 20px">Folio: ${p.folio} · Vista #${p.vistas_demo} · ${p.ubicacion_patio || 'Sin ubicación'}</p>
+          <h2 style="margin:0 0 8px;font-size:20px;font-weight:800;color:#fff">El gerente de ${safeRazonSocial} está viendo el monitoreo AHORA</h2>
+          <p style="color:#a1a1aa;font-size:14px;margin:0 0 20px">Folio: ${safeFolio} · Vista #${safeVistas} · ${safeUbicacion}</p>
           <div style="background:#18181b;border:1px solid #dc2626;border-radius:8px;padding:16px;text-align:center;margin-bottom:20px">
             <p style="color:#fca5a5;font-size:24px;font-weight:900;margin:0">Llama en 3 minutos</p>
-            ${p.telefono_whatsapp ? `<a href="tel:${p.telefono_whatsapp}" style="display:inline-block;margin-top:12px;background:#22c55e;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px">📞 Llamar a ${p.telefono_whatsapp}</a>` : '<p style="color:#71717a;font-size:13px;margin:8px 0 0">Sin teléfono registrado</p>'}
+            ${telDigits ? `<a href="tel:${safeTelHref}" style="display:inline-block;margin-top:12px;background:#22c55e;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px">📞 Llamar a ${safeTelDisplay}</a>` : '<p style="color:#71717a;font-size:13px;margin:8px 0 0">Sin teléfono registrado</p>'}
           </div>
           <p style="color:#52525b;font-size:11px;text-align:center;margin:0">SilentEye — Sistema de Prospección Automatizada</p>
         </div>`

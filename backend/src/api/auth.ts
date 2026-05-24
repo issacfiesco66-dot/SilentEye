@@ -45,47 +45,58 @@ export async function createOtp(phone: string): Promise<string> {
 }
 
 export async function verifyOtp(phone: string, code: string): Promise<{ valid: boolean; user: { id: string; phone: string; name: string; role: string; email: string | null; plan: string } | null; error?: string }> {
-  // Brute-force protection (graceful: skip if 'attempts' column doesn't exist yet)
+  // Single atomic UPDATE: increment attempts AND validate code in the same
+  // statement, so concurrent requests cannot bypass MAX_OTP_ATTEMPTS by
+  // racing between the check and the validate. Postgres serialises UPDATEs
+  // on the same row, so the +1 and the CASE see consistent state.
+  //
+  // The CASE compares against (old attempts + 1) because the SET expressions
+  // all evaluate on the OLD row — so we predict the new attempt count
+  // inline. A row is marked `used = true` only when the code matches AND
+  // the post-increment attempt count is still within the limit.
+  //
+  // Legacy fallback: if migration 00X that added the `attempts` column has
+  // not run yet (error code 42703), retry without brute-force protection.
+  let result;
   let hasAttemptsCol = true;
   try {
-    const attempts = await pool.query(
-      `SELECT COUNT(*)::int as cnt FROM otp_codes
-       WHERE phone = $1 AND NOT used AND expires_at > NOW() AND attempts >= $2`,
-      [phone, MAX_OTP_ATTEMPTS]
-    );
-    if ((attempts.rows[0]?.cnt ?? 0) > 0) {
-      logger.warn(`OTP bloqueado por intentos excesivos: ***${phone.slice(-4)}`);
-      return { valid: false, user: null, error: 'Too many attempts / Demasiados intentos' };
-    }
-    await pool.query(
-      `UPDATE otp_codes SET attempts = COALESCE(attempts, 0) + 1
-       WHERE phone = $1 AND NOT used AND expires_at > NOW()`,
-      [phone]
+    result = await pool.query(
+      `UPDATE otp_codes
+       SET attempts = COALESCE(attempts, 0) + 1,
+           used = CASE
+             WHEN code = $2 AND COALESCE(attempts, 0) + 1 <= $3 THEN true
+             ELSE used
+           END
+       WHERE phone = $1 AND NOT used AND expires_at > NOW()
+       RETURNING id, used, COALESCE(attempts, 0) AS attempts`,
+      [phone, code, MAX_OTP_ATTEMPTS]
     );
   } catch (e: unknown) {
     const err = e as { code?: string };
-    if (err?.code === '42703') {
-      // Column "attempts" does not exist — skip brute-force protection
-      hasAttemptsCol = false;
-    } else {
-      throw e;
-    }
+    if (err?.code !== '42703') throw e;
+    hasAttemptsCol = false;
+    result = await pool.query(
+      `UPDATE otp_codes SET used = true
+       WHERE phone = $1 AND code = $2 AND expires_at > NOW() AND NOT used
+       RETURNING id, used`,
+      [phone, code]
+    );
   }
 
-  const result = hasAttemptsCol
-    ? await pool.query(
-        `UPDATE otp_codes SET used = true
-         WHERE phone = $1 AND code = $2 AND expires_at > NOW() AND NOT used AND COALESCE(attempts, 0) <= $3
-         RETURNING id`,
-        [phone, code, MAX_OTP_ATTEMPTS]
-      )
-    : await pool.query(
-        `UPDATE otp_codes SET used = true
-         WHERE phone = $1 AND code = $2 AND expires_at > NOW() AND NOT used
-         RETURNING id`,
-        [phone, code]
-      );
-  if (result.rowCount === 0) return { valid: false, user: null };
+  const consumed = result.rows.find((r: { used?: boolean }) => r.used === true);
+  if (!consumed) {
+    // Distinguish "too many attempts" (any row already past the limit) from
+    // "wrong code" so the caller can show a clearer message and we can warn
+    // operators that someone is brute-forcing.
+    if (hasAttemptsCol) {
+      const blocked = result.rows.some((r: { attempts?: number }) => (r.attempts ?? 0) > MAX_OTP_ATTEMPTS);
+      if (blocked) {
+        logger.warn(`OTP bloqueado por intentos excesivos: ***${phone.slice(-4)}`);
+        return { valid: false, user: null, error: 'Too many attempts / Demasiados intentos' };
+      }
+    }
+    return { valid: false, user: null };
+  }
 
   // Look up user by phone OR by email (for citizen email login)
   let userResult = await pool.query(

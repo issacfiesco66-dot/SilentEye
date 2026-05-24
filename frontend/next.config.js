@@ -27,7 +27,7 @@ module.exports = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://unpkg.com https://earthengine.googleapis.com https://*.earthengine.googleapis.com blob:",
               "font-src 'self'",
-              "connect-src 'self' https://silenteye-3rrwnq.fly.dev wss://silenteye-3rrwnq.fly.dev https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://nominatim.openstreetmap.org https://earthengine.googleapis.com https://*.earthengine.googleapis.com",
+              "connect-src 'self' https://api.silenteye.mx wss://api.silenteye.mx https://silenteye-3rrwnq.fly.dev wss://silenteye-3rrwnq.fly.dev https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://nominatim.openstreetmap.org https://earthengine.googleapis.com https://*.earthengine.googleapis.com",
               "frame-ancestors 'none'",
             ].join('; '),
           },
